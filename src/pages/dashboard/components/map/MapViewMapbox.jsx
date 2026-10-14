@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Map, Marker, Popup } from 'react-map-gl/mapbox';
+import { Map, Marker, Popup, Source, Layer } from 'react-map-gl/mapbox';
 import { MAPBOX_TOKEN } from '../../../../config/mapStyles';
+import { CountryFocusLayer } from './CountryFocusLayer';
 import { activerGestesCooperatifs } from '../../../../utils/gestesCarte';
 
 /**
@@ -26,6 +27,7 @@ export const MapViewMapbox = ({
   getMarkerColorClass,
   translateEtat,
   openModal,
+  focusIso,
 }) => {
   // react-map-gl v8 ne transmet pas cooperativeGestures a mapbox-gl :
   // on l'active nous-memes apres coup. Voir utils/gestesCarte.
@@ -61,6 +63,14 @@ export const MapViewMapbox = ({
       maxZoom={18}
       onMoveEnd={onMoveEnd}
     >
+      <CountryFocusLayer
+        Source={Source}
+        Layer={Layer}
+        carteRef={carteRef}
+        iso={focusIso}
+        vueParDefaut={initialViewState}
+      />
+
       {!isMapLoading &&
         incidentGroups.map((group) => {
           const principal = group.incidents[0];
