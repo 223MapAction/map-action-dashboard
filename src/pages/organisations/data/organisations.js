@@ -29,11 +29,11 @@ export const TYPES = [
 ];
 
 export const COUNTRIES = [
-  { fr: 'Mali', en: 'mali' },
-  { fr: 'Sénégal', en: 'senegal' },
-  { fr: 'Guinée', en: 'guinea' },
-  { fr: 'Burkina Faso', en: 'burkina_faso' },
-  { fr: 'Niger', en: 'niger' },
-  { fr: 'Côte d\'Ivoire', en: "cote_divoire" },
-  { fr: 'Mauritanie', en: 'mauritania' },
+  { fr: 'Mali', en: 'mali', iso: 'MLI' },
+  { fr: 'Sénégal', en: 'senegal', iso: 'SEN' },
+  { fr: 'Guinée', en: 'guinea', iso: 'GIN' },
+  { fr: 'Burkina Faso', en: 'burkina_faso', iso: 'BFA' },
+  { fr: 'Niger', en: 'niger', iso: 'NER' },
+  { fr: 'Côte d\'Ivoire', en: "cote_divoire", iso: 'CIV' },
+  { fr: 'Mauritanie', en: 'mauritania', iso: 'MRT' },
 ];

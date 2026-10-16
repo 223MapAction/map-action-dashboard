@@ -1031,6 +1031,7 @@ export const MapContainer = () => {
               getMarkerColorClass={getMarkerColorClass}
               translateEtat={translateEtat}
               openModal={openModal}
+              focusIso={COUNTRIES.find((country) => country.en === countryFilter)?.iso}
             />
           );
         })()}
