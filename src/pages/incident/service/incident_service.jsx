@@ -270,8 +270,30 @@ export const togglePublicIncidentService = async (incidentId) => {
 };
 
 /**
+ * Relance l'analyse IA (prédiction) d'un incident.
+ *
+ * Réservé aux super admins côté backend (IsSuperAdmin) — l'incident doit
+ * avoir une photo, sinon l'API renvoie 400.
+ * @param {string} incidentId - UUID de l'incident
+ * @returns {Promise<Object>} - Prediction (statut repassé à "pending")
+ */
+export const retryIncidentPredictionService = async (incidentId) => {
+  try {
+    const axios = authService.createAuthenticatedAxios();
+    const response = await axios.post(
+      `${API_URL_BASE}/MapApi/${INCIDENTS_URL}/${incidentId}/prediction/retry/`
+    );
+
+    return response.data;
+  } catch (error) {
+    logger.error('[Incident] Erreur relance prédiction:', error.response?.status, error.response?.data);
+    throw error?.response?.data || error;
+  }
+};
+
+/**
  * Récupère les assignations d'incident a un agents
- * @returns {Promise<Array>} 
+ * @returns {Promise<Array>}
  */
 export const getAssignIncidentToAgentService = async (incidentId = null, data = null) => {
   try {
@@ -511,6 +533,7 @@ export default {
   getIncidentsByCategoryService,
   getOrgIncidentsService,
   togglePublicIncidentService,
+  retryIncidentPredictionService,
   assignIncidentToAgentService,
   getIncidentAssignmentsService,
   takeInChargeIncidentService,

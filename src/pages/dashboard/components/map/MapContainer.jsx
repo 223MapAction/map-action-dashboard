@@ -66,6 +66,11 @@ import { logger } from '../../../../utils/logger';
 const DEFAULT_MALI_LAT = 12.65;
 const DEFAULT_MALI_LNG = -8.0;
 
+// Taille de page côté front uniquement (l'API garde son propre défaut/plafond).
+// Le front boucle sur `next` jusqu'à épuisement, donc cette valeur ne fait
+// qu'ajuster le nombre d'aller-retours, pas ce qui finit par s'afficher.
+const MAP_PAGE_SIZE = 30;
+
 const INCIDENT_STATUS_STEPS = [
   {
     id: 'declared',
@@ -474,9 +479,7 @@ export const MapContainer = () => {
     isLoading: isLoadingPage,
   } = useSWR(
     ownershipFilter === 'mine'
-      ? currentPage === 1
-        ? '/org-incidents'
-        : null
+      ? `/org-incidents-page-${currentPage}`
       : `/map-incidents-${scope}-${
           countryFilter || 'all'
         }-page-${currentPage}`,
@@ -486,18 +489,25 @@ export const MapContainer = () => {
        * Cas "Mes signalements".
        *
        * Ce service retourne déjà les incidents
-       * de l'organisation/utilisateur.
+       * de l'organisation/utilisateur, mais doit
+       * être paginé comme les autres scopes pour
+       * que toutes les pages finissent par être
+       * récupérées (voir boucle d'auto-chargement
+       * plus bas).
        */
       if (
         ownershipFilter === 'mine'
       ) {
-        return getOrgInternalIncidentsService();
+        return getOrgInternalIncidentsService({
+          page: currentPage,
+          page_size: MAP_PAGE_SIZE,
+        });
       }
 
       const params = {
         scope,
         page: currentPage,
-        page_size: 30,
+        page_size: MAP_PAGE_SIZE,
       };
 
       if (countryFilter) {
@@ -565,13 +575,36 @@ export const MapContainer = () => {
           ];
         });
 
+        // `next` reflète fidèlement l'état réel de la pagination API,
+        // quel que soit le scope (y compris "mine").
+        const nextPageAvailable =
+          Boolean(data?.next);
+
         setHasMorePages(
-          ownershipFilter === 'mine'
-            ? false
-            : Boolean(data?.next)
+          nextPageAvailable
         );
 
         setIsLoadingMore(false);
+
+        /**
+         * Auto-chargement de toutes les pages.
+         *
+         * On ne touche à rien côté API : elle garde sa pagination
+         * telle quelle. Mais côté front, dès qu'une page arrive et
+         * qu'il en reste, on enchaîne tout de suite sur la suivante,
+         * pour que tous les incidents finissent par apparaître sur
+         * la carte sans action de l'utilisateur (pas besoin de
+         * déplacer la carte ni de cliquer sur "Charger plus").
+         *
+         * On avance uniquement après un SUCCÈS : si une page échoue
+         * (onError ci-dessous), on n'avance pas dessus tout seul —
+         * l'utilisateur peut relancer via le bouton "Charger plus".
+         */
+        if (nextPageAvailable) {
+          setCurrentPage(
+            (previous) => previous + 1
+          );
+        }
       },
 
       onError: (error) => {

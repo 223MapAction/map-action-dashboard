@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SearchNormal1 } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerTitle, ShimmerText, ShimmerCircularImage } from 'react-shimmer-effects';
-import { Eye, Edit2, Trash } from 'iconsax-react';
+import { Eye, Edit2, Trash, Refresh2 } from 'iconsax-react';
 import { BlurryImage } from '../../../../components/atoms/BlurryImage';
 import { useIncidentModalContext } from '../../modale/IncidentModalContext';
 import { authService } from '../../../auth/services/authService';
 import { isSuperAdmin as checkSuperAdmin, getAccessibleNavIds } from '../../../../utils/permissions';
+import { retryIncidentPredictionService } from '../../service/incident_service';
+import { logger } from '../../../../utils/logger';
 import Pagination from '../../../../components/molecules/Pagination';
 import { ResponsiveTable } from '../../../../components/molecules/ResponsiveTable';
 import { FiltersBar } from '../../../../components/molecules/FiltersBar';
@@ -38,6 +40,37 @@ export const IncidentList = ({
 
   const myOrgId = user?.organisation_member;
   const myOrgName = user?.organisation_name || 'Mon Organisation';
+
+  // ── Relance de prédiction IA (super admin uniquement) ─────────────────────
+  const [retryingIds, setRetryingIds] = useState(() => new Set());
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message) => {
+    setToast({ message, id: Date.now() });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleRetryPrediction = async (incident) => {
+    if (retryingIds.has(incident.id)) return;
+
+    setRetryingIds((previous) => new Set(previous).add(incident.id));
+
+    try {
+      await retryIncidentPredictionService(incident.id);
+      showToast(`Analyse IA relancée pour « ${incident.title || 'cet incident'} ».`);
+    } catch (error) {
+      logger.error('[IncidentList] Erreur relance prédiction:', error);
+      const message =
+        error?.error || error?.detail || "Impossible de relancer l'analyse (photo manquante ?).";
+      showToast(message);
+    } finally {
+      setRetryingIds((previous) => {
+        const next = new Set(previous);
+        next.delete(incident.id);
+        return next;
+      });
+    }
+  };
 
   // Le filtre par statut est desormais applique par le serveur (parametre
   // `etat`), donc sur l'ensemble du jeu de donnees. Le refaire ici ne
@@ -115,6 +148,14 @@ export const IncidentList = ({
                                 {incident.coordinates.lat.toFixed(3)}, {incident.coordinates.lng.toFixed(3)}
                               </div>
                             )}
+        </span>
+      ),
+    },
+    {
+      id: 'rapporteur', entete: 'Signalé par', priorite: 'detail',
+      rendu: (incident) => (
+        <span className="incident-table-cell-text">
+          {incident.user_full_name || 'Non spécifié'}
         </span>
       ),
     },
@@ -271,6 +312,15 @@ export const IncidentList = ({
                                     icon: Edit2,
                                     onSelect: () => openAssignModal(incident),
                                   },
+                                  isSuperAdmin && {
+                                    id: 'retry-prediction',
+                                    label: retryingIds.has(incident.id)
+                                      ? 'Relance en cours…'
+                                      : "Relancer l'analyse IA",
+                                    icon: Refresh2,
+                                    disabled: retryingIds.has(incident.id),
+                                    onSelect: () => handleRetryPrediction(incident),
+                                  },
                                   !isAdmin && {
                                     id: 'delete',
                                     label: "Supprimer l'incident",
@@ -348,6 +398,12 @@ export const IncidentList = ({
           onChange={setPage}
         />
       </div>
+
+      {toast && (
+        <div className="incident-list-toast" role="status">
+          {toast.message}
+        </div>
+      )}
     </section>
   );
 };

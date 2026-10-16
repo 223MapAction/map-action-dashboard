@@ -489,6 +489,26 @@
 }
 
 /* ============================================
+   TOAST (relance de prédiction, etc.)
+   ============================================ */
+.incident-list-toast {
+  position: fixed;
+  bottom: var(--spacing-6);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--spacing-3) var(--spacing-5);
+  background-color: var(--color-text-primary);
+  color: var(--color-surface);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-body-small);
+  font-weight: var(--font-weight-medium);
+  box-shadow: var(--shadow-lg);
+  z-index: 2000;
+  max-width: min(90vw, 480px);
+  text-align: center;
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 @media (max-width: 1023.98px) {
