@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { titreIncident } from '../../../../../utils/titreIncident';
 import useSWRInfinite from 'swr/infinite';
 import debounce from 'lodash.debounce';
 import { useIncidentDetail } from '../IncidentDetailContext';
@@ -174,9 +175,10 @@ export const InviteOrgModal = () => {
     <OffcanvasModal
       onClose={closeJoinModal}
       isClosing={Boolean(joinClosing)}
-      title={safeIncident.isOwner || hasAcceptedRole ? 'Inviter des organisations' : "Rejoindre l'action"}
-      subtitle={safeIncident.title}
-      ariaLabel={safeIncident.isOwner || hasAcceptedRole ? 'Inviter des organisations' : "Rejoindre l'action"}
+      className="vd-agir"
+      title={safeIncident.isOwner || hasAcceptedRole ? 'Inviter des organisations' : safeIncident?.etat === 'declared' ? 'Agir sur ce signalement' : "Rejoindre l'action"}
+      subtitle={titreIncident(safeIncident)}
+      ariaLabel={safeIncident.isOwner || hasAcceptedRole ? 'Inviter des organisations' : safeIncident?.etat === 'declared' ? 'Agir sur ce signalement' : "Rejoindre l'action"}
       closeVariant="plain"
     >
 
@@ -394,12 +396,13 @@ export const InviteOrgModal = () => {
           )}
 
           {/* Section Inviter des organisations - pour le propriétaire ou les contributeurs acceptés */}
-          {(safeIncident.isOwner || hasAcceptedRole) && (
+          {(safeIncident.isOwner || hasAcceptedRole || (safeIncident?.etat === 'declared' && workMode === 'collaboration' && selfRole === 'leader')) && (
             <div className={`invite-orgs-section ${safeIncident.isOwner ? 'is-owner' : ''}`}>
               <div className="invite-orgs-header">
                 <div>
                   <label className="join-modal-label">
                     Inviter des organisations
+                    {!(safeIncident.isOwner || hasAcceptedRole) && <span className="join-modal-optional"> (facultatif)</span>}
                   </label>
                   <p className="join-modal-help">
                     Invitez d'autres organisations à participer et attribuez-leur un rôle.
@@ -628,11 +631,13 @@ export const InviteOrgModal = () => {
             ) : (
               <>
                 {safeIncident.isOwner || hasAcceptedRole
-                  ? 'Envoyer les invitations'
-                  : selfRole === 'leader'
-                    ? 'Être impliqué'
-                    : 'Demander à être impliqué'
-                }
+                    ? `Envoyer ${invitedOrgs.length > 1 ? `les ${invitedOrgs.length} invitations` : "l'invitation"}`
+                    : safeIncident?.etat === 'declared' && workMode === 'interne'
+                      ? 'Prendre en charge'
+                      : selfRole === 'leader'
+                        ? (invitedOrgs.length ? `Lancer et inviter ${invitedOrgs.length} organisation${invitedOrgs.length > 1 ? 's' : ''}` : 'Lancer la collaboration')
+                        : 'Demander à être impliqué'
+                  }
               </>
             )}
           </button>
