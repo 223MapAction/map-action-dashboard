@@ -787,7 +787,7 @@ export const Impact = () => {
                                 <div className="impact-incident-meta-inline">
                                   {pred && (
                                     <>
-                                      <div className="impact-card-metric text-primary">
+                                      <div className="impact-card-metric impact-metric-primary">
                                         <People size={13} variant="Bold" color="var(--color-primary-text)" />
                                         <strong>
                                           {(pred.direct?.total_population_exposed || pred.total_population_exposed || 0).toLocaleString('fr-FR')}
@@ -795,7 +795,7 @@ export const Impact = () => {
                                         <span>directs</span>
                                       </div>
 
-                                      <div className="impact-card-metric text-purple">
+                                      <div className="impact-card-metric impact-metric-purple">
                                         <Profile2User size={13} variant="Bold" color="var(--color-accent-text)" />
                                         <strong>
                                           {(pred.indirect?.total_population_exposed || pred.potential_risk?.stats?.total_pop || 0).toLocaleString('fr-FR')}
@@ -804,7 +804,7 @@ export const Impact = () => {
                                       </div>
 
                                       {areaHa > 0 && (
-                                        <div className="impact-card-metric text-success">
+                                        <div className="impact-card-metric impact-metric-success">
                                           <Tree size={13} variant="Bold" color="var(--color-success-text)" />
                                           <strong>{areaHa.toFixed(1)}</strong>
                                           <span>ha impactés</span>

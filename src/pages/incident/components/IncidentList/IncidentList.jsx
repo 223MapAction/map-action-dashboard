@@ -74,9 +74,9 @@ export const IncidentList = ({
           <span className="incident-table-title">
             {incident.title || 'Sans titre'}
             {incident.isOwner ? (
-              <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-primary-text)', color: 'white', borderRadius: '4px' }}>Moi</span>
+              <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-primary-text)', color: 'var(--color-surface)', borderRadius: '4px' }}>Moi</span>
             ) : incident.takenBy ? (
-              <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-text-muted)', color: 'white', borderRadius: '4px' }}>Autre</span>
+              <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-text-muted)', color: 'var(--color-surface)', borderRadius: '4px' }}>Autre</span>
             ) : null}
           </span>
           {incident.description
@@ -95,9 +95,9 @@ export const IncidentList = ({
                                 <span className="incident-table-title">
                                   {incident.title || 'Sans titre'}
                                   {incident.isOwner ? (
-                                    <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-primary-text)', color: 'white', borderRadius: '4px' }}>Moi</span>
+                                    <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-primary-text)', color: 'var(--color-surface)', borderRadius: '4px' }}>Moi</span>
                                   ) : incident.takenBy ? (
-                                    <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-text-muted)', color: 'white', borderRadius: '4px' }}>Autre</span>
+                                    <span className="incident-owner-tag" style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 6px', background: 'var(--color-text-muted)', color: 'var(--color-surface)', borderRadius: '4px' }}>Autre</span>
                                   ) : null}
                                 </span>
                                 <span className="incident-table-subtitle">{incident.description?.substring(0, 50)}...</span>

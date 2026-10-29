@@ -429,7 +429,7 @@ export const Organisations = () => {
                   <p className="orgs-subtitle">Gérez les organisations partenaires de Map Action.</p>
                 </div>
                 <button className="orgs-add-btn" onClick={openCreate}>
-                  <Add size={18} color='white' />
+                  <Add size={18} color='var(--color-surface)' />
                   Nouvelle organisation
                 </button>
               </div>

@@ -129,13 +129,13 @@ const IncidentAgentsStack = ({ incident }) => {
             height: '28px',
             borderRadius: '50%',
             backgroundColor: agent.avatarColor,
-            color: 'white',
+            color: 'var(--color-surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: '600',
             fontSize: 'var(--font-size-micro)',
-            border: '2px solid white',
+            border: '2px solid var(--color-surface)',
             marginLeft: index > 0 ? '-8px' : '0',
 
             boxShadow: 'var(--shadow-sm)'
@@ -157,7 +157,7 @@ const IncidentAgentsStack = ({ incident }) => {
             justifyContent: 'center',
             fontWeight: '600',
             fontSize: 'var(--font-size-micro)',
-            border: '2px solid white',
+            border: '2px solid var(--color-surface)',
             marginLeft: '-8px',
             zIndex: 1
           }}

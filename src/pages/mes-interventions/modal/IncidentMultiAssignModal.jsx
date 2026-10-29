@@ -179,7 +179,7 @@ export const IncidentMultiAssignModal = () => {
                               height: '36px',
                               borderRadius: '50%',
                               backgroundColor: agent.avatarColor,
-                              color: 'white',
+                              color: 'var(--color-surface)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',

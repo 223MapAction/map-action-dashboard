@@ -952,17 +952,17 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.text-primary {
+.impact-metric-primary {
   background-color: rgba(var(--rgb-primary), 0.1);
   color: var(--color-primary-text);
 }
 
-.text-purple {
+.impact-metric-purple {
   background-color: rgba(var(--rgb-primary-dark), 0.1);
   color: var(--color-primary-dark);
 }
 
-.text-success {
+.impact-metric-success {
   background-color: rgba(var(--rgb-success), 0.1);
   color: var(--color-success-text);
 }

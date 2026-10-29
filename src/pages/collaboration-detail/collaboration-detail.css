@@ -1390,7 +1390,7 @@
   .modal.tasks-modal-bootstrap .modal-header {
     position: sticky;
     top: 0;
-    background: white;
+    background: var(--color-surface);
     z-index: 10;
     border-bottom: 1px solid var(--color-border);
   }
@@ -1398,7 +1398,7 @@
   .modal.tasks-modal-bootstrap .modal-footer {
     position: sticky;
     bottom: 0;
-    background: white;
+    background: var(--color-surface);
     z-index: 10;
     border-top: 1px solid var(--color-border);
     box-shadow: 0 -2px 10px rgba(var(--rgb-ombre), 0.05);

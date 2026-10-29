@@ -399,7 +399,7 @@ export const IncidentAssignModal = () => {
                               height: '36px',
                               borderRadius: '50%',
                               backgroundColor: isAlreadyAssigned ? 'var(--color-text-muted)' : agent.avatarColor,
-                              color: 'white',
+                              color: 'var(--color-surface)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
