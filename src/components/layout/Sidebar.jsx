@@ -6,17 +6,13 @@ import {
   Element4,
   Briefcase, Award, Trash, Buildings2, Profile2User, Lock1
 } from 'iconsax-react';
-import logoMapAction from '../../assets/logo.webp';
 import logoMapActionMin from '../../assets/logo-min.webp';
 import './sidebar.css';
-import {
-  User,          // Mon profil
-  Setting2,      // Paramètres
-  LogoutCurve,   // Déconnexion
-  People as IconsaxPeople
-} from 'iconsax-react';
+import useSWR from 'swr';
+import { People as IconsaxPeople } from 'iconsax-react';
+import { getDashboardStatsService } from '../../pages/dashboard/service/dashboard_service';
 
-export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onCollapsedChange, onToggleCollapse }) => {
+export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onCollapsedChange, onToggleCollapse, hideToggle = false }) => {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
 
@@ -33,64 +29,30 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onC
       setInternalCollapsed(newCollapsedState);
     }
   };
+  // Trois groupes : le travail du jour, le réseau de partenaires, les
+  // résultats. Le profil vit dans le menu de l'avatar ; la corbeille, utilitaire,
+  // descend en bas de la barre.
   const navItems = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      icon: Element4,
-      path: '/dashboard'
-    },
-    {
-      id: 'collaboration',
-      label: 'Collaborations',
-      icon: IconsaxPeople,
-      path: '/collaboration'
-    },
-    {
-      id: 'incidents',
-      label: 'Signalements',
-      icon: Briefcase,
-      path: '/signalements'
-    },
-    {
-      id: 'mes-interventions',
-      label: 'Mes interventions',
-      icon: Lock1,
-      path: '/mes-interventions'
-    },
-    {
-      id: 'organisations',
-      label: 'Organisations',
-      icon: Buildings2,
-      path: '/organisations'
-    },
-    {
-      id: 'agents',
-      label: 'Agents',
-      icon: Profile2User,
-      path: '/agents'
-    },
-    {
-      id: 'impact',
-      label: 'Impact',
-      icon: Award,
-      path: '/impact'
-    },
-
-
-    {
-      id: 'profile',
-      label: 'Mon profil',
-      icon: User,
-      path: '/profile'
-    },
-    {
-      id: 'trash',
-      label: 'Corbeille',
-      icon: Trash,
-      path: '/trash'
-    }
+    { id: 'dashboard', label: 'Tableau de bord', icon: Element4, path: '/dashboard', group: 'Opérations' },
+    { id: 'incidents', label: 'Signalements', icon: Briefcase, path: '/signalements', group: 'Opérations', badge: 'aTraiter' },
+    { id: 'mes-interventions', label: 'Mes interventions', icon: Lock1, path: '/mes-interventions', group: 'Opérations' },
+    { id: 'collaboration', label: 'Collaborations', icon: IconsaxPeople, path: '/collaboration', group: 'Réseau' },
+    { id: 'organisations', label: 'Organisations', icon: Buildings2, path: '/organisations', group: 'Réseau' },
+    { id: 'agents', label: 'Agents', icon: Profile2User, path: '/agents', group: 'Réseau' },
+    { id: 'impact', label: 'Impact', icon: Award, path: '/impact', group: 'Résultats' },
+    { id: 'trash', label: 'Corbeille', icon: Trash, path: '/trash', group: 'bas' },
   ];
+
+  // Compteur « à traiter » : même clé SWR que le dashboard, donc aucun appel en double.
+  const { data: statsData } = useSWR('/MapApi/incidents/dashboard-stats/', () => getDashboardStatsService(), {
+    revalidateOnFocus: false,
+  });
+  const badges = {
+    aTraiter: Math.max(
+      (statsData?.total_alerts ?? 0) - (statsData?.resolved_incidents ?? 0) - (statsData?.active_responses ?? 0),
+      0
+    ),
+  };
 
   const user = authService.getCurrentUser();
 
@@ -137,6 +99,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onC
       {/* Sidebar */}
       <aside className={`app-sidebar ${isOpen ? 'open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
         {/* Bouton Toggle Flottant - Au-dessus de tout */}
+        {!hideToggle && (
         <button
           className="sidebar-toggle-btn"
           onClick={() => {
@@ -158,33 +121,51 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onC
             )}
           </svg>
         </button>
+        )}
 
         {/* Logo Section */}
         <div className="sidebar-header">
-          <div className="sidebar-logo">
-            {isCollapsed ? (
-              <img src={logoMapActionMin} alt="Map Action" className="logo-image-min" />
-            ) : (
-              <img src={logoMapAction} alt="Map Action" className="logo-image" />
-            )}
+          <div className="sidebar-logo sidebar-logo-maquette">
+            <span className="sidebar-logo-tuile">
+              <img src={logoMapActionMin} alt="" aria-hidden="true" />
+            </span>
+            <span className="sidebar-logo-texte">Map Action</span>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="sidebar-nav" role="navigation">
-          {filteredNavItems.map((item) => (
-            <button
-              key={item.id}
-              className={`sidebar-item ${isActive(item.path) ? 'active' : ''}`}
-              onClick={() => handleItemClick(item.path)}
-              aria-current={isActive(item.path) ? 'page' : undefined}
-            >
-              <span className="sidebar-icon">
-                <item.icon size={20} variant="Bold" />
-              </span>
-              <span className="sidebar-label">{item.label}</span>
-            </button>
-          ))}
+          {['Opérations', 'Réseau', 'Résultats', 'bas'].map((groupe) => {
+            const items = filteredNavItems.filter((item) => item.group === groupe);
+            if (items.length === 0) return null;
+            return (
+              <div key={groupe} className={`sidebar-group ${groupe === 'bas' ? 'sidebar-group-bottom' : ''}`}>
+                {groupe !== 'bas' && <h6 className="sidebar-group-title">{groupe}</h6>}
+                {items.map((item) => {
+                  const compte = item.badge ? badges[item.badge] : 0;
+                  return (
+                    <button
+                      key={item.id}
+                      className={`sidebar-item ${isActive(item.path) ? 'active' : ''}`}
+                      onClick={() => handleItemClick(item.path)}
+                      aria-current={isActive(item.path) ? 'page' : undefined}
+                      title={isCollapsed ? item.label : undefined}
+                    >
+                      <span className="sidebar-icon">
+                        <item.icon size={20} variant={isActive(item.path) ? 'Bold' : 'Linear'} color="currentColor" />
+                      </span>
+                      <span className="sidebar-label">{item.label}</span>
+                      {compte > 0 && (
+                        <span className="sidebar-badge" aria-label={`${compte} à traiter`}>
+                          {compte > 99 ? '99+' : compte}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </nav>
 
 

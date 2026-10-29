@@ -3,6 +3,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Map, Marker, Popup, Source, Layer } from 'react-map-gl/mapbox';
 import { MAPBOX_TOKEN } from '../../../../config/mapStyles';
 import { CountryFocusLayer } from './CountryFocusLayer';
+import { BulleIncident } from './BulleIncident';
 import { activerGestesCooperatifs } from '../../../../utils/gestesCarte';
 
 /**
@@ -28,6 +29,9 @@ export const MapViewMapbox = ({
   translateEtat,
   openModal,
   focusIso,
+  bulle = null,
+  fermerBulle,
+  ouvrirApercu,
 }) => {
   // react-map-gl v8 ne transmet pas cooperativeGestures a mapbox-gl :
   // on l'active nous-memes apres coup. Voir utils/gestesCarte.
@@ -138,6 +142,21 @@ export const MapViewMapbox = ({
               </li>
             ))}
           </ul>
+        </Popup>
+      )}
+      {bulle && (
+        <Popup
+          longitude={bulle._lng}
+          latitude={bulle._lat}
+          anchor="bottom"
+          offset={16}
+          maxWidth="300px"
+          closeButton={false}
+          closeOnClick
+          onClose={fermerBulle}
+          className="incident-bulle-popup"
+        >
+          <BulleIncident incident={bulle} onApercu={ouvrirApercu ?? openModal} onFermer={fermerBulle} />
         </Popup>
       )}
     </Map>

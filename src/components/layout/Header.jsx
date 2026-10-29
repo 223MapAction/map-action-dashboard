@@ -1,16 +1,45 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import { User, Setting2, LogoutCurve, ArrowDown2, Notification, Danger, People, InfoCircle } from 'iconsax-react';
+import { User, Trash, LogoutCurve, ArrowDown2, Notification, Danger, People, InfoCircle } from 'iconsax-react';
 import notifSound from '../../assets/notif.mp3';
 import { authService } from '../../pages/auth/services/authService';
 import { getNotifications, markNotificationAsRead } from './service/notification_service';
 import { BlurryImage } from '../atoms/BlurryImage';
 import { API_URL_BASE } from '../../config/api_url_base';
 import './header.css';
+import { HeaderSearch } from './HeaderSearch';
 import { logger } from '../../utils/logger';
 
-export const Header = ({ onMenuToggle, user }) => {
+// Pictogrammes au trait de la maquette (18 px, trait 1,8).
+const IconeTrait = ({ children }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+);
+const IconeCloche = () => (
+  <IconeTrait><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10.3 21a2 2 0 0 0 3.4 0" /></IconeTrait>
+);
+const IconeProfil = () => (
+  <IconeTrait><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></IconeTrait>
+);
+const IconeCorbeille = () => (
+  <IconeTrait><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></IconeTrait>
+);
+const IconeSortie = () => (
+  <IconeTrait><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" /></IconeTrait>
+);
+
+const initialesUtilisateur = (u) => {
+  const prenom = (u?.first_name || '').trim();
+  const nom = (u?.last_name || '').trim();
+  const lettres = (prenom[0] || '') + (nom[0] || '');
+  return (lettres || prenom.slice(0, 2) || 'U').toUpperCase();
+};
+
+export const Header = ({ onMenuToggle, onToggleCollapse, actionsContainer = null, user }) => {
   const navigate = useNavigate();
   const currentUser = user || authService.getCurrentUser();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -217,6 +246,23 @@ export const Header = ({ onMenuToggle, user }) => {
     }
   };
 
+  // Pas d'endpoint groupé : on marque chaque notification non lue, puis on
+  // met le cache à jour d'un coup.
+  const handleMarkAllRead = async (e) => {
+    e.stopPropagation();
+    const nonLues = notifications.filter((n) => !n.read);
+    try {
+      await Promise.all(nonLues.map((n) => markNotificationAsRead(n.id)));
+    } catch (error) {
+      logger.error('[HEADER] Erreur marquage de toutes les notifications:', error);
+    }
+    mutateNotifications((prev) => {
+      const list = prev?.results || (Array.isArray(prev) ? prev : []);
+      const updated = list.map((n) => ({ ...n, read: true }));
+      return Array.isArray(prev) ? updated : { ...prev, results: updated, unread_count: 0 };
+    }, { revalidate: false });
+  };
+
   // Fonction pour obtenir l'icône selon le type de notification
   const getNotificationIcon = (type) => {
     const iconProps = { size: 20, variant: "Bold" };
@@ -235,22 +281,9 @@ export const Header = ({ onMenuToggle, user }) => {
     }
   };
 
-  return (
-    <header className="app-header">
-      <div className="header-left">
-        <button
-          className="menu-toggle btn btn-icon"
-          onClick={onMenuToggle}
-          aria-label="Toggle menu"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M3 12h18M3 6h18M3 18h18" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </button>
-
-
-      </div>
-
+  // Cloche et avatar. Le dashboard peut les déplacer en haut du panneau
+  // d'activité (`actionsContainer`), qui monte alors jusqu'en haut de l'écran.
+  const blocDroite = (
       <div className="header-right">
 
 
@@ -260,7 +293,7 @@ export const Header = ({ onMenuToggle, user }) => {
             onClick={() => setShowNotifications(!showNotifications)}
             aria-label="Notifications"
           >
-            <Notification size={24} variant="Outline" />
+            <IconeCloche />
             {unreadCount > 0 && (
               <span className="notification-badge">{unreadCount}</span>
             )}
@@ -270,7 +303,13 @@ export const Header = ({ onMenuToggle, user }) => {
             <div className="notification-menu">
               <div className="notification-menu-header">
                 <h3>Notifications</h3>
-                <span className="notification-count">{unreadCount} non lues</span>
+                {unreadCount > 0 ? (
+                  <button type="button" className="notification-read-all" onClick={handleMarkAllRead}>
+                    Tout marquer comme lu
+                  </button>
+                ) : (
+                  <span className="notification-count">Tout est lu</span>
+                )}
               </div>
 
               <div className="notification-menu-divider"></div>
@@ -348,12 +387,12 @@ export const Header = ({ onMenuToggle, user }) => {
                 />
               ) : (
                 <>
-                  <div style={{ color: "white", fontWeight: "bold" }}>
-                    {currentUser?.first_name?.charAt(0).toUpperCase() || 'U'}
+                  <div style={{ color: "var(--color-surface)", fontWeight: "bold" }}>
+                    {initialesUtilisateur(currentUser)}
                   </div>
 
                   <div className="header-profile-fallback" >
-                    <User size={18} variant="Bold" style={{ fill: "white" }} />
+                    <User size={18} variant="Bold" style={{ fill: "var(--color-surface)" }} />
                   </div>
                 </>
               )}
@@ -379,8 +418,19 @@ export const Header = ({ onMenuToggle, user }) => {
                       navigate('/profile');
                     }}
                   >
-                    <User size={18} variant="Outline" />
+                    <IconeProfil />
                     <span>Mon profil</span>
+                  </button>
+
+                  <button
+                    className="profile-menu-item"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      navigate('/trash');
+                    }}
+                  >
+                    <IconeCorbeille />
+                    <span>Corbeille</span>
                   </button>
 
 
@@ -393,8 +443,8 @@ export const Header = ({ onMenuToggle, user }) => {
                       navigate('/login');
                     }}
                   >
-                    <LogoutCurve size={18} variant="Outline" />
-                    <span>Déconnexion</span>
+                    <IconeSortie />
+                    <span>Se déconnecter</span>
                   </button>
                 </div>
               </div>
@@ -402,6 +452,29 @@ export const Header = ({ onMenuToggle, user }) => {
           </div>
         )}
       </div>
+  );
+
+  return (
+    <header className="app-header">
+      <div className="header-left">
+        <button
+          className={`menu-toggle btn btn-icon ${onToggleCollapse ? 'menu-toggle-desktop' : ''}`}
+          onClick={() => {
+            // Sur desktop, le bouton réduit la navigation ; sur mobile il l'ouvre.
+            if (onToggleCollapse && window.innerWidth >= 1024) onToggleCollapse();
+            else onMenuToggle?.();
+          }}
+          aria-label="Afficher ou réduire la navigation"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M3 12h18M3 6h18M3 18h18" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        <HeaderSearch />
+      </div>
+
+      {actionsContainer ? createPortal(blocDroite, actionsContainer) : blocDroite}
     </header>
   );
 };
