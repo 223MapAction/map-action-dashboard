@@ -44,8 +44,11 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onC
   ];
 
   // Compteur « à traiter » : même clé SWR que le dashboard, donc aucun appel en double.
+  // La barre latérale est remontée à chaque page : sans délai de déduplication,
+  // chaque navigation relançait ces statistiques. Une minute suffit pour un badge.
   const { data: statsData } = useSWR('/MapApi/incidents/dashboard-stats/', () => getDashboardStatsService(), {
     revalidateOnFocus: false,
+    dedupingInterval: 60000,
   });
   const badges = {
     aTraiter: Math.max(

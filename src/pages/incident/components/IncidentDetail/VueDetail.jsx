@@ -12,6 +12,7 @@ import { MapDetailViewMapbox } from './MapDetailViewMapbox';
 import { BlurryImage } from '../../../../components/atoms/BlurryImage';
 import { gravite, couleurGravite, couleurTexteGravite, libelleGravite } from '../../../../utils/gravite';
 import { titreIncident, descriptionRedondante } from '../../../../utils/titreIncident';
+import { lieuIncident } from '../../../../utils/lieuIncident';
 import { nombre, niveauScore } from './mesures';
 import './vue-detail.css';
 import './vue-detail-chat.css';
@@ -164,7 +165,8 @@ export const VueDetail = (props) => {
   }, [visionneuse]);
 
   const niveau = gravite(safeIncident);
-  const titre = titreIncident(safeIncident, 400);
+  const titre = titreIncident(safeIncident, Infinity);
+  const lieu = lieuIncident(safeIncident, 'Localisation non précisée');
   const coords = safeIncident.coordinates;
   const etat = safeIncident.etat || 'declared';
   const indexEtape = Math.max(0, etapes.findIndex((e) => e.id === etat));
@@ -233,7 +235,7 @@ export const VueDetail = (props) => {
         </button>
         <button type="button" className="vd-crumb-link" onClick={onBack}>Signalements</button>
         <span>/</span>
-        <span>{safeIncident.zone || 'Signalement'}</span>
+        <span>{lieuIncident(safeIncident, 'Signalement')}</span>
       </nav>
 
       {/* En-tête */}
@@ -260,7 +262,7 @@ export const VueDetail = (props) => {
             )}
           </div>
           <div className="vd-meta">
-            <span><Location size={15} color="currentColor" />{safeIncident.zone || safeIncident.location || 'Localisation non spécifiée'}</span>
+            <span><Location size={15} color="currentColor" />{lieu}</span>
             <span>
               <Calendar size={15} color="currentColor" />
               Signalé {safeIncident.created_at ? `le ${new Date(safeIncident.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} à ${new Date(safeIncident.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ')}` : `le ${safeIncident.startDate}`}
