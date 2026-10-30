@@ -70,6 +70,7 @@ import { BlurryImage } from '../../../../components/atoms/BlurryImage';
 import { ImageViewer } from '../../../../components/molecules/ImageViewer';
 import { BadgeGravite } from '../../../../components/atoms/BadgeGravite';
 import { logger } from '../../../../utils/logger';
+import { useEstTelephone } from '../../mobile/useEstTelephone';
 const formatMessageTime = (dateStr) => {
   if (!dateStr) return '';
   try {
@@ -91,6 +92,7 @@ const INCIDENT_STATUS_STEPS = [
 
 
 export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
+  const estTelephone = useEstTelephone();
   // Voir utils/gestesCarte : sur ecran tactile, un doigt fait defiler la fiche
   // et deux doigts pilotent la carte. On passe par la reference et non par
   // `onLoad`, qui ne se declenche pas de facon fiable avec react-map-gl v8.
@@ -939,6 +941,7 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           {pred && !chatOpen && <span className="vd-fab-dot" aria-hidden="true" />}
         </button>
 
+        {chatOpen && estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
         {chatOpen && (
           <section className={`vd-chat ${chatClosing ? 'is-closing' : ''}`} aria-label="Assistant IA Map Action">
             <header className="vd-chat-head">
@@ -999,11 +1002,13 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
                   </div>
                 )}
 
-                {messages.filter((m) => m.sender === 'user').length === 0 && !isTyping && (
+                {(estTelephone || messages.filter((m) => m.sender === 'user').length === 0) && !isTyping && (
                   <div className="vd-chat-sugg">
-                    {['Que faire en priorité ?', 'Quels risques pour les enfants ?', 'Quels partenaires inviter ?'].map((q) => (
-                      <button key={q} type="button" onClick={(e) => handleSendMessage(e, q)}>{q}</button>
-                    ))}
+                    {['Que faire en priorité ?', 'Quels risques pour les enfants ?', 'Quels partenaires inviter ?']
+                      .filter((q) => !messages.some((m) => m.sender === 'user' && m.text === q))
+                      .map((q) => (
+                        <button key={q} type="button" onClick={(e) => handleSendMessage(e, q)}>{q}</button>
+                      ))}
                   </div>
                 )}
 
@@ -1024,7 +1029,9 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
                     rows={1}
                   />
                   <button type="submit" disabled={isTyping || !chatMessage.trim()} aria-label="Envoyer">
-                    {isTyping ? <span className="vd-chat-spin" /> : <Send2 size={18} variant="Bold" color="currentColor" />}
+                    {isTyping ? <span className="vd-chat-spin" /> : estTelephone
+                      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+                      : <Send2 size={18} variant="Bold" color="currentColor" />}
                   </button>
                 </form>
               </>

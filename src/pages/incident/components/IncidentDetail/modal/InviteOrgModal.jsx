@@ -15,7 +15,10 @@ import { getOtherOrganisationsService } from '../../../../collaboration-detail/s
 
 import { OffcanvasModal } from '../../../../../components/molecules/OffcanvasModal';
 import { AVATAR_COULEUR_DEFAUT } from '../../../../../utils/couleursAvatar';
+import { useEstTelephone } from '../../../mobile/useEstTelephone';
+import '../../../mobile/mobile.css';
 export const InviteOrgModal = () => {
+  const estTelephone = useEstTelephone();
   const {
     joinOpen,
     joinClosing,
@@ -175,7 +178,7 @@ export const InviteOrgModal = () => {
     <OffcanvasModal
       onClose={closeJoinModal}
       isClosing={Boolean(joinClosing)}
-      className="vd-agir"
+      className="vd-agir feuille-haute"
       title={safeIncident.isOwner || hasAcceptedRole ? 'Inviter des organisations' : safeIncident?.etat === 'declared' ? 'Agir sur ce signalement' : "Rejoindre l'action"}
       subtitle={titreIncident(safeIncident)}
       ariaLabel={safeIncident.isOwner || hasAcceptedRole ? 'Inviter des organisations' : safeIncident?.etat === 'declared' ? 'Agir sur ce signalement' : "Rejoindre l'action"}
@@ -330,7 +333,7 @@ export const InviteOrgModal = () => {
 
               {/* Si l'incident est en cours de prise en charge et qu'on travaille en interne */}
               {safeIncident?.etat === 'declared' && workMode === 'interne' && (
-                <div style={{
+                <div className="vd-agir-note" style={{
                   padding: 'var(--spacing-5)',
                   backgroundColor: 'rgba(var(--rgb-primary), 0.08)',
                   borderRadius: 'var(--radius-md)',
@@ -346,7 +349,7 @@ export const InviteOrgModal = () => {
 
               {/* Si l'incident est en cours de prise en charge, qu'on travaille en collaboration et qu'on a choisi d'être leader */}
               {safeIncident?.etat === 'declared' && workMode === 'collaboration' && selfRole === 'leader' && (
-                <div style={{
+                <div className="vd-agir-note" style={{
                   padding: 'var(--spacing-5)',
                   backgroundColor: 'var(--color-background)',
                   borderRadius: 'var(--radius-md)',
@@ -536,9 +539,9 @@ export const InviteOrgModal = () => {
                         <div className="invited-org-info">
                           <div
                             className="invited-org-avatar"
-                            style={{ backgroundColor: org.color }}
+                            style={{ backgroundColor: org.color || getOrgColor(org) }}
                           >
-                            {org.initials}
+                            {org.initials || getOrgInitials(org)}
                           </div>
                           <div className="invited-org-name">{org.name}</div>
                           <button
@@ -547,7 +550,7 @@ export const InviteOrgModal = () => {
                             onClick={() => removeInvitedOrg(org.id)}
                             aria-label="Retirer"
                           >
-                            <CloseCircle size={18} variant="Linear" color="var(--color-danger)" />
+                            {estTelephone ? 'Retirer' : <CloseCircle size={18} variant="Linear" color="var(--color-danger)" />}
                           </button>
                         </div>
 
@@ -579,15 +582,25 @@ export const InviteOrgModal = () => {
                         </div>
 
                         <div className="invited-org-comment" style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span className="invited-org-role-label" style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: '500' }}>Motif de l'invitation / Justification :</span>
-                          <input
-                            type="text"
-                            className="invite-orgs-search-input"
-                            style={{ width: '100%', fontSize: 'var(--font-size-body-small)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text-primary)' }}
-                            placeholder="Ex: Expert en biodiversité pour aider sur la zone A..."
-                            value={org.comment || ''}
-                            onChange={(e) => updateOrgComment(org.id, e.target.value)}
-                          />
+                          <span className="invited-org-role-label" style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: '500' }}>{estTelephone ? "Motif de l'invitation" : "Motif de l'invitation / Justification :"}</span>
+                          {estTelephone ? (
+                            <textarea
+                              rows={2}
+                              className="vdm-motif"
+                              aria-label="Motif de l'invitation"
+                              value={org.comment || ''}
+                              onChange={(e) => updateOrgComment(org.id, e.target.value)}
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              className="invite-orgs-search-input"
+                              style={{ width: '100%', fontSize: 'var(--font-size-body-small)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text-primary)' }}
+                              placeholder="Ex: Expert en biodiversité pour aider sur la zone A..."
+                              value={org.comment || ''}
+                              onChange={(e) => updateOrgComment(org.id, e.target.value)}
+                            />
+                          )}
                         </div>
 
                         {currentRole && (

@@ -17,6 +17,8 @@ import { nombre, niveauScore } from './mesures';
 import './vue-detail.css';
 import './vue-detail-chat.css';
 import './vue-detail-agir.css';
+import './vue-detail-mobile.css';
+import { useEstTelephone } from '../../mobile/useEstTelephone';
 
 /* --------------------------------------------------------------------------
  * Libellés
@@ -146,6 +148,18 @@ export const VueDetail = (props) => {
   const [menuAgir, setMenuAgir] = useState(false);
   const [visionneuse, setVisionneuse] = useState(null);
   const refAgir = useRef(null);
+  const estTelephone = useEstTelephone();
+  const refPhoto = useRef(null);
+  const [photoPassee, setPhotoPassee] = useState(false);
+
+  // Sur téléphone, la barre compacte apparaît une fois la photo sortie de l'écran.
+  useEffect(() => {
+    const photo = refPhoto.current;
+    if (!estTelephone || !photo || typeof IntersectionObserver === 'undefined') return undefined;
+    const observateur = new IntersectionObserver(([e]) => setPhotoPassee(!e.isIntersecting));
+    observateur.observe(photo);
+    return () => observateur.disconnect();
+  }, [estTelephone]);
 
   // Le menu « Agir » se ferme au clic extérieur et à Échap
   useEffect(() => {
@@ -225,9 +239,198 @@ export const VueDetail = (props) => {
 
   const sansPrediction = !isLoadingPrediction && !pred;
 
+  const partager = () => copier(window.location.href, 'Lien du signalement copié');
+
+  const pastilles = (
+    <div className="vd-chips">
+      <Pastille badge={currentStatus} />
+      {safeIncident.severity && (
+        <span className="vd-chip" style={{ backgroundColor: `var(--color-severity-${niveau}-surface)`, color: couleurTexteGravite(niveau) }}>
+          <i style={{ backgroundColor: couleurGravite(niveau) }} />Gravité {libelleGravite(niveau).toLowerCase()}
+        </span>
+      )}
+      {pred?.status === 'completed' && (
+        <span className="vd-chip vd-chip-ia"><MagicStar size={13} variant="Bold" color="currentColor" />Analysé par l'IA</span>
+      )}
+      <Pastille badge={modeBadge} />
+      <Pastille badge={userRoleBadge} />
+      {collabRequest && (
+        <span className="vd-chip vd-chip-attente">
+          <i style={{ backgroundColor: 'currentColor' }} />
+          Demande {getRoleLabel(collabRequest.role)} : {getStatusLabel(collabRequest.status)}
+        </span>
+      )}
+    </div>
+  );
+
+  const bandeaux = (
+    <>
+      {isCollab && !safeIncident.taken_by && (
+        <div className="vd-banner">
+          <People size={18} variant="Bold" color="currentColor" />
+          <span><b>Ouvert à la collaboration :</b> des organisations se mobilisent, mais aucun leader ne coordonne encore. Prenez le leadership ou rejoignez l'effort.</span>
+        </div>
+      )}
+      {isInterne && takingOrg && (
+        <div className={`vd-banner ${takingOrg.isMe ? 'vd-banner-ok' : 'vd-banner-int'}`}>
+          <Buildings2 size={18} variant="Bold" color="currentColor" />
+          <span>
+            <b>Géré en interne :</b>{' '}
+            {takingOrg.isMe
+              ? 'votre organisation traite ce signalement avec ses propres équipes.'
+              : <>l'organisation <b>{takingOrg.name}</b> traite ce signalement avec ses propres équipes.</>}
+          </span>
+        </div>
+      )}
+    </>
+  );
+
+  const alertePropagation = pred && (rayon || pred.recommendation || pred.potential_risk) && (
+    <div className="vd-alert" role="status">
+      <Danger size={22} variant="Bold" color="currentColor" />
+      <div className="vd-alert-t">
+        <b>{rayon ? `Intervention recommandée dans un rayon de ${nombre(rayon)} m` : 'Intervention recommandée'}</b>
+        <p>
+          {pred.potential_risk?.message || pred.recommendation || pred.piste_solution}
+          {enListe(pred.spread_vectors).length > 0 && (
+            <> Vecteurs : {enListe(pred.spread_vectors).map((v) => traduireVecteur(v)[0].toLowerCase()).join(', ')}.</>
+          )}
+        </p>
+      </div>
+      <div className="vd-alert-k">
+        {nombre(pred.potential_risk?.stats?.total_pop ?? pred.total_population_exposed) && (
+          <span><strong>{nombre(pred.potential_risk?.stats?.total_pop ?? pred.total_population_exposed)}</strong>personnes exposées</span>
+        )}
+        {nombre(pred.potential_risk?.stats?.infrastructures ?? pred.residential_buildings) && (
+          <span><strong>{nombre(pred.potential_risk?.stats?.infrastructures ?? pred.residential_buildings)}</strong>bâtiments à risque</span>
+        )}
+        {rayon && <span><strong>{nombre(rayon)} m</strong>rayon d'action</span>}
+      </div>
+    </div>
+  );
+
+  const scene = (
+    <div className="vd-stage">
+      {media === 'video' && safeIncident.video ? (
+        <video src={safeIncident.video} controls className="vd-video" />
+      ) : safeIncident.image ? (
+        <button type="button" className="vd-photo" onClick={ouvrirImage} aria-label="Agrandir la photo">
+          <BlurryImage src={safeIncident.image} alt={titre} className="vd-photo-img" />
+          <span className="vd-zoom"><Gallery size={14} color="currentColor" />Agrandir</span>
+        </button>
+      ) : (
+        <div className="vd-photo vd-photo-vide"><Gallery size={28} color="currentColor" /><span>Aucune photo</span></div>
+      )}
+    </div>
+  );
+
+  const lecteurAudio = audioSrc && (
+    <div className={`vd-audio ${media === 'audio' ? 'is-open' : ''}`} aria-hidden={media !== 'audio'}>
+      <button type="button" className="vd-play" onClick={togglePlay} aria-label={isPlaying ? 'Pause' : 'Lire le message vocal'}>
+        {isPlaying ? <Pause size={16} variant="Bold" color="currentColor" /> : <Play size={16} variant="Bold" color="currentColor" />}
+      </button>
+      <div
+        className="vd-audio-track"
+        onClick={seekAudio}
+        onKeyDown={seekAudioClavier}
+        role="slider"
+        tabIndex={media === 'audio' ? 0 : -1}
+        aria-label="Progression audio"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(duration || 0)}
+        aria-valuenow={Math.round(currentTime || 0)}
+        aria-valuetext={`${formatTime(currentTime)} sur ${formatTime(duration)}`}
+      >
+        <span style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
+      </div>
+      <time>{formatTime(currentTime)} / {formatTime(duration)}</time>
+      <audio
+        ref={audioRef}
+        src={audioSrc}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onTimeUpdate={onAudioTimeUpdate}
+        onLoadedMetadata={onAudioLoaded}
+        onEnded={onAudioEnded}
+        preload="metadata"
+      />
+    </div>
+  );
+
+  const dateSignalement = safeIncident.created_at
+    ? `le ${new Date(safeIncident.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} à ${new Date(safeIncident.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ')}`
+    : `le ${safeIncident.startDate}`;
+  const auteur = safeIncident.reporter_name || safeIncident.user_name || "Citoyen, via l'application";
+
+  const iconeRetour = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>;
+  const iconePartage = <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 14v5h14v-5" /></svg>;
 
   return (
     <div className="vd">
+      {estTelephone ? (
+        <>
+          {photoPassee && (
+            <header className="vdm-compacte">
+              <button type="button" onClick={onBack} aria-label="Retour à la liste">{iconeRetour}</button>
+              <b>{titre}</b>
+              <button type="button" onClick={partager} aria-label="Partager">{iconePartage}</button>
+            </header>
+          )}
+
+          <div className="vdm-photo" ref={refPhoto}>
+            {scene}
+            <div className="vdm-rangee">
+              <button type="button" className="vdm-rond" onClick={onBack} aria-label="Retour à la liste">{iconeRetour}</button>
+              <button type="button" className="vdm-rond" onClick={partager} aria-label="Partager">{iconePartage}</button>
+            </div>
+            <div className={`vdm-medias ${media === 'video' ? 'is-haut' : ''}`} role="tablist" aria-label="Médias">
+              <button type="button" role="tab" aria-selected={media === 'photo'} className={media === 'photo' ? 'is-on' : ''} onClick={() => setMedia('photo')}>Photo</button>
+              <button type="button" role="tab" aria-selected={media === 'video'} aria-label="Vidéo" className={media === 'video' ? 'is-on' : ''} onClick={() => setMedia('video')} disabled={!safeIncident.video}>
+                <VideoSquare size={16} color="currentColor" />
+              </button>
+              <button type="button" role="tab" aria-selected={media === 'audio'} aria-label="Message vocal" className={media === 'audio' ? 'is-on' : ''} onClick={() => setMedia('audio')} disabled={!audioSrc}>
+                <Microphone2 size={16} color="currentColor" />
+              </button>
+            </div>
+          </div>
+
+          <div className="vdm-corps">
+            {lecteurAudio}
+            {pastilles}
+            <div className="vdm-titre">
+              <h1>{titre}</h1>
+              <p>
+                {lieu} · signalé {dateSignalement}
+                {tempsDepuis(safeIncident.created_at) && ` · ${tempsDepuis(safeIncident.created_at)}`}
+                <br />{auteur}
+              </p>
+            </div>
+            {bandeaux}
+            {alertePropagation}
+            {isLoadingPrediction ? (
+              <div className="vdm-score"><ShimmerText line={2} gap={8} /></div>
+            ) : pred ? (
+              <section className="vdm-score">
+                <span
+                  className="vdm-anneau"
+                  role="img"
+                  aria-label={`Score d'impact ${nombre(score, 1)} sur 10, ${lecture.libelle}`}
+                  style={{ background: `conic-gradient(${lecture.couleur} 0 ${Math.max(0, Math.min(100, (Number(score) || 0) * 10))}%, #F1F3F6 0 100%)` }}
+                >
+                  <span>{nombre(score, 1) ?? '—'}</span>
+                </span>
+                <span className="vdm-score-t">
+                  <b>Score d'impact : {lecture.libelle}</b>
+                  <span>Suivi : {etapes[indexEtape]?.label.toLowerCase()}{etat === 'declared' ? ", en attente d'une organisation" : organisations[0]?.nom ? `, ${organisations[0].nom}` : ''}</span>
+                </span>
+              </section>
+            ) : (
+              <div className="vdm-score"><VidePrediction predictionError={predictionError} /></div>
+            )}
+          </div>
+        </>
+      ) : (
+      <>
       {/* Fil d'Ariane */}
       <nav className="vd-crumb" aria-label="Fil d'Ariane">
         <button type="button" className="vd-back" onClick={onBack} aria-label="Retour à la liste">
@@ -242,37 +445,19 @@ export const VueDetail = (props) => {
       <header className="vd-head">
         <div className="vd-head-t">
           <h1>{titre}</h1>
-          <div className="vd-chips">
-            <Pastille badge={currentStatus} />
-            {safeIncident.severity && (
-              <span className="vd-chip" style={{ backgroundColor: `var(--color-severity-${niveau}-surface)`, color: couleurTexteGravite(niveau) }}>
-                <i style={{ backgroundColor: couleurGravite(niveau) }} />Gravité {libelleGravite(niveau).toLowerCase()}
-              </span>
-            )}
-            {pred?.status === 'completed' && (
-              <span className="vd-chip vd-chip-ia"><MagicStar size={13} variant="Bold" color="currentColor" />Analysé par l'IA</span>
-            )}
-            <Pastille badge={modeBadge} />
-            <Pastille badge={userRoleBadge} />
-            {collabRequest && (
-              <span className="vd-chip vd-chip-attente">
-                <i style={{ backgroundColor: 'currentColor' }} />
-                Demande {getRoleLabel(collabRequest.role)} : {getStatusLabel(collabRequest.status)}
-              </span>
-            )}
-          </div>
+          {pastilles}
           <div className="vd-meta">
             <span><Location size={15} color="currentColor" />{lieu}</span>
             <span>
               <Calendar size={15} color="currentColor" />
-              Signalé {safeIncident.created_at ? `le ${new Date(safeIncident.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} à ${new Date(safeIncident.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ')}` : `le ${safeIncident.startDate}`}
+              Signalé {dateSignalement}
               {tempsDepuis(safeIncident.created_at) && ` · ${tempsDepuis(safeIncident.created_at)}`}
             </span>
-            <span><Profile size={15} color="currentColor" />{safeIncident.reporter_name || safeIncident.user_name || "Citoyen, via l'application"}</span>
+            <span><Profile size={15} color="currentColor" />{auteur}</span>
           </div>
         </div>
         <div className="vd-actions">
-          <button type="button" className="vd-btn vd-btn-g" onClick={() => copier(window.location.href, 'Lien du signalement copié')}>
+          <button type="button" className="vd-btn vd-btn-g" onClick={partager}>
             <Share size={16} color="currentColor" />Partager
           </button>
           {showInvolvementButton && (
@@ -316,64 +501,15 @@ export const VueDetail = (props) => {
       </header>
 
       {/* Bandeaux d'implication */}
-      {isCollab && !safeIncident.taken_by && (
-        <div className="vd-banner">
-          <People size={18} variant="Bold" color="currentColor" />
-          <span><b>Ouvert à la collaboration :</b> des organisations se mobilisent, mais aucun leader ne coordonne encore. Prenez le leadership ou rejoignez l'effort.</span>
-        </div>
-      )}
-      {isInterne && takingOrg && (
-        <div className={`vd-banner ${takingOrg.isMe ? 'vd-banner-ok' : 'vd-banner-int'}`}>
-          <Buildings2 size={18} variant="Bold" color="currentColor" />
-          <span>
-            <b>Géré en interne :</b>{' '}
-            {takingOrg.isMe
-              ? 'votre organisation traite ce signalement avec ses propres équipes.'
-              : <>l'organisation <b>{takingOrg.name}</b> traite ce signalement avec ses propres équipes.</>}
-          </span>
-        </div>
-      )}
+      {bandeaux}
 
       {/* Alerte de propagation */}
-      {pred && (rayon || pred.recommendation || pred.potential_risk) && (
-        <div className="vd-alert" role="status">
-          <Danger size={22} variant="Bold" color="currentColor" />
-          <div className="vd-alert-t">
-            <b>{rayon ? `Intervention recommandée dans un rayon de ${nombre(rayon)} m` : 'Intervention recommandée'}</b>
-            <p>
-              {pred.potential_risk?.message || pred.recommendation || pred.piste_solution}
-              {enListe(pred.spread_vectors).length > 0 && (
-                <> Vecteurs : {enListe(pred.spread_vectors).map((v) => traduireVecteur(v)[0].toLowerCase()).join(', ')}.</>
-              )}
-            </p>
-          </div>
-          <div className="vd-alert-k">
-            {nombre(pred.potential_risk?.stats?.total_pop ?? pred.total_population_exposed) && (
-              <span><strong>{nombre(pred.potential_risk?.stats?.total_pop ?? pred.total_population_exposed)}</strong>personnes exposées</span>
-            )}
-            {nombre(pred.potential_risk?.stats?.infrastructures ?? pred.residential_buildings) && (
-              <span><strong>{nombre(pred.potential_risk?.stats?.infrastructures ?? pred.residential_buildings)}</strong>bâtiments à risque</span>
-            )}
-            {rayon && <span><strong>{nombre(rayon)} m</strong>rayon d'action</span>}
-          </div>
-        </div>
-      )}
+      {alertePropagation}
 
       {/* Médias + décision */}
       <section className="vd-hero">
         <div className="vd-card vd-media">
-          <div className="vd-stage">
-            {media === 'video' && safeIncident.video ? (
-              <video src={safeIncident.video} controls className="vd-video" />
-            ) : safeIncident.image ? (
-              <button type="button" className="vd-photo" onClick={ouvrirImage} aria-label="Agrandir la photo">
-                <BlurryImage src={safeIncident.image} alt={titre} className="vd-photo-img" />
-                <span className="vd-zoom"><Gallery size={14} color="currentColor" />Agrandir</span>
-              </button>
-            ) : (
-              <div className="vd-photo vd-photo-vide"><Gallery size={28} color="currentColor" /><span>Aucune photo</span></div>
-            )}
-          </div>
+          {scene}
           <div className="vd-thumbs" role="tablist" aria-label="Médias">
             <button type="button" role="tab" aria-selected={media === 'photo'} className={`vd-th ${media === 'photo' ? 'is-on' : ''}`} onClick={() => setMedia('photo')}>Photo</button>
             <button
@@ -395,38 +531,7 @@ export const VueDetail = (props) => {
               <Microphone2 size={18} color="currentColor" />
             </button>
           </div>
-          {audioSrc && (
-            <div className={`vd-audio ${media === 'audio' ? 'is-open' : ''}`} aria-hidden={media !== 'audio'}>
-              <button type="button" className="vd-play" onClick={togglePlay} aria-label={isPlaying ? 'Pause' : 'Lire le message vocal'}>
-                {isPlaying ? <Pause size={16} variant="Bold" color="currentColor" /> : <Play size={16} variant="Bold" color="currentColor" />}
-              </button>
-              <div
-                className="vd-audio-track"
-                onClick={seekAudio}
-                onKeyDown={seekAudioClavier}
-                role="slider"
-                tabIndex={media === 'audio' ? 0 : -1}
-                aria-label="Progression audio"
-                aria-valuemin={0}
-                aria-valuemax={Math.round(duration || 0)}
-                aria-valuenow={Math.round(currentTime || 0)}
-                aria-valuetext={`${formatTime(currentTime)} sur ${formatTime(duration)}`}
-              >
-                <span style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
-              </div>
-              <time>{formatTime(currentTime)} / {formatTime(duration)}</time>
-              <audio
-                ref={audioRef}
-                src={audioSrc}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onTimeUpdate={onAudioTimeUpdate}
-                onLoadedMetadata={onAudioLoaded}
-                onEnded={onAudioEnded}
-                preload="metadata"
-              />
-            </div>
-          )}
+          {lecteurAudio}
         </div>
 
         <div className="vd-card vd-decide">
@@ -473,12 +578,15 @@ export const VueDetail = (props) => {
         </div>
       </section>
 
+      </>
+      )}
+
       {/* Onglets */}
       <nav className="vd-tabs" role="tablist">
         {[
           ['apercu', 'Aperçu'],
           ['ia', 'Analyse IA'],
-          ['impact', 'Impact', pred ? '3 piliers' : null],
+          ['impact', 'Impact', pred && !estTelephone ? '3 piliers' : null],
           ['activite', 'Activité', activite.length],
         ].map(([cle, libelle, n]) => (
           <button key={cle} type="button" role="tab" aria-selected={onglet === cle} className={onglet === cle ? 'is-on' : ''} onClick={() => setOnglet(cle)}>
@@ -498,12 +606,14 @@ export const VueDetail = (props) => {
               <p className="vd-text">
                 {descriptionRedondante(safeIncident) && safeIncident.description ? safeIncident.description : (safeIncident.description || 'Aucune description disponible')}
               </p>
-              {pred?.display_name && (
+              {pred?.display_name && (estTelephone ? (
+                <p className="vdm-adresse">Adresse estimée par l'IA : {pred.display_name}</p>
+              ) : (
                 <>
                   <h3 className="vd-mt">Adresse estimée par l'IA</h3>
                   <p className="vd-text">{pred.display_name}</p>
                 </>
-              )}
+              ))}
             </div>
             <div className="vd-card vd-pad">
               <h3>Localisation {rayon && <small>zone d'intervention : {nombre(rayon)} m</small>}</h3>
@@ -525,6 +635,7 @@ export const VueDetail = (props) => {
                       )}
                     </div>
                   </div>
+                  {estTelephone && <span className="vdm-coords">Lat. {nombre(coords.lat, 4)} · Long. {nombre(coords.lng, 4)}</span>}
                   <div className="vd-coords">
                     <span className="vd-coord">Lat. <b>{nombre(coords.lat, 5)}</b></span>
                     <span className="vd-coord">Long. <b>{nombre(coords.lng, 5)}</b></span>
@@ -548,7 +659,7 @@ export const VueDetail = (props) => {
               <div className="vd-orgs">
                 {organisations.map((o) => (
                   <div key={o.nom} className="vd-org">
-                    <span className="vd-av">{o.nom[0].toUpperCase()}</span>
+                    <span className="vd-av">{estTelephone ? o.nom.split(/\s+/).slice(0, 2).map((m) => m[0]).join('').toUpperCase() : o.nom[0].toUpperCase()}</span>
                     <b>{o.nom}</b>
                     <span className="vd-chip vd-chip-role">{o.role === 'Leader' && <Crown1 size={13} variant="Bold" color="currentColor" />}{o.role}</span>
                   </div>
@@ -558,7 +669,7 @@ export const VueDetail = (props) => {
               <p className="vd-text">
                 Personne n'a encore pris ce signalement en charge.
                 {showInvolvementButton && !hasPendingRequest && (
-                  <> <button type="button" className="vd-link" onClick={() => (avecMenu ? setMenuAgir(true) : openJoinModal())}>{libelleAction}</button></>
+                  <> <button type="button" className="vd-link" onClick={() => (avecMenu && !estTelephone ? setMenuAgir(true) : openJoinModal())}>{libelleAction}</button></>
                 )}
               </p>
             )}
@@ -717,6 +828,19 @@ export const VueDetail = (props) => {
             )}
           </div>
         </section>
+      )}
+
+      {estTelephone && showInvolvementButton && (
+        <div className="vdm-barre">
+          <button type="button" className="vdm-agir" onClick={() => openJoinModal()} disabled={!!hasPendingRequest}>
+            {hasPendingRequest ? 'Demande en attente' : libelleAction}
+          </button>
+          {avecMenu && !hasPendingRequest && (
+            <button type="button" className="vdm-agir-plus" onClick={() => openJoinModal()} aria-label="Autres façons d'agir">
+              <ArrowDown2 size={18} color="currentColor" />
+            </button>
+          )}
+        </div>
       )}
 
       {visionneuse && (
