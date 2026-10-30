@@ -1,14 +1,34 @@
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Map, Marker, Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
+import { useEffect } from 'react';
+import { Map, Marker, Source, Layer } from 'react-map-gl/mapbox';
 import { MAPBOX_TOKEN } from '../../config/mapStyles';
 import { COUCHE_REMPLISSAGE, COUCHE_CONTOUR } from './carte';
+import { activerGestesCooperatifs } from '../../utils/gestesCarte';
 
 /**
  * Carte Mapbox des zones d'impact.
  * Séparée de CarteImpactMapLibre.jsx : voir dashboard/components/map/MapViewMapbox.jsx
  * pour la raison (paquets react-map-gl/maplibre et /mapbox non mélangeables).
+ *
+ * Mêmes gestes et mêmes bornes de zoom que la carte du dashboard : la molette
+ * seule fait défiler la page, Ctrl + molette zoome la carte.
  */
-export const CarteImpactMapbox = ({ carteRef, mapStyle, initialViewState, zones, points, actif, onSelect }) => (
+export const CarteImpactMapbox = ({ carteRef, mapStyle, initialViewState, zones, points, actif, onSelect }) => {
+  // react-map-gl v8 ne transmet pas cooperativeGestures : on l'active après
+  // coup, comme sur le dashboard. Voir utils/gestesCarte.
+  useEffect(() => {
+    let annule = false;
+    const essayer = () => {
+      if (annule) return;
+      const carte = carteRef.current?.getMap?.();
+      if (carte) { activerGestesCooperatifs(carte, { touchOnly: false }); return; }
+      setTimeout(essayer, 300);
+    };
+    essayer();
+    return () => { annule = true; };
+  }, [carteRef]);
+
+  return (
   <Map
     ref={carteRef}
     reuseMaps
@@ -16,7 +36,11 @@ export const CarteImpactMapbox = ({ carteRef, mapStyle, initialViewState, zones,
     initialViewState={initialViewState}
     style={{ width: '100%', height: '100%' }}
     mapStyle={mapStyle}
+    scrollZoom
     dragRotate={false}
+    cooperativeGestures
+    minZoom={2}
+    maxZoom={18}
   >
     <Source id="impact-zones" type="geojson" data={zones}>
       <Layer {...COUCHE_REMPLISSAGE} />
@@ -34,8 +58,8 @@ export const CarteImpactMapbox = ({ carteRef, mapStyle, initialViewState, zones,
         </button>
       </Marker>
     ))}
-    <NavigationControl position="top-right" showCompass={false} />
   </Map>
-);
+  );
+};
 
 export default CarteImpactMapbox;

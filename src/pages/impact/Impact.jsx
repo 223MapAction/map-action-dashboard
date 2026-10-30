@@ -247,15 +247,24 @@ export const Impact = () => {
   // La carte cadre les zones de la page, puis suit le signalement déplié.
   const carteRef = useRef(null);
   const cartesRef = useRef({});
+  // Même cadrage que la carte du dashboard : zoom 10 au plus, et des points
+  // quasi confondus visés directement plutôt qu'un fitBounds qui zoomerait à
+  // l'infini.
   useEffect(() => {
     const carte = carteRef.current;
     const cadre = emprise(localises);
     if (!carte || !cadre) return;
-    carte.fitBounds(cadre, { padding: 48, maxZoom: 15, duration: 600 });
+    const [[ouest, sud], [est, nord]] = cadre;
+    if (est - ouest < 0.05 && nord - sud < 0.05) {
+      carte.flyTo({ center: [(ouest + est) / 2, (sud + nord) / 2], zoom: 10, duration: 900 });
+    } else {
+      carte.fitBounds(cadre, { padding: 80, maxZoom: 10, duration: 900 });
+    }
   }, [localises]);
   useEffect(() => {
     const s = localises.find((x) => String(x.id) === String(deplie));
-    if (s && carteRef.current) carteRef.current.easeTo({ center: [s.lng, s.lat], zoom: Math.max(carteRef.current.getZoom(), 14), duration: 500 });
+    const carte = carteRef.current;
+    if (s && carte) carte.flyTo({ center: [s.lng, s.lat], zoom: Math.max(carte.getZoom(), 10), speed: 1.4 });
   }, [deplie, localises]);
 
   const choisirSurCarte = (id) => {
