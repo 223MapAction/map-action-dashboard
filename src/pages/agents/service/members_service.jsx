@@ -49,8 +49,8 @@ export const getOrganisationMembersService = async (organisationId, search = '',
  * (`next`), on suit les pages jusqu'au bout, sinon seuls les premiers agents
  * s'afficheraient sans qu'aucun message ne le signale.
  */
-export const getTousLesAgentsService = async (search = '', role = '', status = '') => {
-    const premiere = await getOrganisationMembersService(null, search, role, status);
+export const getTousLesAgentsService = async (search = '', role = '', status = '', organisationId = null) => {
+    const premiere = await getOrganisationMembersService(organisationId, search, role, status);
     if (Array.isArray(premiere)) return premiere;
 
     const membres = [...(premiere?.results || [])];

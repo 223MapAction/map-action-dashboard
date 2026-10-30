@@ -1,84 +1,35 @@
 import React, { useState } from 'react';
 import { MesInterventionsModalContext } from './mesInterventionsModalContexte';
 
+const FERMEE = { open: false, incident: null };
+
+/**
+ * État des trois fenêtres de la page. Leur animation de sortie est gérée par
+ * Dialogue : ici, une fenêtre est seulement ouverte ou fermée.
+ */
 export const MesInterventionsModalProvider = ({ children }) => {
-  const [assignModal, setAssignModal] = useState({ open: false, incident: null });
-  const [assignClosing, setAssignClosing] = useState(false);
-  const [agentsModal, setAgentsModal] = useState({ open: false, incident: null });
-  const [agentsClosing, setAgentsClosing] = useState(false);
-  const [reportsModal, setReportsModal] = useState({ open: false, incident: null, reports: [] });
-  const [reportsClosing, setReportsClosing] = useState(false);
-
-  // States required for the assignment form and feedback
-  const [isAssigning, setIsAssigning] = useState(false);
-  const [assignAlert, setAssignAlert] = useState({ type: null, message: null });
+  const [assignModal, setAssignModal] = useState(FERMEE);
+  const [agentsModal, setAgentsModal] = useState(FERMEE);
+  const [reportsModal, setReportsModal] = useState(FERMEE);
   const [mutateIncidents, setMutateIncidents] = useState(null);
-
-  const openAssignModal = (incident) => {
-    setAssignModal({ open: true, incident });
-    setAssignAlert({ type: null, message: null });
-    setAssignClosing(false);
-  };
-
-  const closeAssignModal = () => {
-    setAssignClosing(true);
-    setTimeout(() => {
-      setAssignModal({ open: false, incident: null });
-      setAssignAlert({ type: null, message: null });
-      setAssignClosing(false);
-    }, 280);
-  };
-
-  const openAgentsModal = (incident) => {
-    setAgentsModal({ open: true, incident });
-    setAgentsClosing(false);
-  };
-
-  const closeAgentsModal = () => {
-    setAgentsClosing(true);
-    setTimeout(() => {
-      setAgentsModal({ open: false, incident: null });
-      setAgentsClosing(false);
-    }, 280);
-  };
-
-  const openReportsModal = (incident, reports) => {
-    setReportsModal({ open: true, incident, reports });
-    setReportsClosing(false);
-  };
-
-  const closeReportsModal = () => {
-    setReportsClosing(true);
-    setTimeout(() => {
-      setReportsModal({ open: false, incident: null, reports: [] });
-      setReportsClosing(false);
-    }, 280);
-  };
+  const [toast, setToast] = useState(null);
 
   return (
     <MesInterventionsModalContext.Provider
       value={{
         assignModal,
-        setAssignModal,
-        assignClosing,
-        openAssignModal,
-        closeAssignModal,
+        openAssignModal: (incident) => setAssignModal({ open: true, incident }),
+        closeAssignModal: () => setAssignModal(FERMEE),
         agentsModal,
-        setAgentsModal,
-        agentsClosing,
-        openAgentsModal,
-        closeAgentsModal,
+        openAgentsModal: (incident) => setAgentsModal({ open: true, incident }),
+        closeAgentsModal: () => setAgentsModal(FERMEE),
         reportsModal,
-        setReportsModal,
-        reportsClosing,
-        openReportsModal,
-        closeReportsModal,
-        isAssigning,
-        setIsAssigning,
-        assignAlert,
-        setAssignAlert,
+        openReportsModal: (incident) => setReportsModal({ open: true, incident }),
+        closeReportsModal: () => setReportsModal(FERMEE),
         mutateIncidents,
-        setMutateIncidents
+        setMutateIncidents,
+        toast,
+        afficherToast: (texte) => setToast({ texte, n: Date.now() }),
       }}
     >
       {children}
