@@ -157,7 +157,20 @@
 .sg-boite { border: 1px solid var(--sg-ligne); border-radius: 14px; background: var(--color-surface); }
 .sg-tableau-boite { overflow-x: auto; }
 
-.sg-tableau { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 13px; }
+.sg-tableau { width: 100%; min-width: 1120px; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+
+/* Colonnes à largeur fixe : chaque texte se replie entier dans la sienne. */
+.sg-col-sig { width: 34%; }
+.sg-col-lieu { width: 16%; }
+.sg-col-gravite { width: 104px; }
+.sg-col-etat { width: 130px; }
+.sg-col-charge { width: 15%; }
+.sg-col-quand { width: 130px; }
+.sg-col-actions { width: 56px; }
+.sg-tableau td { overflow-wrap: anywhere; }
+
+.sg-lieu { display: inline-flex; align-items: flex-start; gap: 5px; font-size: 13px; line-height: 1.4; color: var(--sg-neutral-text, #475569); }
+.sg-lieu > svg { flex-shrink: 0; margin-top: 2px; color: var(--color-text-muted); }
 .sg-tableau th { padding: 12px 10px; border-bottom: 1px solid var(--sg-ligne); font-size: 12px; font-weight: var(--font-weight-semibold); color: var(--color-text-muted); text-align: left; white-space: nowrap; }
 .sg-tableau th:first-child,
 .sg-tableau td:first-child { padding-left: 16px; }
@@ -190,7 +203,6 @@
 
 /* Description entière, jamais coupée : elle passe à la ligne autant qu'il faut. */
 .sg-desc { margin: 3px 0 2px; font-size: 12.5px; line-height: 1.45; color: var(--color-text-secondary); white-space: pre-line; overflow-wrap: anywhere; }
-.sg-tableau td:first-child { min-width: 320px; max-width: 520px; }
 .sg-sig { align-items: flex-start; }
 .sg-titre:hover { color: var(--sg-primary); }
 .sg-zone { font-size: 12px; color: var(--color-text-muted); }
@@ -201,7 +213,7 @@
 .sg-charge span { font-size: 12px; color: var(--color-text-muted); }
 .sg-libre { font-size: 13px; color: var(--color-text-muted); }
 
-.sg-quand { white-space: nowrap; }
+.sg-quand > span { white-space: nowrap; }
 .sg-quand span { display: block; }
 .sg-quand small { font-size: 12px; color: var(--color-text-muted); }
 .sg-actions { width: 48px; text-align: right; }

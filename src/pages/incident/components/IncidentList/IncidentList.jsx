@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Edit2, Trash, SearchNormal1, Gallery } from 'iconsax-react';
+import { Eye, Edit2, Trash, SearchNormal1, Gallery, Location } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { BlurryImage } from '../../../../components/atoms/BlurryImage';
 import { useIncidentModalContext } from '../../modale/IncidentModalContext';
@@ -222,9 +222,21 @@ export const IncidentList = ({
           {vide ? <div className="sg-boite">{etatVide}</div> : (
             <div className="sg-boite sg-tableau-boite">
               <table className="sg-tableau">
+                {/* Largeurs fixées : le texte se replie dans sa colonne, en
+                    entier, au lieu d'étirer le tableau ou d'être coupé. */}
+                <colgroup>
+                  <col className="sg-col-sig" />
+                  <col className="sg-col-lieu" />
+                  <col className="sg-col-gravite" />
+                  <col className="sg-col-etat" />
+                  <col className="sg-col-charge" />
+                  <col className="sg-col-quand" />
+                  <col className="sg-col-actions" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th scope="col">Signalement</th>
+                    <th scope="col">Localisation</th>
                     <th scope="col">Gravité</th>
                     <th scope="col">État</th>
                     <th scope="col">Pris en charge par</th>
@@ -235,7 +247,7 @@ export const IncidentList = ({
                 <tbody>
                   {isLoading ? [0, 1, 2, 3, 4, 5].map((n) => (
                     <tr key={n} className="sg-squelette">
-                      <td colSpan={6}><div className="sg-squelette-ligne"><ShimmerThumbnail height={44} width={56} rounded className="m-0" /><div style={{ flex: 1 }}><ShimmerText line={2} gap={8} /></div></div></td>
+                      <td colSpan={7}><div className="sg-squelette-ligne"><ShimmerThumbnail height={44} width={56} rounded className="m-0" /><div style={{ flex: 1 }}><ShimmerText line={2} gap={8} /></div></div></td>
                     </tr>
                   )) : lignes.map(({ incident, niveau, titre, description, lieu, charge, auteur, quand }) => (
                     <tr key={incident.id} className="sg-ligne" onClick={() => onSelectIncident?.(incident)}>
@@ -251,9 +263,14 @@ export const IncidentList = ({
                               {titre}
                             </a>
                             {description && <p className="sg-desc">{description}</p>}
-                            <span className="sg-zone">{lieu}</span>
                           </div>
                         </div>
+                      </td>
+                      <td>
+                        <span className="sg-lieu">
+                          <Location size={14} color="currentColor" aria-hidden="true" />
+                          {lieu}
+                        </span>
                       </td>
                       <td><Gravite niveau={niveau} /></td>
                       <td><Etat etat={incident.etat} /></td>
