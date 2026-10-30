@@ -1,0 +1,313 @@
+/* ============================================================
+   FICHE D'UN SIGNALEMENT SUR TÉLÉPHONE (sous 640 px)
+   Haut de page, onglets, barre d'action et assistant IA de la
+   maquette mobile native. Le bureau n'est pas concerné.
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .project-detail { width: 100%; flex: 1; min-height: 0 !important; background: #F2F4F7 !important; }
+
+  .vd { gap: 12px; padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 110px); background: #F2F4F7; color: #1A1C1E; }
+
+  /* Photo bord à bord */
+  .vdm-photo { position: relative; height: 300px; background: linear-gradient(#C7D2C0, #B5C3AE); }
+  .vdm-photo .vd-stage { height: 100%; }
+  .vdm-photo .vd-photo,
+  .vdm-photo .vd-video { height: 100%; border-radius: 0; }
+  .vdm-photo .vd-photo-vide { background: #E4E7EC; }
+  .vdm-photo .vd-zoom { display: none; }
+
+  .vdm-rangee {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 12px;
+    right: 12px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .vdm-rond {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.42);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    color: #fff;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .vdm-medias {
+    position: absolute;
+    left: 50%;
+    bottom: 34px;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 99px;
+    background: rgba(15, 23, 42, 0.42);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    transform: translateX(-50%);
+  }
+
+  /* Au-dessus des commandes du lecteur vidéo, qui occupent le bas de l'image. */
+  .vdm-medias.is-haut { top: calc(env(safe-area-inset-top, 0px) + 16px); bottom: auto; }
+
+  .vdm-medias button {
+    min-width: 40px;
+    min-height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0 12px;
+    border: none;
+    border-radius: 99px;
+    background: transparent;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .vdm-medias button.is-on { background: #fff; color: #1A1C1E; }
+  .vdm-medias button:disabled { opacity: 0.4; cursor: default; }
+
+  /* Contenu qui remonte sur la photo */
+  .vdm-corps {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: -22px;
+    padding: 18px 16px 2px;
+    border-radius: 22px 22px 0 0;
+    background: #F2F4F7;
+  }
+
+  .vdm-corps .vd-chips { margin: 0; }
+  .vdm-titre h1 { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+  .vdm-titre p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; color: #5B6472; }
+  .vdm-corps .vd-audio.is-open { background: #fff; }
+
+  .vd-banner { align-items: flex-start; border-radius: 16px; }
+
+  /* Alerte de propagation */
+  .vd-alert { flex-direction: column; gap: 10px; padding: 14px; border: none; border-radius: 16px; background: #FFF7ED; }
+  .vd-alert > svg { display: none; }
+  .vd-alert-t { min-width: 0; }
+  .vd-alert-t b { font-size: 14.5px; color: #9A3412; }
+  .vd-alert-t p { margin-top: 10px; font-size: 13.5px; line-height: 1.5; }
+  .vd-alert-k { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+  .vd-alert-k span { display: flex; flex-direction: column; padding: 8px; border-radius: 10px; background: #fff; font-size: 11.5px; color: #5B6472; }
+  .vd-alert-k strong { color: #7C2D12; }
+
+  /* Score et suivi */
+  .vdm-score { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 16px; background: #fff; }
+  .vdm-score > .vd-empty,
+  .vdm-score > div { flex: 1; }
+  .vdm-anneau { width: 64px; height: 64px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; }
+  .vdm-anneau span { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; background: #fff; font-size: 16px; font-weight: 700; }
+  .vdm-score-t { display: flex; flex-direction: column; gap: 2px; }
+  .vdm-score-t b { font-size: 14.5px; }
+  .vdm-score-t span { font-size: 12.5px; color: #5B6472; }
+
+  /* Barre compacte, une fois la photo passée */
+  .vdm-compacte {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    height: calc(env(safe-area-inset-top, 0px) + 52px);
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    padding: env(safe-area-inset-top, 0px) 8px 0;
+    background: rgba(242, 244, 247, 0.86);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    backdrop-filter: blur(18px) saturate(180%);
+    animation: vd-fade 0.18s ease-out both;
+  }
+
+  .vdm-compacte b { overflow: hidden; font-size: 16px; font-weight: 600; text-align: center; white-space: nowrap; text-overflow: ellipsis; }
+  .vdm-compacte button { width: 44px; height: 44px; display: grid; place-items: center; border: none; background: none; color: #1E78AC; cursor: pointer; }
+
+  /* Onglets collés sous la barre */
+  .vd-tabs {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 52px);
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    margin: 0 16px;
+    padding: 3px;
+    overflow: visible !important;
+    border: none;
+    border-radius: 11px;
+    background: #E4E7EC;
+  }
+
+  .vd-tabs button { min-height: 34px; justify-content: center; gap: 4px; margin: 0; padding: 0; border: none; border-radius: 9px; font-size: 13px; color: #3F4650; }
+  .vd-tabs button.is-on { background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15); color: #1A1C1E; }
+  .vd-tabs button svg { display: none; }
+  .vd-tabs .vd-n { padding: 0; background: none; font-size: inherit; color: inherit; }
+
+  .vd-panel { padding: 0 16px; }
+  .vd-grid2,
+  .vd-grid3 { gap: 12px; }
+  .vd-mt16 { margin-top: 12px; }
+  .vd-card { border: none; border-radius: 16px; box-shadow: none; }
+  .vd-pad { padding: 14px; }
+  .vd-card h3 small { font-size: 12.5px; font-weight: 400; color: #5B6472; }
+  .vd-text { font-size: 15px; color: #3F4650; }
+  .vdm-adresse { margin: 10px 0 0; font-size: 12.5px; color: #5B6472; }
+
+  /* Localisation */
+  .vd-map { height: 150px; border: none; border-radius: 12px; }
+  .vd-mstyle { top: 8px; left: auto; right: 8px; border: none; border-radius: 9px; background: rgba(255, 255, 255, 0.9); box-shadow: none; }
+  .vd-mstyle button { padding: 4px 8px; border-radius: 7px; color: #1A1C1E; }
+  .vd-mstyle button.is-on { background: #1A1C1E; }
+  .vdm-coords { display: block; margin-top: 10px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  .vd-coord { display: none; }
+  .vd-coords { flex-wrap: nowrap; }
+  .vd-coords .vd-btn { flex: 1; min-height: 44px; justify-content: center; border: none; border-radius: 12px; background: #F1F3F6; font-size: 14px; color: #1A1C1E; }
+  .vd-coords a.vd-btn { background: #E0F2FE; color: #1E78AC; }
+  .vd-coords .vd-btn svg { display: none; }
+
+  /* Organisations */
+  .vd-org { padding: 5px 0; border: none; }
+  .vd-org b { flex: 1; font-size: 14.5px; }
+  .vd-org .vd-av { width: 36px; height: 36px; border-radius: 10px; font-size: 12.5px; }
+  .vd-chip-role { border: none; background: #F1F5F9; color: #475569; }
+  .vd-chip-role svg { display: none; }
+
+  /* Barre d'action : remplace la barre d'onglets sur cet écran poussé */
+  .vdm-barre {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    border-top: 1px solid #E4E7EC;
+    background: rgba(255, 255, 255, 0.88);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+
+  .vdm-agir,
+  .vdm-agir-plus { min-height: 52px; border: none; border-radius: 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .vdm-agir { flex: 1; background: #1E78AC; font-size: 16px; color: #fff; }
+  .vdm-agir:disabled { opacity: 0.6; cursor: default; }
+  .vdm-agir-plus { width: 52px; display: grid; place-items: center; background: #E0F2FE; color: #1E78AC; }
+
+  /* Bouton de l'assistant IA */
+  .vd-fab { right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); width: 52px; height: 52px; background: #1A1C1E; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3); }
+  .project-detail:has(.vdm-barre) .vd-fab { bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+  .vd-fab.is-open { display: none; }
+  .vd-fab:hover { background: #1A1C1E; }
+  .vd-fab-dot { top: 6px; right: 6px; width: 10px; height: 10px; border: 2px solid #1A1C1E; background: #38BDF8; }
+  .vd-fab-dot::after { display: none; }
+
+  .vd-toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); border-radius: 12px; background: #1A1C1E; white-space: nowrap; }
+
+  /* Assistant IA en feuille haute */
+  .vdm-chat-fond { position: fixed; inset: 0; z-index: 1045; background: rgba(26, 30, 38, 0.75); animation: vd-fade 0.2s ease-out both; }
+
+  .vd-chat {
+    top: calc(env(safe-area-inset-top, 0px) + 50px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    height: auto;
+    border: none;
+    border-radius: 22px 22px 0 0;
+    box-shadow: none;
+    transform-origin: bottom;
+    animation: vdm-monte 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .vd-chat.is-closing { animation: vdm-descend 0.22s ease-in both; }
+  .vd-chat::before { content: ""; flex-shrink: 0; align-self: center; width: 38px; height: 5px; margin-top: 8px; border-radius: 99px; background: #C9CFD8; }
+  .vd-chat-head { padding: 8px 12px 10px 16px; border-color: #F1F3F6; }
+  .vd-chat-head b { font-size: 16px; font-weight: 600; }
+  .vd-chat-head small { font-size: 12.5px; color: #5B6472; }
+  .vd-chat-ai { width: 36px; height: 36px; background: #1A1C1E; color: #fff; animation: none; }
+  .vd-chat-x { width: 36px; height: 36px; border: none; border-radius: 50%; background: #F1F3F6; color: #5B6472; }
+  .vd-chat-ctx { align-self: center; margin: 12px 16px 0; padding: 4px 10px; border-radius: 99px; background: #F1F3F6; color: #5B6472; }
+  .vd-chat-ctx svg { display: none; }
+  .vd-chat-msgs { padding: 12px 16px; gap: 10px; }
+  .vd-bub { padding: 10px 13px; border-radius: 18px; font-size: 15px; }
+  .vd-bub-bot { max-width: 84%; border-bottom-left-radius: 4px; background: #F1F3F6; }
+  .vd-bub-me { max-width: 78%; border-bottom-right-radius: 4px; background: #1E78AC; }
+  .vd-chat-sugg { flex-wrap: nowrap; padding: 8px 16px 0; overflow-x: auto; scrollbar-width: none; }
+  .vd-chat-sugg button { flex-shrink: 0; min-height: 36px; padding: 0 12px; border-color: #E4E7EC; font-size: 13.5px; font-weight: 600; color: #1E78AC; }
+  .vd-chat-in { padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px); border: none; }
+  .vd-chat-in textarea { min-height: 44px; padding: 11px 14px; border: none; border-radius: 22px; background: #F1F3F6; font-size: 16px; }
+  .vd-chat-in button { width: 44px; height: 44px; background: #1E78AC; }
+
+  /* Agir sur le signalement */
+  .am-offcanvas-panel.vd-agir.feuille-haute .am-offcanvas-body { display: flex; flex-direction: column; gap: 0; padding: 10px 16px 16px; }
+  .vd-agir .join-modal-label { margin: 0 0 8px 4px; font-size: 13px; font-weight: 600; color: #5B6472; }
+  .vd-agir .join-modal-label .required,
+  .vd-agir .join-modal-help,
+  .vd-agir .invited-org-role-desc,
+  .vd-agir .invite-orgs-list-label,
+  .vd-agir .invited-org-roles > .invited-org-role-label,
+  .vd-agir-note { display: none !important; }
+
+  .vd-agir .work-mode-option {
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column;
+    gap: 4px !important;
+    border: 2px solid transparent !important;
+    border-radius: 14px !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .vd-agir .work-mode-option > svg { display: none; }
+  .vd-agir .work-mode-option > div:first-of-type { font-size: 14.5px !important; color: #1A1C1E !important; }
+  .vd-agir .work-mode-option > div:last-of-type { font-size: 12.5px !important; line-height: 1.4 !important; color: #5B6472 !important; }
+  .vd-agir .work-mode-option.is-selected { border-color: #1E78AC !important; background: #F0F9FF !important; }
+
+  .vd-agir .self-role-section { margin-bottom: 18px !important; padding: 0; border: none; }
+  .vd-agir .role-options { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; padding: 3px; border-radius: 11px; background: #E4E7EC; }
+  .vd-agir .role-option { min-height: 38px; justify-content: center; padding: 0; border: none !important; border-radius: 9px; background: transparent; font-size: 14px; color: #3F4650 !important; }
+  .vd-agir .role-option svg { display: none; }
+  .vd-agir .role-option.is-selected { background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15); color: #1A1C1E !important; }
+
+  .vd-agir .invite-orgs-section { margin: 0; padding: 0; border: none; background: transparent; }
+  .vd-agir .invite-orgs-header { margin: 0; }
+  .vd-agir .invite-orgs-search { min-height: 42px; padding: 0 12px; border: none; border-radius: 12px; background: #E4E7EC; }
+  .vd-agir .invite-orgs-search-input { background: transparent; font-size: 16px; }
+  .vd-agir .invite-orgs-dropdown { position: static; margin-top: 8px; border: none; border-radius: 14px; box-shadow: none; }
+  .vd-agir .invite-orgs-list { margin-top: 10px; }
+
+  .vd-agir .invited-org-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: none; border-radius: 14px; background: #fff; }
+  .vd-agir .invited-org-avatar { width: 36px; height: 36px; border-radius: 10px; font-size: 12.5px; }
+  .vd-agir .invited-org-name { flex: 1; font-size: 14.5px; font-weight: 700; }
+  .vd-agir .invited-org-remove { min-height: 36px; padding: 0 10px; border: none; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #E21313; }
+  .vd-agir .invited-org-roles { margin: 0; }
+  .vd-agir .invited-org-roles .role-options { border-radius: 10px; background: #F1F3F6; }
+  .vd-agir .invited-org-roles .role-option { min-height: 34px; font-size: 13px; }
+  .vd-agir .invited-org-comment { margin-top: 0 !important; gap: 6px !important; }
+  .vd-agir .invited-org-comment > .invited-org-role-label { font-size: 13px !important; font-weight: 600 !important; color: #5B6472 !important; }
+  .vdm-motif { width: 100%; padding: 10px 12px; border: 1px solid #E4E7EC; border-radius: 12px; font: inherit; font-size: 16px; color: #1A1C1E; resize: none; }
+  .vd-agir .join-modal-textarea { font-size: 16px; }
+}
+
+@keyframes vdm-monte { from { transform: translateY(100%); } }
+@keyframes vdm-descend { to { transform: translateY(100%); } }
