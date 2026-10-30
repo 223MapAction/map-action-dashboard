@@ -11,6 +11,8 @@ import './sidebar.css';
 import useSWR from 'swr';
 import { People as IconsaxPeople } from 'iconsax-react';
 import { getDashboardStatsService } from '../../pages/dashboard/service/dashboard_service';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { BarreOnglets } from './BarreOnglets';
 
 export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onCollapsedChange, onToggleCollapse, hideToggle = false }) => {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
@@ -68,6 +70,8 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.web_role]);
 
+  const estMobile = useMediaQuery('(max-width: 640px)');
+
   const handleItemClick = (path) => {
     navigate(path);
     if (window.innerWidth < 1024) {
@@ -87,6 +91,10 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed: controlledCollapsed, onC
     if (path === '/mes-interventions' && location.pathname.startsWith('/collaboration-detail') && fromTab === '/mes-interventions') return true;
     return false;
   };
+
+  if (estMobile) {
+    return <BarreOnglets idsAccessibles={getAccessibleNavIds(user)} aTraiter={badges.aTraiter} />;
+  }
 
   return (
     <>

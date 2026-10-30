@@ -1,0 +1,225 @@
+/* ============================================
+   BARRE D'ONGLETS MOBILE ET ÉCRAN « PLUS »
+   ============================================ */
+.am-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  box-sizing: border-box;
+  height: var(--am-tabbar-h);
+  padding: 6px 4px env(safe-area-inset-bottom, 0px);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  font-family: var(--font-family);
+}
+
+.am-onglet {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #5B6472;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.am-onglet.is-actif {
+  color: var(--color-primary-text);
+  font-weight: 600;
+}
+
+.am-onglet:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.am-onglet-icone {
+  position: relative;
+  width: 28px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+}
+
+.am-onglet-badge {
+  position: absolute;
+  top: -4px;
+  left: 17px;
+  min-width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--color-surface);
+  border-radius: 99px;
+  background: var(--color-danger-text);
+  color: var(--color-surface);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Écran Plus */
+.ecran-plus {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px calc(var(--am-tabbar-h) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: #F2F4F7;
+  color: var(--color-text-primary);
+  font-family: var(--font-family);
+}
+
+.ecran-plus h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.ecran-plus h2 {
+  margin: 0 0 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5B6472;
+}
+
+.plus-profil {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.plus-avatar {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--color-primary-text);
+  color: var(--color-surface);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.plus-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.plus-profil-texte {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  color: #5B6472;
+}
+
+.plus-profil-texte b {
+  font-size: 17px;
+  color: var(--color-text-primary);
+}
+
+.plus-profil-texte span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plus-profil-texte .plus-org {
+  color: var(--color-primary-text);
+  font-weight: 500;
+}
+
+.plus-chevron {
+  flex-shrink: 0;
+  color: #9AA3AF;
+}
+
+.plus-groupe {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.plus-groupe li + li .plus-ligne {
+  border-top: 1px solid #F1F3F6;
+}
+
+.plus-ligne {
+  width: 100%;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border: none;
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 15.5px;
+  text-align: left;
+}
+
+.plus-icone {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--color-surface);
+}
+
+.plus-libelle {
+  flex: 1;
+}
+
+.plus-deconnexion {
+  flex-shrink: 0;
+  min-height: 50px;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-danger-text);
+  font: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
+}

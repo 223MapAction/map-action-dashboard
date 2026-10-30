@@ -2,6 +2,28 @@
    SIDEBAR - NOUVEAU DESIGN
    ============================================ */
 
+/* Hauteur de la barre d'onglets mobile : contrat partagé avec les pages. */
+:root {
+  --am-tabbar-h: 0px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --am-tabbar-h: calc(50px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Les onglets remplacent le tiroir : plus de bouton pour l'ouvrir. */
+  .app-header .menu-toggle {
+    display: none;
+  }
+
+  /* Les pages ne réservent pas toutes la place de la barre. Celles qui le font
+     elles-mêmes (Signalements, carte plein écran) sont exclues. */
+  .am-tabbar ~ *:not(.incident-page-main):not(.dm-plein) {
+    padding-bottom: var(--am-tabbar-h);
+  }
+}
+
 .sidebar-overlay {
   position: fixed;
   top: 0;
