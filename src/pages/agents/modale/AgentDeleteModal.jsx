@@ -1,118 +1,97 @@
-import { Trash, TickCircle, CloseCircle } from 'iconsax-react';
+import React, { useState } from 'react';
+import { CloseCircle } from 'iconsax-react';
 import { useAgentsContext } from './AgentsModalContext';
 import { removeOrganisationMemberService } from '../service/members_service';
 import { authService } from '../../auth/services/authService';
-import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
+import { Dialogue } from '../../../components/molecules/Dialogue';
 
-export const AgentDeleteModal = () => {
-  const {
-    deleteModal,
-    deleteAlert,
-    setDeleteAlert,
-    deleteAnimating,
-    isDeleting,
-    setIsDeleting,
-    closeDeleteModal,
-    mutateAgents,
-  } = useAgentsContext();
+const IcoRetrait = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="10" cy="8" r="4" /><path d="M3 21c0-4 3-6 7-6s7 2 7 6M16 11h6" />
+  </svg>
+);
 
-  if (!deleteModal.open) return null;
+/**
+ * L'API retire l'agent de l'organisation (DELETE …/members/<id>/) : c'est ce
+ * que dit la fenêtre, plutôt qu'une « suppression » qui laisserait croire
+ * que le compte disparaît.
+ */
+const FenetreRetrait = () => {
+  const { deleteModal, closeDeleteModal, mutateAgents, afficherToast } = useAgentsContext();
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const agent = deleteModal.agent;
 
-  const verrouille = isDeleting || deleteAlert.type === 'success';
-
-  const confirmDelete = async () => {
-    setIsDeleting(true);
-    setDeleteAlert({ type: null, message: null });
+  const retirer = async (close) => {
+    setEnvoi(true);
+    setErreur(null);
     try {
       const currentUser = authService.getCurrentUser();
-      const isSuperAdmin = currentUser?.web_role === 'super_admin';
-      // Super admin : utiliser l'organisation de l'agent, sinon celle de l'utilisateur connecté
-      const organisationId = isSuperAdmin
-        ? deleteModal.agent?.organisationId
-        : (currentUser?.organisation_member || currentUser?.organisation_id);
+      // Super-administrateur : l'organisation de l'agent ; sinon la sienne.
+      const organisationId = currentUser?.web_role === 'super_admin'
+        ? agent?.organisationId
+        : (currentUser?.organisation_member || currentUser?.organisation_id || agent?.organisationId);
+      if (!organisationId) throw new Error('L’organisation de cet agent est introuvable.');
 
-      if (!organisationId) {
-        throw new Error('Organisation non trouvée');
-      }
-
-      await removeOrganisationMemberService(
-        organisationId,
-        deleteModal.agent.id
-      );
-      setDeleteAlert({ type: 'success', message: 'Agent supprimé avec succès !' });
+      await removeOrganisationMemberService(organisationId, agent.id);
+      afficherToast(`${agent.fullName} ne fait plus partie de l’équipe`);
       mutateAgents();
-      setTimeout(() => closeDeleteModal(), 2000);
+      close();
     } catch (err) {
-      const msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        err?.message ||
-        'Erreur lors de la suppression. Veuillez réessayer.';
-      setDeleteAlert({ type: 'danger', message: msg });
+      setErreur(
+        err?.response?.data?.detail || err?.response?.data?.message || err?.message
+        || 'L’agent n’a pas pu être retiré. Réessayez dans un instant.',
+      );
     } finally {
-      setIsDeleting(false);
+      setEnvoi(false);
     }
   };
 
   return (
-    <OffcanvasModal
+    <Dialogue
       onClose={closeDeleteModal}
-      isClosing={deleteAnimating === 'closing'}
-      title="Supprimer l'agent"
       role="alertdialog"
-      tone="danger"
-      size="sm"
-      closeVariant="plain"
-      closeDisabled={verrouille}
-      footerLayout="col"
-      footer={
+      taille="sm"
+      ton="danger"
+      pile
+      verrouille={envoi}
+      titre={`Retirer ${agent?.fullName || 'cet agent'} de l’équipe ?`}
+      icone={<IcoRetrait />}
+      pied={({ close }) => (
         <>
-          <button
-            type="button"
-            className="am-btn am-btn--danger"
-            onClick={confirmDelete}
-            disabled={verrouille}
-          >
-            {isDeleting && <span className="am-spinner" aria-hidden="true" />}
-            Supprimer définitivement
-          </button>
-          <button
-            type="button"
-            className="am-btn am-btn--outline"
-            onClick={closeDeleteModal}
-            disabled={verrouille}
-          >
-            Annuler
+          <span className="dg-espace" />
+          <button type="button" className="dg-btn dg-btn-g" onClick={close} disabled={envoi}>Garder l’agent</button>
+          <button type="button" className="dg-btn dg-btn-ko" onClick={() => retirer(close)} disabled={envoi}>
+            {envoi ? <><span className="dg-spin" aria-hidden="true" />Retrait…</> : 'Retirer de l’équipe'}
           </button>
         </>
-      }
+      )}
     >
-      <div className="am-offcanvas-body am-offcanvas-body--centered">
-        {/* Alerte retour API */}
-        {deleteAlert.message && (
-          <div className={`am-alert am-alert--${deleteAlert.type === 'success' ? 'success' : 'danger'}`} role="alert" style={{ width: '100%' }}>
-            {deleteAlert.type === 'success' ? (
-              <TickCircle size={18} variant="Bold" color="var(--color-success)" />
-            ) : (
-              <CloseCircle size={18} variant="Bold" color="var(--color-danger)" />
-            )}
-            <span className="am-alert__message" style={{ textAlign: 'left' }}>{deleteAlert.message}</span>
-          </div>
-        )}
-
-        <div className="am-delete-icon-wrap" aria-hidden="true">
-          <Trash size={32} variant="Bold" color="var(--color-danger)" />
+      {erreur && (
+        <div className="dg-alerte dg-alerte-ko" role="alert">
+          <CloseCircle size={18} variant="Bold" color="currentColor" /><span>{erreur}</span>
         </div>
-
-        <p className="am-delete-title">Confirmer la suppression</p>
-        <p className="am-delete-text">
-          Vous êtes sur le point de supprimer{' '}
-          <strong>&quot;{deleteModal.agent?.fullName}&quot;</strong>.
-          Cette action est <strong>irréversible</strong>.
+      )}
+      <p className="ad-texte">
+        {agent?.agentCode
+          ? <>Son code d’accès <b className="ad-code">{agent.agentCode}</b> cessera de fonctionner : l’agent</>
+          : 'L’agent'}
+        {' '}ne pourra plus se connecter au nom
+        {agent?.organisationName ? ` de ${agent.organisationName}` : ' de l’organisation'}.
+        Cette action ne peut pas être annulée.
+      </p>
+      {agent?.status === 'active' && (
+        <p className="ad-conseil">
+          Pour une absence temporaire, passez plutôt son compte en <b>inactif</b> depuis « Modifier » : vous pourrez le réactiver.
         </p>
-      </div>
-    </OffcanvasModal>
+      )}
+    </Dialogue>
   );
+};
+
+export const AgentDeleteModal = () => {
+  const { deleteModal } = useAgentsContext();
+  return deleteModal.open ? <FenetreRetrait /> : null;
 };
 
 export default AgentDeleteModal;

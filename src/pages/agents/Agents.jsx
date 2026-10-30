@@ -1,87 +1,78 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
-import debounce from 'lodash.debounce';
+import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Profile2User, Call } from 'iconsax-react';
+import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useSidebarState } from '../../hooks/useSidebarState';
+import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
+import { useReinitialisationSurChangement } from '../../hooks/useReinitialisationSurChangement';
 import { Header, Sidebar } from '../../components/layout';
-import {
-  SearchNormal1, ArrowDown2, Add, Edit2, Trash,
-} from 'iconsax-react';
-import { ShimmerThumbnail, ShimmerTitle, ShimmerText, ShimmerCircularImage } from 'react-shimmer-effects';
-import { ROLES } from './data/agents';
-import { getOrganisationsService } from '../organisations/service/organisation_service';
-import { getOrganisationMembersService, getAgentsStatsService } from './service/members_service';
-import AgentsContext from './modale/AgentsModalContext';
-import { AgentFormModal, AgentDeleteModal } from './modale';
 import Pagination from '../../components/molecules/Pagination';
 import { TableActionsMenu } from '../../components/molecules/TableActionsMenu';
-import { grouperParRole } from './roles';
-import { AgentCard } from './components/AgentCard';
-import { AgentListRow } from './components/AgentListRow';
-import { AgentsFilters } from './components/AgentsFilters';
-import { AgentsResume } from './components/AgentsResume';
-import { AgentsSkeleton } from './components/AgentsSkeleton';
+import { BandeauErreur } from '../../components/molecules/BandeauErreur';
+import { getOrganisationsService } from '../organisations/service/organisation_service';
+import { getTousLesAgentsService, getAgentsStatsService } from './service/members_service';
+import AgentsContext from './modale/AgentsModalContext';
+import { AgentFormModal, AgentDeleteModal } from './modale';
+import { ROLES, roleDepuisApi } from './roles';
+import { AvatarAgent, RoleAgent } from './components/AgentIdentity';
+import { formatTelephone, telLien, formatDateLongue } from './format';
 import { authService } from '../auth/services/authService';
-import './agents.css';
-import './agents-roster.css';
-import { useReinitialisationSurChangement } from '../../hooks/useReinitialisationSurChangement';
 import { AVATAR_COLORS, AVATAR_COULEUR_DEFAUT } from '../../utils/couleursAvatar';
 import { logger } from '../../utils/logger';
-
+import './agents-liste.css';
 
 const EMPTY_ARRAY = [];
+const TAILLE_PAGE = 20;
+
+const STATUTS = [
+  { valeur: 'active', libelle: 'Actif' },
+  { valeur: 'inactive', libelle: 'Inactif' },
+];
+
+const nombreFr = (n) => (n ?? 0).toLocaleString('fr-FR');
+
+/** Couleur stable d'un agent, tirée de son identifiant. */
+const couleurDepuisId = (id) => {
+  if (!id) return AVATAR_COULEUR_DEFAUT;
+  let hash = 0;
+  for (let i = 0; i < String(id).length; i++) {
+    hash = String(id).charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length] || AVATAR_COULEUR_DEFAUT;
+};
+
+const versAgent = (m) => ({
+  id: m.id,
+  firstName: m.first_name || '',
+  lastName: m.last_name || '',
+  fullName: `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email,
+  email: m.email,
+  phone: m.phone || '',
+  agentCode: m.agent_code || '',
+  address: m.address || '',
+  role: roleDepuisApi(m.org_role),
+  organisationId: m.organisation_member || m.organisation || '',
+  organisationName: m.organisation_name || '',
+  avatar: m.avatar || '',
+  status: m.is_active ? 'active' : 'inactive',
+  avatarColor: couleurDepuisId(m.id),
+  joinedAt: m.date_joined || null,
+});
 
 const fetcher = async ([, search, role, status]) => {
-  const allMembers = [];
-
-  const getIndexFromId = (id) => {
-    if (!id) return 0;
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = id.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash);
-  };
-
   try {
-    const data = await getOrganisationMembersService(null, search, role, status);
-    const members = data.results || data || [];
-    members.forEach((m) => {
-      let parsedRole = 'bureau';
-      if (m.org_role === 'org_admin') parsedRole = 'admin';
-      if (m.org_role === 'field_agent') parsedRole = 'terrain';
-      if (m.org_role === 'bureau_agent') parsedRole = 'bureau';
-
-      const orgId = m.organisation_member || m.organisation;
-
-      allMembers.push({
-        id: m.id,
-        firstName: m.first_name || '',
-        lastName: m.last_name || '',
-        fullName: `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email,
-        email: m.email,
-        phone: m.phone || '',
-        agentCode: m.agent_code || '',
-        address: m.address || '',
-        role: parsedRole,
-        organisationId: orgId || '',
-        organisationName: m.organisation_name || 'Organisation inconnue',
-        avatar: m.avatar || '',
-        status: m.is_active ? 'active' : 'inactive',
-        avatarColor: AVATAR_COLORS[getIndexFromId(m.id) % AVATAR_COLORS.length] || AVATAR_COULEUR_DEFAUT,
-        joinedAt: m.date_joined || new Date().toISOString()
-      });
-    });
+    const membres = await getTousLesAgentsService(search, role, status);
+    // Les plus récents d'abord.
+    return membres.map(versAgent).sort((a, b) => new Date(b.joinedAt || 0) - new Date(a.joinedAt || 0));
   } catch (err) {
-    logger.error(`[Agents] Erreur lors de la récupération des agents:`, err);
+    logger.error('[Agents] Erreur lors de la récupération des agents:', err);
+    throw err;
   }
-
-  // Tri récent (plus récent en premier)
-  allMembers.sort((a, b) => new Date(b.joinedAt) - new Date(a.joinedAt));
-  return allMembers;
 };
 
 export const Agents = () => {
   const currentUser = authService.getCurrentUser();
+  const estSuperAdmin = currentUser?.web_role === 'super_admin';
   const {
     isOpen: sidebarOpen,
     setOpen: setSidebarOpen,
@@ -89,227 +80,126 @@ export const Agents = () => {
     setCollapsed: setSidebarCollapsed,
   } = useSidebarState();
 
-  // ── Filtres ───────────────────────────────────────────────────
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const { saisie: searchInput, setSaisie: setSearchInput, recherche: search } = useRechercheDebouncee();
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  // Sur mobile, la liste s'allonge au lieu de changer de page.
+  const [nbVisibles, setNbVisibles] = useState(TAILLE_PAGE);
 
-  // Debounce search input de 200ms
-  const debouncedSetSearch = useMemo(
-    () => debounce((val) => setSearch(val), 200),
-    []
-  );
-
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches);
   useEffect(() => {
-    return () => {
-      debouncedSetSearch.cancel();
-    };
-  }, [debouncedSetSearch]);
+    const mq = window.matchMedia('(max-width: 767.98px)');
+    const maj = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', maj);
+    return () => mq.removeEventListener('change', maj);
+  }, []);
 
-  // ── Chargement des données ────────────────────────────────────
-  // Le squelette de la liste ne depend plus de ce chargement : les organisations
-  // ne servent qu'au formulaire de creation.
-  const { data: rawOrgs } = useSWR(
-    'organisation_list',
-    getOrganisationsService
-  );
-  const organisationsList = useMemo(() => rawOrgs || EMPTY_ARRAY, [rawOrgs]);
+  // L'en-tête de la page reste collé sous celui de l'application au
+  // défilement ; une ombre légère n'apparaît qu'une fois collé.
+  const repereRef = useRef(null);
+  const [colle, setColle] = useState(false);
+  const surDefilement = (e) => {
+    const repere = repereRef.current;
+    if (repere) setColle(e.currentTarget.scrollTop > repere.offsetTop - 60);
+  };
 
-  // Statistiques des agents
-  const { data: statsData, mutate: mutateStats } = useSWR(
-    'agents_stats',
-    getAgentsStatsService
-  );
+  // Retour au début de la liste dès qu'un filtre change.
+  useReinitialisationSurChangement([search, roleFilter, statusFilter], () => {
+    setPage(1);
+    setNbVisibles(TAILLE_PAGE);
+  });
+
+  // Les organisations ne servent qu'au formulaire de création du
+  // super-administrateur : la liste des agents ne les attend pas.
+  const { data: rawOrgs } = useSWR(estSuperAdmin ? 'organisations_formulaire_agent' : null, () => getOrganisationsService());
+  const organisationsList = useMemo(() => rawOrgs?.results || (Array.isArray(rawOrgs) ? rawOrgs : EMPTY_ARRAY), [rawOrgs]);
+
+  const { data: statsData, mutate: mutateStats } = useSWR('agents_stats', getAgentsStatsService);
 
   const {
     data: fetchedAgents,
-    isLoading: loadingMembers,
+    error: erreurAgents,
+    isLoading,
     mutate: mutateAgents,
-  } = useSWR(
-    // organisationsList ne figure NI dans la cle NI dans le fetcher.
-    //
-    // Elle y etait, et c'etait doublement couteux. En verrou (`length > 0 ? ...
-    // : null`) elle serialisait deux appels qui pouvaient partir ensemble. Mais
-    // la simple retirer du verrou en la laissant dans la cle etait pire : la
-    // liste passe de vide a remplie, la cle change, et SWR refait la requete —
-    // mesure a deux appels de /agents/ au lieu d'un.
-    //
-    // Elle ne servait qu'a deux replis : `organisationLogo`, qui n'est lu nulle
-    // part, et `organisationName`, dont le formulaire de creation fait deja sa
-    // propre recherche. Le payload des membres porte `organisation_name`.
-    ['agents_list', search, roleFilter, statusFilter],
-    fetcher
-  );
+  } = useSWR(['agents_list', search, roleFilter, statusFilter], fetcher, { keepPreviousData: true });
 
-  const isDataLoading = loadingMembers;
   const agents = fetchedAgents || EMPTY_ARRAY;
+  const total = agents.length;
 
-  // ── Modal form ────────────────────────────────────────────────
-  const [formModal, setFormModal] = useState({ open: false, mode: 'create', agent: null });
-  const [showPassword, setShowPassword] = useState(false);
-  const [modalAlert, setModalAlert] = useState({ type: null, message: null });
-  const [formAnimating, setFormAnimating] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // ── Modal suppression ─────────────────────────────────────────
-  const [deleteModal, setDeleteModal] = useState({ open: false, agent: null });
-  const [deleteAlert, setDeleteAlert] = useState({ type: null, message: null });
-  const [deleteAnimating, setDeleteAnimating] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // ── Ouvrir modal création ─────────────────────────────────────
-  const openCreate = () => {
-    setModalAlert({ type: null, message: null });
-    setShowPassword(false);
-    setFormAnimating('opening');
-    setFormModal({ open: true, mode: 'create', agent: null });
-    setTimeout(() => setFormAnimating(false), 350);
+  const compteurs = {
+    '': statsData?.total,
+    terrain: statsData?.field_agents,
+    bureau: statsData?.bureau_agents,
+    admin: statsData?.admins,
   };
+  const onglets = [{ id: '', onglet: 'Tous' }, ...ROLES];
 
+  // ── Droits ───────────────────────────────────────────────────
   // Un agent de bureau ne peut ni modifier ni supprimer un administrateur.
   //
   // Les trois orthographes testées ci-dessous sont conservées telles quelles :
   // seule la valeur `super_admin` a été observée en réponse réelle de l'API, et
   // normaliser sans avoir vu un compte `bureau_agent` reviendrait à parier sur
   // les droits en production.
-  const estAgentDeBureau = () =>
-    currentUser?.web_role === 'bureau_agent'
+  const estAgentDeBureau = currentUser?.web_role === 'bureau_agent'
     || currentUser?.web_role === 'bureau'
     || currentUser?.web_role === 'agent_de_bureau';
 
-  const estAdministrateur = (agent) =>
-    agent?.role === 'admin' || agent?.role === 'super_admin' || agent?.role === 'admin_organisation';
+  const peutModifier = (agent) => !(estAgentDeBureau && agent?.role === 'admin');
+  const peutSupprimer = (agent) => !estAgentDeBureau || agent?.role === 'terrain';
 
-  const peutModifier = (agent) => !(estAgentDeBureau() && estAdministrateur(agent));
-  const peutSupprimer = (agent) => !estAgentDeBureau() || agent?.role === 'terrain';
+  // ── Fenêtres ─────────────────────────────────────────────────
+  const [formModal, setFormModal] = useState({ open: false, mode: 'create', agent: null });
+  const [deleteModal, setDeleteModal] = useState({ open: false, agent: null });
 
-  // ── Ouvrir modal édition ──────────────────────────────────────
-  const openEdit = (agent, e) => {
-    e?.stopPropagation();
-    if (!peutModifier(agent)) {
-      return;
-    }
-    setModalAlert({ type: null, message: null });
-    setShowPassword(false);
-    setFormAnimating('opening');
-    setFormModal({ open: true, mode: 'edit', agent });
-    setTimeout(() => setFormAnimating(false), 350);
-  };
+  const [toast, setToast] = useState(null);
+  const afficherToast = (texte) => setToast({ texte, n: Date.now() });
 
-  // ── Fermer modal form ─────────────────────────────────────────
-  const closeFormModal = () => {
-    if (isSubmitting) return;
-    setFormAnimating('closing');
-    setTimeout(() => {
-      setFormModal({ open: false, mode: 'create', agent: null });
-      setFormAnimating(false);
-      setModalAlert({ type: null, message: null });
-    }, 320);
-  };
+  const openCreate = () => setFormModal({ open: true, mode: 'create', agent: null });
+  const openEdit = (agent) => { if (peutModifier(agent)) setFormModal({ open: true, mode: 'edit', agent }); };
+  const closeFormModal = () => setFormModal({ open: false, mode: 'create', agent: null });
+  const openDelete = (agent) => { if (peutSupprimer(agent)) setDeleteModal({ open: true, agent }); };
+  const closeDeleteModal = () => setDeleteModal({ open: false, agent: null });
 
-  // ── Ouvrir modal suppression ──────────────────────────────────
-  const openDelete = (agent, e) => {
-    e?.stopPropagation();
-    if (!peutSupprimer(agent)) {
-      return;
-    }
-    setDeleteAlert({ type: null, message: null });
-    setDeleteAnimating('opening');
-    setDeleteModal({ open: true, agent });
-    setTimeout(() => setDeleteAnimating(false), 350);
-  };
-
-  // ── Fermer modal suppression ──────────────────────────────────
-  const closeDeleteModal = () => {
-    if (isDeleting) return;
-    setDeleteAnimating('closing');
-    setTimeout(() => {
-      setDeleteModal({ open: false, agent: null });
-      setDeleteAnimating(false);
-    }, 320);
-  };
-
-  // ── Stats ─────────────────────────────────────────────────────
-  const statsTotal = statsData?.total ?? agents.length;
-  const statsActive = statsData?.active ?? agents.filter((a) => a.status === 'active').length;
-  const statsAdmins = statsData?.admins ?? agents.filter((a) => a.role === 'admin').length;
-  const statsTerrain = statsData?.field_agents ?? agents.filter((a) => a.role === 'terrain').length;
-
-  // ── Filtrage (géré côté serveur désormais) ────────────────────
-  const filtered = agents;
-
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
-
-  // Preference d'affichage, conservee entre les sessions comme celle de la sidebar.
-  const [vue, setVue] = useState(() => {
-    try {
-      return localStorage.getItem('mapaction_agents_vue') === 'liste' ? 'liste' : 'fiches';
-    } catch {
-      return 'fiches';
-    }
-  });
-
-  const changerVue = (v) => {
-    setVue(v);
-    try { localStorage.setItem('mapaction_agents_vue', v); } catch { /* stockage indisponible */ }
-  };
-
-  const filtreActif = Boolean(searchInput || roleFilter || statusFilter);
-
-  const effacerFiltres = () => {
-    setSearchInput('');
-    setSearch('');
-    debouncedSetSearch.cancel();
-    setRoleFilter('');
-    setStatusFilter('');
-  };
-
-  // Actions disponibles sur un agent, selon les droits de l'utilisateur connecte.
-  const actionsPour = (agent) => [
-    peutModifier(agent) && { id: 'edit', label: 'Modifier', icon: Edit2, onSelect: () => openEdit(agent) },
-    peutSupprimer(agent) && { id: 'delete', label: 'Supprimer', icon: Trash, tone: 'danger', onSelect: () => openDelete(agent) },
-  ].filter(Boolean);
-
-  // Retour a la premiere page des qu'un filtre change.
-  useReinitialisationSurChangement([search, roleFilter, statusFilter], () => setPage(1));
-
-  const paginatedAgents = useMemo(() => {
-    const startIndex = (page - 1) * pageSize;
-    return filtered.slice(startIndex, startIndex + pageSize);
-  }, [filtered, page, pageSize]);
-
-  // ── contextValue (même pattern que Organisations.jsx) ─────────
   const contextValue = {
-    // Form modal
     formModal,
-    showPassword,
-    setShowPassword,
-    modalAlert,
-    setModalAlert,
-    formAnimating,
-    isSubmitting,
-    setIsSubmitting,
-    openCreate,
-    openEdit,
     closeFormModal,
-    // Delete modal
     deleteModal,
-    deleteAlert,
-    setDeleteAlert,
-    deleteAnimating,
-    isDeleting,
-    setIsDeleting,
-    openDelete,
     closeDeleteModal,
-    // Shared
+    afficherToast,
     mutateAgents: () => {
       mutateAgents();
       mutateStats();
     },
     organisationsList,
   };
+
+  const actionsDe = (agent) => {
+    const actions = [
+      peutModifier(agent) && { id: 'edit', label: 'Modifier', icon: Edit2, onSelect: () => openEdit(agent) },
+      peutSupprimer(agent) && { id: 'delete', label: 'Retirer de l’équipe', icon: Trash, tone: 'danger', onSelect: () => openDelete(agent) },
+    ].filter(Boolean);
+    return actions.length > 0
+      ? <TableActionsMenu ariaLabel={`Actions sur ${agent.fullName}`} actions={actions} />
+      : null;
+  };
+
+  const filtreActif = Boolean(search || statusFilter);
+  const annonce = isLoading && !fetchedAgents
+    ? 'Chargement…'
+    : filtreActif
+      ? `${nombreFr(total)} résultat${total > 1 ? 's' : ''}`
+      : statsData && !roleFilter
+        ? `${nombreFr(statsData.total)} agent${statsData.total > 1 ? 's' : ''} · ${nombreFr(statsData.active)} actif${statsData.active > 1 ? 's' : ''}`
+        : `${nombreFr(total)} agent${total > 1 ? 's' : ''}`;
+
+  const pageAgents = isMobile
+    ? agents.slice(0, nbVisibles)
+    : agents.slice((page - 1) * TAILLE_PAGE, page * TAILLE_PAGE);
+  const chargementInitial = isLoading && !fetchedAgents;
+  const vide = !chargementInitial && agents.length === 0;
+  const nbColonnes = estSuperAdmin ? 7 : 6;
 
   return (
     <AgentsContext.Provider value={contextValue}>
@@ -322,106 +212,148 @@ export const Agents = () => {
         />
 
         <div className={`agents-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Header
-            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-            sidebarCollapsed={sidebarCollapsed}
-          />
+          <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
 
-          <main className="agents-content">
-            <div className="agents-page">
+          <main className="ag" onScroll={surDefilement}>
+            <BandeauErreur
+              erreur={erreurAgents}
+              onReessayer={mutateAgents}
+              message="Impossible de charger les agents. La liste affichée peut ne plus être à jour."
+            />
 
-              {/* ── En-tête ── */}
-              <div className="agents-page-header">
+            {/* L'en-tête de la page — titre, onglets, recherche et filtre — reste
+                fixe au défilement : seul le tableau passe dessous. */}
+            <div ref={repereRef} aria-hidden="true" className="ag-repere" />
+            <div className={`ag-entete ${colle ? 'is-colle' : ''}`}>
+              <div className="ag-tete">
                 <div>
-                  <h1 className="agents-title">Agents</h1>
-                  <p className="agents-subtitle">Gérez les agents et leurs accès à Map Action.</p>
+                  <h1>Agents</h1>
+                  <p>Les personnes qui ont accès à Map Action, sur le terrain et au bureau.</p>
                 </div>
-                <button className="agents-add-btn" onClick={openCreate}>
-                  <Add size={18} color="var(--color-surface)" />
-                  Nouvel agent
+                <button type="button" className="ag-btn-p" onClick={openCreate} aria-label={isMobile ? 'Nouvel agent' : undefined}>
+                  <Add size={18} color="currentColor" />
+                  {!isMobile && 'Nouvel agent'}
                 </button>
               </div>
 
-              <AgentsResume
-                filtreActif={filtreActif}
-                nbResultats={filtered.length}
-                total={statsTotal}
-                actifs={statsActive}
-                terrain={statsTerrain}
-                admins={statsAdmins}
-              />
+              <div className={isMobile ? 'ag-roles-pastilles' : 'ag-roles'} role="tablist" aria-label="Rôle">
+                {onglets.map((r) => {
+                  const actif = roleFilter === r.id;
+                  const n = compteurs[r.id];
+                  return (
+                    <button key={r.id || 'tous'} type="button" role="tab" aria-selected={actif} className={actif ? 'is-on' : ''} onClick={() => setRoleFilter(r.id)}>
+                      {r.onglet}
+                      {n !== undefined && (isMobile ? ` ${nombreFr(n)}` : <span className="ag-n">{nombreFr(n)}</span>)}
+                    </button>
+                  );
+                })}
+              </div>
 
-              <AgentsFilters
-                recherche={searchInput}
-                onRecherche={(v) => { setSearchInput(v); debouncedSetSearch(v); }}
-                role={roleFilter}
-                onRole={setRoleFilter}
-                statut={statusFilter}
-                onStatut={setStatusFilter}
-                vue={vue}
-                onVue={changerVue}
-                onEffacer={effacerFiltres}
-                filtreActif={filtreActif}
-              />
-
-              {/* ── Tableau ── */}
-              {isDataLoading ? (
-                <AgentsSkeleton vue={vue} />
-              ) : (
-                <>
-                  {grouperParRole(paginatedAgents).map((groupe) => (
-                    <section key={groupe.role} className="agents-groupe">
-                      <h2 className="agents-groupe-titre">
-                        {groupe.libelle}
-                        <span className="agents-groupe-compte">{groupe.agents.length}</span>
-                      </h2>
-
-                      {vue === 'fiches' ? (
-                        <div className="agents-grille">
-                          {groupe.agents.map((agent) => (
-                            <AgentCard key={agent.id} agent={agent} actions={actionsPour(agent)} />
-                          ))}
-                        </div>
-                      ) : (
-                        <ul className="agents-liste">
-                          {groupe.agents.map((agent) => (
-                            <AgentListRow key={agent.id} agent={agent} actions={actionsPour(agent)} />
-                          ))}
-                        </ul>
-                      )}
-                    </section>
-                  ))}
-
-                  {paginatedAgents.length === 0 && (
-                    <div className="agents-vide">
-                      <p className="agents-vide-titre">Aucun agent ne correspond</p>
-                      <p className="agents-vide-texte">
-                        Modifiez votre recherche, ou invitez un nouvel agent dans l’équipe.
-                      </p>
-                      <button type="button" className="agents-add-btn" onClick={openCreate}>
-                        <Add size={18} color="var(--color-surface)" />
-                        Nouvel agent
-                      </button>
-                    </div>
-                  )}
-
-                  <Pagination
-                    page={page}
-                    pageSize={pageSize}
-                    count={filtered.length}
-                    onChange={setPage}
-                  />
-                </>
-              )}
-
+              <div className="ag-outils">
+                <label className="ag-recherche">
+                  <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
+                  <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Nom ou e-mail" aria-label="Rechercher un agent" />
+                </label>
+                {!isMobile && (
+                  <label className={`ag-filtre ${statusFilter ? 'is-on' : ''}`}>
+                    <span aria-hidden="true">Statut : {STATUTS.find((s) => s.valeur === statusFilter)?.libelle.toLowerCase() || 'tous'}</span>
+                    <ArrowDown2 size={14} color="currentColor" aria-hidden="true" />
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filtrer par statut">
+                      <option value="">Statut : tous</option>
+                      {STATUTS.map((s) => <option key={s.valeur} value={s.valeur}>{s.libelle}</option>)}
+                    </select>
+                  </label>
+                )}
+                {!isMobile && <span className="ag-annonce" role="status">{annonce}</span>}
+              </div>
             </div>
+
+            {vide ? (
+              <div className="ag-boite ag-vide">
+                <span className="ag-vide-ic"><Profile2User size={22} color="currentColor" /></span>
+                <b>Aucun agent</b>
+                <p>{filtreActif || roleFilter ? 'Aucun résultat avec ces critères. Modifiez la recherche ou le filtre.' : 'Ajoutez le premier agent de l’équipe : il recevra un code pour se connecter.'}</p>
+                {!filtreActif && !roleFilter && <button type="button" className="ag-btn-p" onClick={openCreate}><Add size={18} color="currentColor" />Nouvel agent</button>}
+              </div>
+            ) : isMobile ? (
+              <div className="ag-cartes">
+                {chargementInitial ? [0, 1, 2].map((n) => <div key={n} className="ag-carte"><ShimmerText line={3} gap={8} /></div>) : pageAgents.map((a) => (
+                  <article key={a.id} className={`ag-carte ${a.status === 'inactive' ? 'is-inactif' : ''}`}>
+                    <div className="ag-carte-tete">
+                      <AvatarAgent agent={a} taille={42} />
+                      <span className="ag-carte-t">
+                        <b>{a.fullName}</b>
+                        <span>{`${a.role ? ROLES.find((r) => r.id === a.role)?.label : ''} · ${a.status === 'active' ? 'Actif' : 'Inactif'}`}</span>
+                      </span>
+                      {actionsDe(a)}
+                    </div>
+                    {a.phone && (
+                      <div className="ag-carte-pied">
+                        <a className="ag-appeler" href={telLien(a.phone)}>
+                          <Call size={15} color="currentColor" aria-hidden="true" />
+                          Appeler le {formatTelephone(a.phone)}
+                        </a>
+                      </div>
+                    )}
+                  </article>
+                ))}
+                {nbVisibles < total && (
+                  <button type="button" className="ag-plus" onClick={() => setNbVisibles((n) => n + TAILLE_PAGE)}>Afficher plus</button>
+                )}
+              </div>
+            ) : (
+              <div className="ag-boite ag-tableau-boite">
+                <table className="ag-tableau">
+                  <thead>
+                    <tr>
+                      <th scope="col">Agent</th>
+                      <th scope="col">Rôle</th>
+                      <th scope="col">Téléphone</th>
+                      {estSuperAdmin && <th scope="col">Organisation</th>}
+                      <th scope="col">Dans l'équipe depuis</th>
+                      <th scope="col">Statut</th>
+                      <th scope="col"><span className="ag-masque">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chargementInitial ? [0, 1, 2, 3, 4].map((n) => (
+                      <tr key={n}><td colSpan={nbColonnes}><div className="ag-squelette"><ShimmerThumbnail height={38} width={38} rounded className="m-0" /><div style={{ flex: 1 }}><ShimmerText line={2} gap={8} /></div></div></td></tr>
+                    )) : pageAgents.map((a) => (
+                      <tr key={a.id} className={`ag-ligne ${a.status === 'inactive' ? 'is-inactif' : ''}`}>
+                        <td>
+                          <div className="ag-agent">
+                            <AvatarAgent agent={a} />
+                            <div>
+                              <b>{a.fullName}</b>
+                              <span>{a.email}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td><RoleAgent role={a.role} /></td>
+                        <td>{a.phone ? <a className="ag-tel" href={telLien(a.phone)}>{formatTelephone(a.phone)}</a> : <span className="ag-absent">—</span>}</td>
+                        {estSuperAdmin && <td className="ag-doux">{a.organisationName || '—'}</td>}
+                        <td className="ag-doux ag-date">{formatDateLongue(a.joinedAt) || '—'}</td>
+                        <td><span className={`ag-statut is-${a.status}`}><i aria-hidden="true" />{a.status === 'active' ? 'Actif' : 'Inactif'}</span></td>
+                        <td className="ag-actions">{actionsDe(a)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!vide && !isMobile && total > TAILLE_PAGE && (
+              <div className="ag-pied">
+                <span>{`${(page - 1) * TAILLE_PAGE + 1}–${Math.min(page * TAILLE_PAGE, total)} sur ${nombreFr(total)}`}</span>
+                <Pagination page={page} pageSize={TAILLE_PAGE} count={total} onChange={setPage} />
+              </div>
+            )}
           </main>
         </div>
 
-        {/* ── Modals ── */}
-        <AgentFormModal key="AgentFormModalKey" />
-        <AgentDeleteModal key="AgentDeleteModalKey" />
-
+        <AgentFormModal />
+        <AgentDeleteModal />
+        {toast && <div key={toast.n} className="ag-toast" role="status">{toast.texte}</div>}
       </div>
     </AgentsContext.Provider>
   );

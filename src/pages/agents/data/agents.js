@@ -2,30 +2,33 @@
 // interventions : elle vit desormais dans src/utils.
 export { AVATAR_COLORS } from '../../../utils/couleursAvatar';
 
-// Fake data — liste des agents
-
+/**
+ * Les trois rôles d'un membre d'organisation, dans l'ordre opérationnel :
+ * un coordinateur cherche d'abord qui est sur le terrain.
+ *
+ * `api` est la valeur `org_role` du serveur ; `onglet` le libellé court des
+ * onglets et des cartes du formulaire.
+ */
 export const ROLES = [
   {
-    id: 'admin',
-    label: 'Admin',
-    description: 'Accès complet à toute la plateforme',
-    color: '#EF4444',
-    mobileOnly: false,
+    id: 'terrain',
+    api: 'field_agent',
+    label: 'Agent de terrain',
+    onglet: 'Terrain',
+    description: 'Application mobile seulement. Se connecte avec son code.',
   },
   {
     id: 'bureau',
+    api: 'bureau_agent',
     label: 'Agent de bureau',
-    description: 'Gère les collaborateurs — accès dashboard uniquement',
-    color: '#3AA2DD',
-    mobileOnly: false,
+    onglet: 'Bureau',
+    description: 'Tableau de bord. Suit les signalements et les collaborations.',
   },
   {
-    id: 'terrain',
-    label: 'Agent de terrain',
-    description: 'Accès mobile uniquement — aucun accès administration',
-    color: '#22C55E',
-    mobileOnly: true,
+    id: 'admin',
+    api: 'org_admin',
+    label: 'Administrateur',
+    onglet: 'Administration',
+    description: 'Accès complet, gère l’équipe de l’organisation.',
   },
 ];
-
-
