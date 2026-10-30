@@ -1,10 +1,14 @@
+import { createPortal } from 'react-dom';
 import { Trash } from 'iconsax-react';
 import { useIncidentModalContext } from './IncidentModalContext';
 import { deleteIncidentService } from '../service/incident_service';
 import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
 import { logger } from '../../../utils/logger';
+import { useEstTelephone } from '../mobile/useEstTelephone';
+import '../mobile/mobile.css';
 
 export const IncidentDeleteModal = () => {
+  const estTelephone = useEstTelephone();
   const {
     deleteModal,
     deleteClosing,
@@ -39,6 +43,29 @@ export const IncidentDeleteModal = () => {
       setIsDeleting(false);
     }
   };
+
+  if (estTelephone) {
+    return createPortal(
+      <div className="sgm-fond sgm-alerte-fond">
+        <div className="sgm-alerte" role="alertdialog" aria-modal="true" aria-labelledby="sgm-suppr-titre">
+          <div className="sgm-alerte-corps">
+            <b id="sgm-suppr-titre">Supprimer le signalement ?</b>
+            <span>« {deleteModal.incident.title || 'Sans titre'} » sera supprimé. Cette action est irréversible.</span>
+            {deleteAlert.message && (
+              <div className={`am-alert am-alert--${deleteAlert.type === 'success' ? 'success' : 'danger'}`} role="alert">
+                <span className="am-alert__message">{deleteAlert.message}</span>
+              </div>
+            )}
+          </div>
+          <div className="sgm-alerte-boutons">
+            <button type="button" onClick={closeDeleteModal} disabled={verrouille}>Annuler</button>
+            <button type="button" className="is-danger" onClick={handleConfirmDelete} disabled={verrouille}>Supprimer</button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return (
     <OffcanvasModal

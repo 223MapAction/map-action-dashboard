@@ -12,6 +12,10 @@ import { authService } from '../../auth/services/authService';
 import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
 import { AVATAR_COLORS, AVATAR_COULEUR_DEFAUT } from '../../../utils/couleursAvatar';
 import { logger } from '../../../utils/logger';
+import { useEstTelephone } from '../mobile/useEstTelephone';
+import '../mobile/mobile.css';
+
+const ROLE_MOBILE = { Terrain: 'Agent de terrain', Bureau: 'Agent de bureau' };
 
 // `fetchedAgents || []` fabriquait un tableau neuf a chaque rendu tant que la
 // requete n'avait pas repondu. Les useMemo qui en dependent ne memoisaient donc
@@ -54,6 +58,7 @@ export const IncidentAssignModal = () => {
     mutateIncidents
   } = useIncidentModalContext();
 
+  const estTelephone = useEstTelephone();
   const [searchQuery, setSearchQuery] = useState('');
   const bodyRef = useRef(null);
 
@@ -307,6 +312,106 @@ export const IncidentAssignModal = () => {
     });
   };
 
+  const groupes = Object.entries(
+    filteredAgents.reduce((acc, curr) => {
+      if (!acc[curr.orgName]) acc[curr.orgName] = [];
+      acc[curr.orgName].push(curr);
+      return acc;
+    }, {})
+  );
+
+  if (estTelephone) {
+    return (
+      <OffcanvasModal
+        onClose={handleOverlayClick}
+        isClosing={Boolean(assignClosing)}
+        className="feuille-haute"
+        title="Assigner un agent"
+        subtitle={assignModal.incident.title || 'Sans titre'}
+        closeVariant="plain"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} id="assign-incident-form" className="am-offcanvas-body" ref={bodyRef} noValidate>
+          {assignAlert && assignAlert.message && (
+            <div className={`am-alert am-alert--${assignAlert.type === 'success' ? 'success' : 'danger'}`} role="alert" style={{ marginBottom: 'var(--spacing-4)' }}>
+              <span className="am-alert__message" style={{ margin: 0 }}>{assignAlert.message}</span>
+            </div>
+          )}
+
+          <label className="sgm-rech">
+            <SearchNormal1 size={17} color="currentColor" aria-hidden="true" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Nom, e-mail ou organisation"
+              aria-label="Rechercher un collaborateur"
+            />
+          </label>
+
+          {loadingAgents && !agents.length ? (
+            <p className="sgm-vide">Chargement des agents...</p>
+          ) : groupes.length === 0 ? (
+            <p className="sgm-vide">Aucun agent trouvé</p>
+          ) : groupes.map(([orgName, orgAgents]) => (
+            <section key={orgName} aria-label={orgName}>
+              <h3 className="sgm-groupe-titre">{orgName}</h3>
+              <ul className="sgm-agents" role="radiogroup" aria-label={`Agents de ${orgName}`}>
+                {orgAgents.map((agent) => {
+                  const isAlreadyAssigned = assignedAgentIds.includes(agent.id);
+                  return (
+                    <li key={agent.id}>
+                      <label className="sgm-agent">
+                        <span className="sgm-agent-av" style={{ backgroundColor: agent.avatarColor }}>{getInitials(agent.fullName)}</span>
+                        <span className="sgm-agent-t">
+                          <b>{agent.fullName}</b>
+                          <span>{ROLE_MOBILE[agent.role] || agent.role} • {agent.email}</span>
+                        </span>
+                        {isAlreadyAssigned && <span className="sgm-agent-pris">Assigné</span>}
+                        <input
+                          type="radio"
+                          name="agent-mobile"
+                          checked={selectedAgent?.id === agent.id}
+                          disabled={isAlreadyAssigned}
+                          onChange={() => setValue('agent', String(agent.id), { shouldValidate: true })}
+                        />
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+
+          <label className="sgm-date">
+            <span>Date limite</span>
+            <input type="date" {...register('deadline')} />
+          </label>
+          {errors.deadline && <span className="text-danger" style={{ fontSize: 'var(--font-size-caption)' }}>{errors.deadline.message}</span>}
+        </form>
+
+        <div className="am-offcanvas-footer">
+          <button
+            type="button"
+            className="am-btn am-btn--secondary"
+            onClick={handleOverlayClick}
+            disabled={isAssigning || assignAlert.type === 'success'}
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            form="assign-incident-form"
+            className="am-btn am-btn--primary"
+            disabled={!selectedAgent || !deadline || isAssigning || assignAlert.type === 'success'}
+          >
+            {isAssigning && <span className="am-spinner" aria-hidden="true" />}
+            {isAssigning ? 'Assignation...' : selectedAgent ? `Assigner ${selectedAgent.fullName}` : 'Assigner'}
+          </button>
+        </div>
+      </OffcanvasModal>
+    );
+  }
+
   return (
     <OffcanvasModal
       onClose={handleOverlayClick}
@@ -373,13 +478,7 @@ export const IncidentAssignModal = () => {
               </div>
             ) : (
               <div className="incidents-agents-list">
-                {Object.entries(
-                  filteredAgents.reduce((acc, curr) => {
-                    if (!acc[curr.orgName]) acc[curr.orgName] = [];
-                    acc[curr.orgName].push(curr);
-                    return acc;
-                  }, {})
-                ).map(([orgName, orgAgents]) => (
+                {groupes.map(([orgName, orgAgents]) => (
                   <div key={orgName} className="incidents-org-group">
                     <div className="incidents-org-name">{orgName}</div>
                     {orgAgents.map((agent) => {

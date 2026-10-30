@@ -1,0 +1,318 @@
+/* ============================================================
+   SIGNALEMENTS SUR TÉLÉPHONE (sous 640 px)
+   Liste, feuilles et fenêtres de la maquette mobile native.
+   Le bureau n'est pas concerné.
+   ============================================================ */
+
+/* Feuille d'actions */
+.sgm-fond {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.4);
+  animation: sgm-fondu 0.2s ease-out both;
+}
+
+.sgm-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  outline: none;
+  animation: sgm-monte 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sgm-actions-groupe {
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(250, 250, 252, 0.92);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+}
+
+.sgm-actions-tete {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.18);
+  text-align: center;
+  font-size: 13px;
+  color: #5B6472;
+}
+
+.sgm-actions-tete b { font-weight: 600; }
+
+.sgm-action {
+  width: 100%;
+  min-height: 56px;
+  border: none;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.18);
+  background: transparent;
+  font: inherit;
+  font-size: 17px;
+  color: #1E78AC;
+  cursor: pointer;
+}
+
+.sgm-action:last-child { border-bottom: none; }
+.sgm-action.is-danger { color: #E21313; }
+.sgm-action-annuler { border-bottom: none; border-radius: 16px; background: #fff; font-weight: 600; }
+
+/* Alerte de suppression */
+.sgm-alerte-fond { align-items: center; justify-content: center; }
+
+.sgm-alerte {
+  width: 270px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(250, 250, 252, 0.96);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+  text-align: center;
+  animation: sgm-apparait 0.2s ease-out both;
+}
+
+.sgm-alerte-corps { display: flex; flex-direction: column; gap: 4px; padding: 16px 16px 14px; }
+.sgm-alerte-corps b { font-size: 16px; }
+.sgm-alerte-corps span { font-size: 13px; line-height: 1.4; color: #3F4650; }
+.sgm-alerte-corps .am-alert { margin-top: 8px; text-align: left; }
+.sgm-alerte-boutons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid rgba(60, 60, 67, 0.2); }
+
+.sgm-alerte-boutons button {
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: #1E78AC;
+  cursor: pointer;
+}
+
+.sgm-alerte-boutons button:first-child { border-right: 1px solid rgba(60, 60, 67, 0.2); }
+.sgm-alerte-boutons button.is-danger { font-weight: 600; color: #E21313; }
+.sgm-alerte-boutons button:disabled { opacity: 0.5; cursor: default; }
+
+@keyframes sgm-fondu { from { opacity: 0; } }
+@keyframes sgm-monte { from { transform: translateY(100%); } }
+@keyframes sgm-apparait { from { opacity: 0; transform: scale(1.06); } }
+
+@media (max-width: 640px) {
+  /* Liste */
+  .sg.sg {
+    --sg-primary: #1E78AC;
+    gap: 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(var(--am-tabbar-h, 0px) + 16px);
+    background: #F2F4F7;
+    color: #1A1C1E;
+  }
+
+  .sg .sg-tete h1 { font-size: 32px; letter-spacing: -0.025em; }
+
+  .sg .sg-recherche { height: 42px; border: none; border-radius: 12px; background: #E4E7EC; color: #5B6472; }
+  .sg .sg-recherche:focus-within { box-shadow: 0 0 0 2px var(--color-primary); }
+
+  .sg .sg-etats-pastille { gap: 8px; }
+  .sg .sg-etats-pastille button { min-height: 36px; border: none; font-size: 14px; color: #1A1C1E; }
+  .sg .sg-etats-pastille button.is-on { background: #1A1C1E; color: #fff; }
+
+  /* Annoncé aux lecteurs d'écran, absent de la maquette. */
+  .sg .sg-annonce { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  .sgm-carte { position: relative; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+  .sgm-carte .sg-carte { border: none; border-radius: 0; background: transparent; }
+  .sgm-carte .sg-carte-photo > .sg-chip { padding: 4px 10px; }
+  .sgm-carte .sg-carte-photo > .sg-chip-photo { top: auto; right: auto; bottom: 10px; left: 10px; background: rgba(255, 255, 255, 0.92); color: #1A1C1E; }
+  .sgm-carte .sg-carte-photo > .sg-chip-photo:not([data-etat='declared']),
+  .sgm-carte .sg-carte-photo > .sg-chip-photo[data-etat='resolved'] { color: #1A1C1E; }
+  .sgm-carte .sg-carte-corps { gap: 6px; }
+  .sgm-carte .sg-carte-corps b { font-size: 16px; font-weight: 600; line-height: 1.3; }
+  .sgm-carte .sg-desc { margin: 0; font-size: 14px; line-height: 1.5; color: #3F4650; }
+  .sgm-carte .sg-carte-corps > span { color: #5B6472; }
+  .sgm-carte .sg-carte-charge { margin: 0; padding: 0; border: none; font-weight: 500; }
+  .sgm-carte .sg-carte-charge.is-pris { color: #1E78AC !important; }
+
+  .sgm-plus {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.45);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    cursor: pointer;
+  }
+
+  /* Squelette de la liste */
+  .sgm-squelette { overflow: hidden; border-radius: 18px; background: #fff; }
+  .sgm-squelette > i { display: block; height: 92px; background: #E9ECF0; }
+  .sgm-squelette > div { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+  .sgm-squelette span { height: 14px; width: 70%; border-radius: 6px; background: #E4E7EC; }
+  .sgm-squelette span + span { height: 10px; width: 90%; background: #EEF0F3; }
+
+  /* État vide */
+  .sg .sg-vide { padding: 18px 12px; border-radius: 18px; background: #fff; }
+  .sg .sg-vide-ic { display: none; }
+  .sg .sg-vide p { color: #5B6472; }
+
+  /* Bandeau d'erreur : son bouton prend toute la largeur. */
+  .incident-workspace { flex-direction: column; }
+  .incident-workspace > .bandeau-erreur { flex-wrap: wrap; margin: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0; }
+  .incident-workspace > .bandeau-erreur .bandeau-erreur-texte { flex: 1; min-width: 0; }
+  .incident-workspace > .bandeau-erreur .bandeau-erreur-action { width: 100%; min-height: 44px; justify-content: center; }
+
+  /* ----------------------------------------------------------
+     Feuille haute : Assigner un agent, Agir sur le signalement.
+     Le bouton Annuler du pied remonte en haut à gauche ; il reste
+     le seul bouton de fermeture.
+     ---------------------------------------------------------- */
+  .feuille-haute-fond { background: rgba(26, 30, 38, 0.75); }
+
+  .am-offcanvas-panel.feuille-haute.feuille-haute {
+    top: calc(env(safe-area-inset-top, 0px) + 50px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 22px 22px 0 0 !important;
+    background: #F2F4F7;
+    color: #1A1C1E;
+    transform: none;
+    animation: sgm-monte 0.32s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+  }
+
+  .am-offcanvas-panel.feuille-haute.feuille-haute.am-offcanvas-panel--closing { animation: sgm-descend 0.26s ease-in both !important; }
+
+  .am-offcanvas-panel.feuille-haute::before {
+    content: "";
+    flex-shrink: 0;
+    align-self: center;
+    width: 38px;
+    height: 5px;
+    margin-top: 8px;
+    border-radius: 99px;
+    background: #C9CFD8;
+  }
+
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-header {
+    display: block;
+    min-height: 52px;
+    padding: 8px 84px;
+    border: none;
+    background: transparent;
+    text-align: center;
+  }
+
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-header .btn-close { display: none; }
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-heading { display: block; }
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-title { margin: 0; font-size: 17px; font-weight: 600; color: #1A1C1E; }
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-subtitle { margin: 0; overflow: hidden; font-size: 12.5px; color: #5B6472; white-space: nowrap; text-overflow: ellipsis; }
+
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 16px; background: transparent; }
+
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-footer {
+    display: block;
+    padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    border-top: 1px solid #E4E7EC;
+    background: #F2F4F7; /* pas de flou : il capturerait le bouton Annuler positionné */
+  }
+
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-footer .am-btn--secondary {
+    position: absolute;
+    top: 14px;
+    left: 8px;
+    min-height: 44px;
+    padding: 0 8px;
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    font-weight: 400;
+    color: #1E78AC;
+  }
+
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-footer .am-btn--primary {
+    width: 100%;
+    min-height: 52px;
+    justify-content: center;
+    border: none;
+    border-radius: 14px;
+    background: #1E78AC;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  /* Assigner un agent */
+  .sgm-rech {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 0 12px;
+    border-radius: 12px;
+    background: #E4E7EC;
+    color: #5B6472;
+  }
+
+  .sgm-rech input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font: inherit; font-size: 16px; color: #1A1C1E; }
+  .sgm-groupe-titre { margin: 0 0 8px 4px; font-size: 13px; font-weight: 600; color: #5B6472; }
+  .sgm-agents { margin: 0 0 14px; padding: 0; overflow: hidden; border-radius: 14px; background: #fff; list-style: none; }
+
+  .sgm-agent {
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 8px 14px;
+    border-bottom: 1px solid #F1F3F6;
+    cursor: pointer;
+  }
+
+  .sgm-agents li:last-child .sgm-agent { border-bottom: none; }
+  .sgm-agent-av { width: 38px; height: 38px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 13px; font-weight: 700; }
+  .sgm-agent-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sgm-agent-t b { font-size: 15px; font-weight: 600; }
+  .sgm-agent-t span { overflow: hidden; font-size: 12.5px; color: #5B6472; white-space: nowrap; text-overflow: ellipsis; }
+  .sgm-agent-pris { flex-shrink: 0; padding: 2px 8px; border-radius: 99px; background: #DCFCE7; color: #17833F; font-size: 11.5px; font-weight: 600; }
+  .sgm-agent input { width: 22px; height: 22px; flex-shrink: 0; margin: 0; accent-color: #1E78AC; }
+  .sgm-date { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 600; color: #5B6472; }
+  .sgm-date > span { margin-left: 4px; }
+
+  .sgm-date input {
+    width: 100%;
+    min-height: 50px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 14px;
+    background: #fff;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 400;
+    color: #1A1C1E;
+  }
+
+  .sgm-vide { padding: 18px 12px; border-radius: 14px; background: #fff; text-align: center; font-size: 13.5px; color: #5B6472; }
+}
+
+@keyframes sgm-descend { to { transform: translateY(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sgm-fond,
+  .sgm-actions,
+  .sgm-alerte,
+  .am-offcanvas-panel.feuille-haute.feuille-haute { animation: none !important; }
+}

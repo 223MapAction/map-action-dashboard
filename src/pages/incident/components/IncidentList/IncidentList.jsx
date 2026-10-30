@@ -15,7 +15,9 @@ import { OSM_STYLE } from '../../../../config/mapStyles';
 import { CarteSignalementsMapLibre } from './CarteSignalementsMapLibre';
 import { CarteSignalementsMapbox } from './CarteSignalementsMapbox';
 import { ETATS, etatDe, nomEtatPluriel, quandRelatif, auteurDe, priseEnChargeDe } from './formatSignalement';
+import { FeuilleActions } from '../../mobile/FeuilleActions';
 import './signalements.css';
+import '../../mobile/mobile.css';
 
 const CarteSignalements = IS_MAPBOX ? CarteSignalementsMapbox : CarteSignalementsMapLibre;
 
@@ -60,21 +62,21 @@ const OngletsEtat = ({ valeur, onChange, count, chargement, variante = 'souligne
       return (
         <button key={e.valeur || 'tous'} type="button" role="tab" aria-selected={actif} className={actif ? 'is-on' : ''} onClick={() => onChange(e.valeur)}>
           {e.libelle}
-          {actif && !chargement && count > 0 && (variante === 'pastille' ? ` · ${count}` : <span className="sg-n">{count}</span>)}
+          {actif && !chargement && count > 0 && (variante === 'pastille' ? (e.valeur === '' ? ` · ${count}` : null) : <span className="sg-n">{count}</span>)}
         </button>
       );
     })}
   </div>
 );
 
-const Recherche = ({ valeur, onChange }) => (
+const Recherche = ({ valeur, onChange, placeholder = 'Titre, description ou quartier…' }) => (
   <label className="sg-recherche">
     <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
     <input
       type="search"
       value={valeur}
       onChange={(e) => onChange(e.target.value)}
-      placeholder="Titre, description ou quartier…"
+      placeholder={placeholder}
       aria-label="Rechercher un signalement"
     />
   </label>
@@ -95,9 +97,11 @@ export const IncidentList = ({
   vue,
   setVue,
   isMobile,
+  estTelephone = false,
   onPlus,
 }) => {
   const { openDeleteModal, openAssignModal } = useIncidentModalContext();
+  const [feuille, setFeuille] = useState(null);
   const user = authService.getCurrentUser();
   const isSuperAdmin = checkSuperAdmin(user);
   // « admin » ici = peut piloter les incidents sans être super_admin.
@@ -116,14 +120,16 @@ export const IncidentList = ({
     quand: quandRelatif(incident.created_at),
   })), [incidents, monOrgId]);
 
+  const listeActions = (incident, charge) => [
+    { id: 'view', label: 'Voir le détail', icon: Eye, onSelect: () => onSelectIncident?.(incident) },
+    (incident.isOwner || charge?.estMoi) && { id: 'assign', label: 'Assigner à un agent', icon: Edit2, onSelect: () => openAssignModal(incident) },
+    !isAdmin && { id: 'delete', label: 'Supprimer le signalement', icon: Trash, tone: 'danger', onSelect: () => openDeleteModal(incident) },
+  ].filter(Boolean);
+
   const actionsDe = (incident, charge) => (
     <TableActionsMenu
       ariaLabel={`Actions sur ${incident.title || 'ce signalement'}`}
-      actions={[
-        { id: 'view', label: 'Voir le détail', icon: Eye, onSelect: () => onSelectIncident?.(incident) },
-        (incident.isOwner || charge?.estMoi) && { id: 'assign', label: 'Assigner à un agent', icon: Edit2, onSelect: () => openAssignModal(incident) },
-        !isAdmin && { id: 'delete', label: 'Supprimer le signalement', icon: Trash, tone: 'danger', onSelect: () => openDeleteModal(incident) },
-      ].filter(Boolean)}
+      actions={listeActions(incident, charge)}
     />
   );
 
@@ -148,13 +154,13 @@ export const IncidentList = ({
           <h1 id="sg-titre">Signalements</h1>
           {vue !== 'carte' && <p>Les problèmes remontés par les citoyens et les agents de terrain.</p>}
         </div>
-        {!isMobile && (
+        {!isMobile && !estTelephone && (
           <div className="sg-vue" role="group" aria-label="Affichage">
             <button type="button" aria-pressed={vue !== 'carte'} onClick={() => setVue('tableau')}>Tableau</button>
             <button type="button" aria-pressed={vue === 'carte'} onClick={() => setVue('carte')}>Carte</button>
           </div>
         )}
-        {isMobile && (
+        {isMobile && !estTelephone && (
           <div className="sg-vue" role="group" aria-label="Affichage">
             <button type="button" aria-pressed={vue !== 'carte'} onClick={() => setVue('tableau')}>Liste</button>
             <button type="button" aria-pressed={vue === 'carte'} onClick={() => setVue('carte')}>Carte</button>
@@ -180,30 +186,52 @@ export const IncidentList = ({
         />
       ) : isMobile ? (
         <>
-          <Recherche valeur={search} onChange={setSearch} />
+          <Recherche valeur={search} onChange={setSearch} placeholder={estTelephone ? 'Titre, description ou quartier' : undefined} />
           <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} variante="pastille" />
           <p className="sg-annonce" role="status">{annonce}</p>
           {vide ? etatVide : (
             <div className="sg-cartes">
               {lignes.map(({ incident, niveau, titre, description, lieu, charge, quand }) => (
-                <a key={incident.id} href={`/signalements/${incident.id}`} className="sg-carte" onClick={(e) => { e.preventDefault(); onSelectIncident?.(incident); }}>
-                  <span className="sg-carte-photo">
-                    <Vignette incident={incident} className="sg-carte-img" />
-                    <Gravite niveau={niveau} />
-                    <Etat etat={incident.etat} surPhoto />
-                  </span>
-                  <span className="sg-carte-corps">
-                    <b>{titre}</b>
-                    {description && <p className="sg-desc">{description}</p>}
-                    <span>{[lieu, quand].filter(Boolean).join(' · ')}</span>
-                    <span className={`sg-carte-charge ${charge ? 'is-pris' : ''}`}>
-                      {charge ? [charge.nom, charge.mode.toLowerCase()].filter(Boolean).join(' · ') : "Personne ne l'a encore pris en charge"}
+                <div key={incident.id} className={estTelephone ? 'sgm-carte' : undefined}>
+                  <a href={`/signalements/${incident.id}`} className="sg-carte" onClick={(e) => { e.preventDefault(); onSelectIncident?.(incident); }}>
+                    <span className="sg-carte-photo">
+                      <Vignette incident={incident} className="sg-carte-img" />
+                      <Gravite niveau={niveau} />
+                      <Etat etat={incident.etat} surPhoto />
                     </span>
-                  </span>
-                </a>
+                    <span className="sg-carte-corps">
+                      <b>{titre}</b>
+                      {description && <p className="sg-desc">{description}</p>}
+                      <span>{[lieu, quand].filter(Boolean).join(' · ')}</span>
+                      <span className={`sg-carte-charge ${charge ? 'is-pris' : ''}`}>
+                        {charge ? [charge.nom, charge.mode.toLowerCase()].filter(Boolean).join(' · ') : "Personne ne l'a encore pris en charge"}
+                      </span>
+                    </span>
+                  </a>
+                  {estTelephone && (
+                    <button
+                      type="button"
+                      className="sgm-plus"
+                      aria-label="Actions sur ce signalement"
+                      onClick={() => setFeuille({ incident, titre, lieu, actions: listeActions(incident, charge) })}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
+                    </button>
+                  )}
+                </div>
               ))}
-              {isLoading && [0, 1].map((n) => <div key={n} className="sg-carte"><ShimmerThumbnail height={150} className="m-0" /><div className="sg-carte-corps"><ShimmerText line={2} gap={8} /></div></div>)}
+              {isLoading && [0, 1].map((n) => (estTelephone
+                ? <div key={n} className="sgm-squelette" aria-hidden="true"><i /><div><span /><span /></div></div>
+                : <div key={n} className="sg-carte"><ShimmerThumbnail height={150} className="m-0" /><div className="sg-carte-corps"><ShimmerText line={2} gap={8} /></div></div>))}
             </div>
+          )}
+          {feuille && (
+            <FeuilleActions
+              titre={feuille.titre}
+              sousTitre={[feuille.lieu, etatDe(feuille.incident.etat).libelle].filter(Boolean).join(' · ')}
+              actions={feuille.actions}
+              onClose={() => setFeuille(null)}
+            />
           )}
           {!isLoading && lignes.length < count && (
             <button type="button" className="sg-plus" onClick={onPlus}>

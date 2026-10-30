@@ -14,6 +14,7 @@ import './incident.css';
 import { useReinitialisationSurChangement } from '../../hooks/useReinitialisationSurChangement';
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { logger } from '../../utils/logger';
+import { useEstTelephone } from './mobile/useEstTelephone';
 
 
 // Fonction pour adapter les données de l'API au format attendu
@@ -119,7 +120,10 @@ export const Incident = () => {
   // paginer. Chaque lot est une page de 20 demandée À LA SUITE des précédentes :
   // /MapApi/incident/ coûte ~140 ms par ligne, redemander 40 puis 60 lignes à
   // chaque clic ferait payer à nouveau tout ce qui est déjà affiché.
-  const listeContinue = isMobile && vue === 'tableau';
+  // Pas de bascule Liste/Carte sur téléphone : la carte vit sur le dashboard.
+  const estTelephone = useEstTelephone();
+  const vueEffective = estTelephone ? 'tableau' : vue;
+  const listeContinue = isMobile && vueEffective === 'tableau';
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -273,10 +277,12 @@ export const Incident = () => {
         />
 
         <div className={`incident-page-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Header
-            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-            sidebarCollapsed={sidebarCollapsed}
-          />
+          {!estTelephone && (
+            <Header
+              onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+              sidebarCollapsed={sidebarCollapsed}
+            />
+          )}
 
           <div className={workspaceClass}>
             <BandeauErreur
@@ -300,9 +306,10 @@ export const Incident = () => {
               setPage={setPage}
               pageSize={pageSize}
               count={reponse?.count || 0}
-              vue={vue}
+              vue={vueEffective}
               setVue={setVue}
               isMobile={isMobile}
+              estTelephone={estTelephone}
               onPlus={() => setNbLots(nbLots + 1)}
             />
           </div>
