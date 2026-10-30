@@ -1,44 +1,37 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
-import { FiltersBar } from '../../components/molecules/FiltersBar';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import useSWR from 'swr';
+import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Buildings2 } from 'iconsax-react';
+import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
+import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
 import { useSidebarState } from '../../hooks/useSidebarState';
 import { Header, Sidebar } from '../../components/layout';
-import {
-  SearchNormal1, ArrowDown2, Add, Edit2, Trash,
-  Buildings2, People, CloseCircle, TickCircle,
-  Global, Call, Sms, Briefcase, ArrowLeft2, ArrowRight2
-} from 'iconsax-react';
-import {
-  SECTORS, TYPES, COUNTRIES
-} from './data/organisations';
+import { SECTORS, TYPES } from './data/organisations';
 import {
   createOrganisationService,
   deleteOrganisationService,
   updateOrganisationService,
   getOrganisationsService,
-  getOrganisationStatsService
+  getOrganisationStatsService,
 } from './service/organisation_service';
-import './organisations.css';
 import OrganisationsContext from './context/OrganisationsContext';
 import FormOrganisationModal from './modal/FormOrganisationModal';
 import DeleteOrganisationModal from './modal/DeleteOrganisationModal';
-import { BlurryImage } from '../../components/atoms/BlurryImage';
+import { PastilleOrganisation } from './PastilleOrganisation';
 import Pagination from '../../components/molecules/Pagination';
-
-import { ResponsiveTable } from '../../components/molecules/ResponsiveTable';
-import { COLONNES_ORGANISATIONS, mediaOrganisation, libellePays } from './colonnes';
 import { TableActionsMenu } from '../../components/molecules/TableActionsMenu';
-import { AVATAR_COLORS, AVATAR_COULEUR_DEFAUT } from '../../utils/couleursAvatar';
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
+import { AVATAR_COULEUR_DEFAUT } from '../../utils/couleursAvatar';
+import { libelleSecteur, libelleType, libellePays, nombreFr, COULEURS_ORGANISATION } from './libelles';
+import './organisations.css';
+import './organisations-liste.css';
+
 const EMPTY_FORM = {
   name: '',
   acronym: '',
-  color: 'var(--color-primary-text)',
+  color: COULEURS_ORGANISATION[1],
   sector: '',
   type: '',
   country: '',
-  city: '',
   phone: '',
   email: '',
   website: '',
@@ -46,6 +39,28 @@ const EMPTY_FORM = {
   status: 'active',
   logo_url: null,
   logo: null,
+};
+
+const STATUTS = [
+  { valeur: '', libelle: 'Toutes' },
+  { valeur: 'active', libelle: 'Actives' },
+  { valeur: 'inactive', libelle: 'Inactives' },
+];
+
+/** Liste déroulante de filtre, marquée quand elle filtre. */
+const Filtre = ({ libelle, valeur, onChange, options }) => {
+  const actif = Boolean(valeur);
+  const choisi = options.find((o) => o.en === valeur);
+  return (
+    <label className={`og-filtre ${actif ? 'is-on' : ''}`}>
+      <span aria-hidden="true">{libelle} : {choisi ? choisi.fr : 'tous'}</span>
+      <ArrowDown2 size={14} color="currentColor" aria-hidden="true" />
+      <select value={valeur} onChange={(e) => onChange(e.target.value)} aria-label={`Filtrer par ${libelle.toLowerCase()}`}>
+        <option value="">{libelle} : tous</option>
+        {options.map((o) => <option key={o.en} value={o.en}>{o.fr}</option>)}
+      </select>
+    </label>
+  );
 };
 
 export const Organisations = () => {
@@ -59,31 +74,44 @@ export const Organisations = () => {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  const {
-    saisie: searchInput,
-    setSaisie: setSearchInput,
-    recherche: search,
-    reinitialiser: reinitialiserRecherche,
-  } = useRechercheDebouncee();
+  const { saisie: searchInput, setSaisie: setSearchInput, recherche: search } = useRechercheDebouncee();
   const [sectorFilter, setSectorFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767.98px)');
+    const maj = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', maj);
+    return () => mq.removeEventListener('change', maj);
+  }, []);
 
-  // Reset page to 1 on filter/search change
+  // L'en-tête de la page reste collé sous celui de l'application au
+  // défilement ; une ombre légère n'apparaît qu'une fois collé.
+  // Le repère est un élément vide posé juste avant la barre : lui ne bouge pas
+  // quand la barre se colle, sa position reste donc une référence fiable.
+  const repereRef = useRef(null);
+  const [colle, setColle] = useState(false);
+  const surDefilement = (e) => {
+    const repere = repereRef.current;
+    if (repere) setColle(e.currentTarget.scrollTop > repere.offsetTop - 60);
+  };
+
+  // Retour à la première page dès qu'un filtre change.
   useEffect(() => {
     setPage(1);
   }, [search, sectorFilter, statusFilter, typeFilter]);
 
+  // Tous les filtres sont appliqués par le serveur : le total qu'il renvoie
+  // est donc celui de la recherche, pas celui de la page affichée.
   const { data: rawOrgs, error: erreurOrgs, isLoading: swrLoading, mutate: mutateOrgs } = useSWR(
     ['organisation_list', page, search, sectorFilter, statusFilter, typeFilter],
-    () => getOrganisationsService(page, pageSize, true, search, sectorFilter, statusFilter, typeFilter)
+    () => getOrganisationsService(page, pageSize, true, search, sectorFilter, statusFilter, typeFilter),
+    { keepPreviousData: true },
   );
 
-  const { data: statsData, mutate: mutateStats } = useSWR(
-    'organisation_stats',
-    getOrganisationStatsService
-  );
+  const { data: statsData, mutate: mutateStats } = useSWR('organisation_stats', getOrganisationStatsService);
 
   const mutateAll = () => {
     mutateOrgs();
@@ -100,12 +128,6 @@ export const Organisations = () => {
       sector: o.activity_sector || '',
       type: o.organisation_type || '',
       country: o.intervention_country || '',
-      // ATTENTION — ce n'est pas une ville. L'API ne renvoie aucun champ de
-      // localite ; `subdomain` a ete branche ici comme bouche-trou. La colonne
-      // « Localisation » affiche donc un identifiant technique du genre
-      // « direction_régionale_de_l'hydraulique_(ménaka) » a cote du pays.
-      // A remplacer des qu'un vrai champ ville existe cote backend.
-      city: o.subdomain || '',
       phone: o.phone || '',
       email: o.email || '',
       website: o.website_url || '',
@@ -113,72 +135,41 @@ export const Organisations = () => {
       status: o.partner_status || 'active',
       logo_url: o.logo || null,
       membersCount: o.members_count ?? 0,
-      activeProjects: o.active_projects ?? 0,
+      // L'API renvoie `incidents_taken_count` ; `active_projects` n'existe pas
+      // dans la réponse (vérifié le 29/10/2026), d'où une colonne toujours à 0.
+      activeProjects: o.incidents_taken_count ?? o.active_projects ?? 0,
     }));
   }, [rawOrgs]);
 
-  // Modal create/edit
+  const total = rawOrgs?.count ?? orgs.length;
+  const compteurs = {
+    '': statsData?.total,
+    active: statsData?.active,
+    inactive: statsData ? (statsData.inactive ?? Math.max((statsData.total ?? 0) - (statsData.active ?? 0), 0)) : undefined,
+  };
+
+  // ── Fenêtres ─────────────────────────────────────────────
   const [formModal, setFormModal] = useState({ open: false, mode: 'create', org: null });
   const [form, setForm] = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
-
-  // Modal delete
-  const [deleteModal, setDeleteModal] = useState({ open: false, org: null });
-
-  // Toast
-
-  // Alertes pour les modals
   const [modalAlert, setModalAlert] = useState({ type: null, message: null });
-  const [deleteAlert, setDeleteAlert] = useState({ type: null, message: null });
-
-  // Animations
-  const [formAnimating, setFormAnimating] = useState(false);
-  const [deleteAnimating, setDeleteAnimating] = useState(false);
-
-  // Soumission en cours
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Suppression en cours
+  const [deleteModal, setDeleteModal] = useState({ open: false, org: null });
+  const [deleteAlert, setDeleteAlert] = useState({ type: null, message: null });
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // ── Stats ───────────────────────────────────────────────
-  const statsActive = statsData?.active ?? 0;
-  const statsTotal = statsData?.total ?? 0;
-  const statsProjects = statsData?.incidents_taken_total ?? 0;
+  const [toast, setToast] = useState(null);
+  const afficherToast = (texte) => setToast({ texte, n: Date.now() });
 
-  // ── Filtrage ────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    return orgs.filter((o) => {
-      const q = search.toLowerCase();
-      const matchSearch = !q || o.name.toLowerCase().includes(q)
-        || o.acronym.toLowerCase().includes(q)
-        || o.city.toLowerCase().includes(q)
-        || libellePays(o.country).toLowerCase().includes(q)
-        || o.country.toLowerCase().includes(q);
-      const matchSector = !sectorFilter || o.sector === sectorFilter;
-      const matchStatus = !statusFilter || o.status === statusFilter;
-      const matchType = !typeFilter || o.type === typeFilter;
-      return matchSearch && matchSector && matchStatus && matchType;
-    });
-  }, [orgs, search, sectorFilter, statusFilter, typeFilter]);
-
-
-
-
-
-  // ── Ouvrir modal création ────────────────────────────────
   const openCreate = () => {
     setForm(EMPTY_FORM);
     setFormErrors({});
     setModalAlert({ type: null, message: null });
-    setFormAnimating('opening');
     setFormModal({ open: true, mode: 'create', org: null });
-    setTimeout(() => setFormAnimating(false), 350);
   };
 
-  // ── Ouvrir modal édition ─────────────────────────────────
-  const openEdit = (org, e) => {
-    e?.stopPropagation();
+  const openEdit = (org) => {
     setForm({
       name: org.name,
       acronym: org.acronym,
@@ -186,7 +177,6 @@ export const Organisations = () => {
       sector: org.sector,
       type: org.type,
       country: org.country,
-      city: org.city,
       phone: org.phone,
       email: org.email,
       website: org.website,
@@ -197,59 +187,45 @@ export const Organisations = () => {
     });
     setFormErrors({});
     setModalAlert({ type: null, message: null });
-    setFormAnimating('opening');
     setFormModal({ open: true, mode: 'edit', org });
-    setTimeout(() => setFormAnimating(false), 350);
   };
 
-  // ── Gestion de la photo ──────────────────────────────────
+  const closeFormModal = () => {
+    setFormModal({ open: false, mode: 'create', org: null });
+    setModalAlert({ type: null, message: null });
+  };
+
+  const setField = (key, val) => {
+    setForm((f) => ({ ...f, [key]: val }));
+    if (formErrors[key]) setFormErrors((e) => ({ ...e, [key]: undefined }));
+  };
+
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setField('logo', file);
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setField('logo_url', ev.target.result);
-    };
+    reader.onload = (ev) => setField('logo_url', ev.target.result);
     reader.readAsDataURL(file);
   };
 
-  const removePhoto = (e) => {
-    e?.stopPropagation();
+  const removePhoto = () => {
     setField('logo_url', null);
     setField('logo', null);
   };
 
-  // ── Fermer le modal form ─────────────────────────────────
-  const closeFormModal = () => {
-    if (isSubmitting) return;
-    setFormAnimating('closing');
-    setTimeout(() => {
-      setFormModal({ open: false, mode: 'create', org: null });
-      setFormAnimating(false);
-      setModalAlert({ type: null, message: null });
-    }, 320);
-  };
-
-  // ── Validation ───────────────────────────────────────────
   const validate = () => {
     const errs = {};
-    if (!form.name.trim()) errs.name = 'Le nom est requis.';
-
-    if (!form.sector) errs.sector = 'Le secteur est requis.';
-    if (!form.type) errs.type = 'Le type est requis.';
-    if (!form.country) errs.country = 'Le pays est requis.';
-    if (form.email && !/\S+@\S+\.\S+/.test(form.email)) errs.email = 'Email invalide.';
+    if (!form.name.trim()) errs.name = 'Indiquez le nom de l’organisation.';
+    if (!form.sector) errs.sector = 'Choisissez un secteur.';
+    if (!form.type) errs.type = 'Choisissez un type.';
+    if (!form.country) errs.country = 'Choisissez le pays d’intervention.';
+    if (form.email && !/\S+@\S+\.\S+/.test(form.email)) errs.email = 'Cette adresse e-mail n’est pas valide.';
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  // ── Soumettre le formulaire ──────────────────────────────
   const buildPayload = (formData) => {
-    const subdomainVal = formData.name
-      ? formData.name.trim().toLowerCase().replace(/\s+/g, '_')
-      : '';
-
     const payload = {
       name: formData.name,
       acronym: formData.acronym || null,
@@ -261,18 +237,19 @@ export const Organisations = () => {
       phone: formData.phone || null,
       website_url: formData.website || null,
       primary_color: formData.color || AVATAR_COULEUR_DEFAUT,
-      is_premium: true,
-      members_count: 0,
-      subdomain: subdomainVal,
       email: formData.email || null,
     };
-
-    if (formData.logo) {
-      payload.logo = formData.logo;
-    } else if (formData.logo_url === null) {
-      payload.logo = null;
-    }
-
+    // La modification est un PUT complet : ces champs techniques doivent
+    // partir à chaque envoi. Le nombre de membres reprend la valeur connue au
+    // lieu de 0, qui l'écrasait à chaque modification.
+    payload.is_premium = true;
+    payload.members_count = formModal.mode === 'edit' ? (formModal.org?.membersCount ?? 0) : 0;
+    payload.subdomain = formData.name ? formData.name.trim().toLowerCase().replace(/\s+/g, '_') : '';
+    // La liste ne renvoie pas l'e-mail : à la modification, le champ arrive vide
+    // et l'envoyer tel quel effacerait l'adresse enregistrée côté serveur.
+    if (formModal.mode === 'edit' && !formData.email) delete payload.email;
+    if (formData.logo) payload.logo = formData.logo;
+    else if (formData.logo_url === null) payload.logo = null;
     return payload;
   };
 
@@ -282,49 +259,33 @@ export const Organisations = () => {
     setModalAlert({ type: null, message: null });
     try {
       const payload = buildPayload(form);
-
       if (formModal.mode === 'create') {
         await createOrganisationService(payload);
-        setModalAlert({ type: 'success', message: 'Organisation créée avec succès !' });
+        afficherToast(`${form.name} est créée`);
       } else {
         await updateOrganisationService(formModal.org.id, payload);
-        setModalAlert({ type: 'success', message: 'Organisation mise à jour avec succès !' });
+        afficherToast('Modifications enregistrées');
       }
       mutateAll();
-      setTimeout(() => {
-        closeFormModal();
-      }, 2000);
+      closeFormModal();
     } catch (err) {
       if (err?.response?.status === 400 && err?.response?.data && typeof err.response.data === 'object') {
-        const backendErrors = err.response.data;
-        const mappedErrors = {};
-
-        // Map backend field names to frontend field names
-        const keyMapping = {
+        const correspondance = {
           activity_sector: 'sector',
           organisation_type: 'type',
           intervention_country: 'country',
           website_url: 'website',
           partner_status: 'status',
         };
-
-        Object.keys(backendErrors).forEach((backendKey) => {
-          const frontendKey = keyMapping[backendKey] || backendKey;
-          const errorMsg = Array.isArray(backendErrors[backendKey])
-            ? backendErrors[backendKey].join(' ')
-            : backendErrors[backendKey];
-          mappedErrors[frontendKey] = errorMsg;
+        const erreurs = {};
+        Object.entries(err.response.data).forEach(([cle, msg]) => {
+          erreurs[correspondance[cle] || cle] = Array.isArray(msg) ? msg.join(' ') : msg;
         });
-
-        setFormErrors(mappedErrors);
-        setModalAlert({
-          type: 'danger',
-          message: 'Veuillez corriger les erreurs de validation dans le formulaire.'
-        });
+        setFormErrors(erreurs);
+        setModalAlert({ type: 'danger', message: 'Le serveur a refusé certains champs : corrigez-les ci-dessous.' });
       } else {
-        const msg = err?.response?.data?.detail
-          || err?.response?.data?.message
-          || `Erreur lors de la ${formModal.mode === 'create' ? 'création' : 'modification'}. Veuillez réessayer.`;
+        const msg = err?.response?.data?.detail || err?.response?.data?.message
+          || `L’organisation n’a pas pu être ${formModal.mode === 'create' ? 'créée' : 'modifiée'}. Réessayez dans un instant.`;
         setModalAlert({ type: 'danger', message: msg });
       }
     } finally {
@@ -332,70 +293,53 @@ export const Organisations = () => {
     }
   };
 
-  // ── Supprimer ────────────────────────────────────────────
-  const openDelete = (org, e) => {
-    e?.stopPropagation();
+  const openDelete = (org) => {
     setDeleteAlert({ type: null, message: null });
-    setDeleteAnimating('opening');
     setDeleteModal({ open: true, org });
-    setTimeout(() => setDeleteAnimating(false), 350);
   };
 
-  const closeDeleteModal = () => {
-    if (isDeleting) return;
-    setDeleteAnimating('closing');
-    setTimeout(() => {
-      setDeleteModal({ open: false, org: null });
-      setDeleteAnimating(false);
-    }, 320);
-  };
+  const closeDeleteModal = () => setDeleteModal({ open: false, org: null });
 
-  const confirmDelete = async (e) => {
-    e?.stopPropagation();
+  const confirmDelete = async (close) => {
     setIsDeleting(true);
     setDeleteAlert({ type: null, message: null });
-
     try {
       await deleteOrganisationService(deleteModal.org.id);
+      afficherToast(`${deleteModal.org.name} est supprimée`);
       mutateAll();
-      setDeleteAlert({ type: 'success', message: 'Organisation supprimée avec succès !' });
-      setTimeout(() => {
-        closeDeleteModal();
-      }, 2000);
+      close();
     } catch (err) {
-      const msg = err?.response?.data?.detail
-        || err?.response?.data?.message
-        || 'Erreur lors de la suppression. Veuillez réessayer.';
+      const msg = err?.response?.data?.detail || err?.response?.data?.message
+        || 'L’organisation n’a pas pu être supprimée. Réessayez dans un instant.';
       setDeleteAlert({ type: 'danger', message: msg });
     } finally {
       setIsDeleting(false);
     }
   };
 
-  // ── Champ form helper ────────────────────────────────────
-  const setField = (key, val) => {
-    setForm((f) => ({ ...f, [key]: val }));
-    if (formErrors[key]) setFormErrors((e) => ({ ...e, [key]: undefined }));
-  };
-
   const contextValue = {
-    formModal, formAnimating, closeFormModal, modalAlert, form, formErrors,
+    formModal, closeFormModal, modalAlert, form, formErrors,
     setField, handlePhotoChange, removePhoto, isSubmitting, handleSubmit,
-    deleteModal, setDeleteModal, deleteAnimating, isDeleting, deleteAlert,
-    closeDeleteModal, confirmDelete
+    deleteModal, isDeleting, deleteAlert, closeDeleteModal, confirmDelete,
   };
 
   const actionsDe = (org) => (
-    <div className="orgs-row-actions">
-      <TableActionsMenu
-        ariaLabel={`Actions sur ${org.name || 'cette organisation'}`}
-        actions={[
-          { id: 'edit', label: 'Modifier', icon: Edit2, onSelect: () => openEdit(org) },
-          { id: 'delete', label: 'Supprimer', icon: Trash, tone: 'danger', onSelect: () => openDelete(org) },
-        ]}
-      />
-    </div>
+    <TableActionsMenu
+      ariaLabel={`Actions sur ${org.name || 'cette organisation'}`}
+      actions={[
+        { id: 'edit', label: 'Modifier', icon: Edit2, onSelect: () => openEdit(org) },
+        { id: 'delete', label: 'Supprimer', icon: Trash, tone: 'danger', onSelect: () => openDelete(org) },
+      ]}
+    />
   );
+
+  const filtreActif = Boolean(search || sectorFilter || typeFilter);
+  const nomType = TYPES.find((t) => t.en === typeFilter)?.fr;
+  const annonce = swrLoading
+    ? 'Chargement…'
+    : `${nombreFr(total)} ${nomType && !sectorFilter && !search ? nomType : `organisation${total > 1 ? 's' : ''}`}`;
+
+  const vide = !swrLoading && orgs.length === 0;
 
   return (
     <OrganisationsContext.Provider value={contextValue}>
@@ -408,126 +352,141 @@ export const Organisations = () => {
         />
 
         <div className={`orgs-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Header
-            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-            sidebarCollapsed={sidebarCollapsed}
-          />
+          <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
 
-          <main className="orgs-content">
-            <div className="orgs-page">
+          <main className="og" onScroll={surDefilement}>
+            <BandeauErreur
+              erreur={erreurOrgs}
+              onReessayer={mutateOrgs}
+              message="Impossible de charger les organisations. La liste affichée peut ne plus être à jour."
+            />
 
-              <BandeauErreur
-                erreur={erreurOrgs}
-                onReessayer={mutateOrgs}
-                message="Impossible de charger les organisations. La liste affichée peut ne plus être à jour."
-              />
-
-              {/* ── En-tête ── */}
-              <div className="orgs-page-header">
-                <div className="orgs-header-left">
-                  <h1 className="orgs-title">Organisations</h1>
-                  <p className="orgs-subtitle">Gérez les organisations partenaires de Map Action.</p>
-                </div>
-                <button className="orgs-add-btn" onClick={openCreate}>
-                  <Add size={18} color='var(--color-surface)' />
-                  Nouvelle organisation
-                </button>
+            {/* L'en-tête de la page — titre, onglets, recherche et filtres — reste
+                fixe au défilement : seul le tableau passe dessous. */}
+            <div ref={repereRef} aria-hidden="true" className="og-repere" />
+            <div className={`og-entete ${colle ? 'is-colle' : ''}`}>
+            <div className="og-tete">
+              <div>
+                <h1>Organisations</h1>
+                <p>Les partenaires qui interviennent sur les signalements de Map Action.</p>
               </div>
-
-              {/* ── Statistiques ── */}
-              <div className="orgs-stats">
-                <div className="orgs-stat">
-                  <div className="orgs-stat-icon orgs-stat-icon-primary">
-                    <Buildings2 size={20} variant="Bold" color="var(--color-primary)" />
-                  </div>
-                  <div>
-                    <div className="orgs-stat-value">{statsTotal}</div>
-                    <div className="orgs-stat-label">Total</div>
-                  </div>
-                </div>
-                <div className="orgs-stat">
-                  <div className="orgs-stat-icon orgs-stat-icon-success">
-                    <TickCircle size={20} variant="Bold" color="var(--color-success)" />
-                  </div>
-                  <div>
-                    <div className="orgs-stat-value">{statsActive}</div>
-                    <div className="orgs-stat-label">Actives</div>
-                  </div>
-                </div>
-                <div className="orgs-stat">
-                  <div className="orgs-stat-icon orgs-stat-icon-warning">
-                    <Briefcase size={20} variant="Bold" color="var(--color-warning)" />
-                  </div>
-                  <div>
-                    <div className="orgs-stat-value">{statsProjects}</div>
-                    <div className="orgs-stat-label">Nombre de signalements</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Toolbar — fixe au defilement : voir .orgs-filtres-fixes. ── */}
-              <div className="orgs-filtres-fixes">
-              <FiltersBar
-                recherche={searchInput}
-                onRecherche={setSearchInput}
-                placeholder="Rechercher un nom, un acronyme, une ville, un pays…"
-                selects={[
-                  { id: 'secteur', valeur: sectorFilter, onChange: setSectorFilter,
-                    ariaLabel: 'Filtrer par secteur', tousLabel: 'Tous les secteurs',
-                    options: SECTORS.map((o) => ({ value: o.en, label: o.fr })) },
-                  { id: 'type', valeur: typeFilter, onChange: setTypeFilter,
-                    ariaLabel: 'Filtrer par type', tousLabel: 'Tous les types',
-                    options: TYPES.map((o) => ({ value: o.en, label: o.fr })) },
-                  { id: 'statut', valeur: statusFilter, onChange: setStatusFilter,
-                    ariaLabel: 'Filtrer par statut', tousLabel: 'Tous les statuts',
-                    options: [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }] },
-                ]}
-                onEffacer={() => {
-                  reinitialiserRecherche();
-                  setSectorFilter(''); setTypeFilter(''); setStatusFilter('');
-                }}
-                resultats={filtered.length}
-                nomResultat="organisation"
-              />
-              </div>
-
-              {/* ── Tableau ── */}
-              {filtered.length === 0 && !swrLoading ? (
-                <div className="orgs-empty">
-                  <div className="orgs-empty-icon">
-                    <Buildings2 size={48} variant="Linear" color="var(--color-border)" />
-                  </div>
-                  <p>Aucune organisation ne correspond à vos critères.</p>
-                </div>
-              ) : (
-                <ResponsiveTable
-                  colonnes={COLONNES_ORGANISATIONS}
-                  media={mediaOrganisation}
-                  donnees={filtered}
-                  cleDe={(o) => o.id}
-                  actions={actionsDe}
-                  chargement={swrLoading}
-                  classeTable="orgs-table"
-                  classeWrap="orgs-table-wrap"
-                  libelleListe="Organisations"
-                />
-              )}
-
-              <Pagination
-                page={page}
-                pageSize={pageSize}
-                count={rawOrgs?.count || 0}
-                onChange={setPage}
-              />
-
+              <button type="button" className="og-btn-p" onClick={openCreate} aria-label={isMobile ? 'Nouvelle organisation' : undefined}>
+                <Add size={18} color="currentColor" />
+                {!isMobile && 'Nouvelle organisation'}
+              </button>
             </div>
+
+            <div className={isMobile ? 'og-statuts-pastilles' : 'og-statuts'} role="tablist" aria-label="Statut">
+              {STATUTS.map((s) => {
+                const actif = statusFilter === s.valeur;
+                const n = compteurs[s.valeur];
+                return (
+                  <button key={s.valeur || 'toutes'} type="button" role="tab" aria-selected={actif} className={actif ? 'is-on' : ''} onClick={() => setStatusFilter(s.valeur)}>
+                    {s.libelle}
+                    {n !== undefined && (isMobile ? ` · ${nombreFr(n)}` : <span className="og-n">{nombreFr(n)}</span>)}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="og-outils">
+              <label className="og-recherche">
+                <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
+                <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Nom ou sigle" aria-label="Rechercher une organisation" />
+              </label>
+              <Filtre libelle="Secteur" valeur={sectorFilter} onChange={setSectorFilter} options={SECTORS} />
+              <Filtre libelle="Type" valeur={typeFilter} onChange={setTypeFilter} options={TYPES} />
+              {(filtreActif || statusFilter) && <span className="og-annonce" role="status">{annonce}</span>}
+            </div>
+            </div>
+
+            {vide ? (
+              <div className="og-boite og-vide">
+                <span className="og-vide-ic"><Buildings2 size={22} color="currentColor" /></span>
+                <b>Aucune organisation</b>
+                <p>{filtreActif ? 'Aucun résultat avec ces critères. Modifiez la recherche ou les filtres.' : 'Ajoutez la première organisation partenaire pour qu’elle puisse agir sur les signalements.'}</p>
+                {!filtreActif && <button type="button" className="og-btn-p" onClick={openCreate}><Add size={18} color="currentColor" />Nouvelle organisation</button>}
+              </div>
+            ) : isMobile ? (
+              <div className="og-cartes">
+                {swrLoading && !orgs.length ? [0, 1, 2].map((n) => <div key={n} className="og-carte"><ShimmerText line={3} gap={8} /></div>) : orgs.map((o) => (
+                  <article key={o.id} className="og-carte">
+                    <div className="og-carte-tete">
+                      <PastilleOrganisation org={o} taille={44} />
+                      <span className="og-carte-t">
+                        <b>{o.name}</b>
+                        <span>{[libelleType(o.type), libelleSecteur(o.sector), libellePays(o.country)].filter(Boolean).join(' · ')}</span>
+                      </span>
+                      {actionsDe(o)}
+                    </div>
+                    <div className="og-carte-pied">
+                      <span><b>{nombreFr(o.membersCount)}</b> membres</span>
+                      <span><b>{nombreFr(o.activeProjects)}</b> signalements</span>
+                      <span className={`og-statut is-${o.status}`}><i aria-hidden="true" />{o.status === 'active' ? 'Active' : 'Inactive'}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="og-boite og-tableau-boite">
+                <table className="og-tableau">
+                  <thead>
+                    <tr>
+                      <th scope="col">Organisation</th>
+                      <th scope="col">Secteur</th>
+                      <th scope="col">Pays d'intervention</th>
+                      <th scope="col">Contact</th>
+                      <th scope="col" className="is-num">Membres</th>
+                      <th scope="col" className="is-num">Signalements pris en charge</th>
+                      <th scope="col">Statut</th>
+                      <th scope="col"><span className="og-masque">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {swrLoading && !orgs.length ? [0, 1, 2, 3, 4].map((n) => (
+                      <tr key={n}><td colSpan={8}><div className="og-squelette"><ShimmerThumbnail height={40} width={40} rounded className="m-0" /><div style={{ flex: 1 }}><ShimmerText line={2} gap={8} /></div></div></td></tr>
+                    )) : orgs.map((o) => (
+                      <tr key={o.id} className="og-ligne">
+                        <td>
+                          <div className="og-org">
+                            <PastilleOrganisation org={o} />
+                            <div>
+                              <b>{o.name}</b>
+                              <span>{[o.acronym, libelleType(o.type)].filter(Boolean).join(' · ')}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="og-doux">{libelleSecteur(o.sector) || '—'}</td>
+                        <td className="og-doux">{libellePays(o.country) || '—'}</td>
+                        <td>
+                          <div className="og-contact">
+                            {o.email ? <a href={`mailto:${o.email}`}>{o.email}</a> : <span className="og-absent">Aucun e-mail</span>}
+                            <span className="og-absent">{o.phone || '—'}</span>
+                          </div>
+                        </td>
+                        <td className="is-num">{nombreFr(o.membersCount)}</td>
+                        <td className="is-num">{nombreFr(o.activeProjects)}</td>
+                        <td><span className={`og-statut is-${o.status}`}><i aria-hidden="true" />{o.status === 'active' ? 'Active' : 'Inactive'}</span></td>
+                        <td className="og-actions">{actionsDe(o)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!vide && total > pageSize && (
+              <div className="og-pied">
+                <span>{`${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} sur ${nombreFr(total)}`}</span>
+                <Pagination page={page} pageSize={pageSize} count={total} onChange={setPage} />
+              </div>
+            )}
           </main>
         </div>
 
-        {/* ── Modals ── */}
-        <FormOrganisationModal key={"FormOgrnasationKey"} />
-        <DeleteOrganisationModal key={"DeleteOrganisationModalKey"} />
-
+        <FormOrganisationModal />
+        <DeleteOrganisationModal />
+        {toast && <div key={toast.n} className="og-toast" role="status">{toast.texte}</div>}
       </div>
     </OrganisationsContext.Provider>
   );
