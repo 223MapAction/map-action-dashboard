@@ -18,6 +18,8 @@ import {
 import { MapViewMapLibre } from './MapViewMapLibre';
 import { PanneauDetail } from './PanneauDetail';
 import { MapViewMapbox } from './MapViewMapbox';
+import { ApercuMobile } from '../../mobile/ApercuMobile';
+import { HabillageCarteMobile } from '../../mobile/HabillageCarteMobile';
 
 import { getIncidentService } from '../../../incident/service/incident_service';
 
@@ -252,9 +254,10 @@ const getFallbackCoordinates = (
  * `filtreExterne` et `cible` sont optionnels : sans eux, la carte se comporte
  * exactement comme avant. Le dashboard s'en sert pour piloter la carte depuis
  * ses indicateurs et ses widgets (statut, gravité, localité, signalement à
- * ouvrir).
+ * ouvrir). `mobile` remplace les contrôles posés sur la carte par ceux de la
+ * maquette mobile, et la bulle par une feuille basse.
  */
-export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChange } = {}) => {
+export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChange, mobile = null } = {}) => {
   const navigate = useNavigate();
 
   /* --------------------------------------------------------------------------
@@ -988,6 +991,11 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
 
   const [bulle, setBulle] = useState(null);
 
+  // Bureau : la bulle est au-dessus du point. Mobile : la feuille est en bas,
+  // le point remonte donc au-dessus d'elle.
+  const estMobile = Boolean(mobile);
+  const decalageBulle = estMobile ? -120 : 120;
+
   const ouvrirBulle = useCallback((incident) => {
     if (!incident?.id) return;
     setGroupeOuvert(null);
@@ -995,9 +1003,9 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
     // Décale la carte pour que la bulle (au-dessus du point) reste visible.
     const carte = carteRef.current?.getMap?.();
     if (carte && Number.isFinite(incident._lng) && Number.isFinite(incident._lat)) {
-      carte.easeTo({ center: [incident._lng, incident._lat], offset: [0, 120], duration: 500 });
+      carte.easeTo({ center: [incident._lng, incident._lat], offset: [0, decalageBulle], duration: 500 });
     }
-  }, []);
+  }, [decalageBulle]);
 
   const fermerBulle = useCallback(() => setBulle(null), []);
 
@@ -1012,9 +1020,10 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
   }, [bulle]);
 
   const ouvrirApercu = useCallback((incident) => {
-    setBulle(null);
+    // Sur mobile, fermer le détail rapide ramène à l'aperçu.
+    if (!estMobile) setBulle(null);
     openModal(incident);
-  }, [openModal]);
+  }, [openModal, estMobile]);
 
 
   /* --------------------------------------------------------------------------
@@ -1032,14 +1041,15 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
       carte.flyTo({
         center: [incident._lng, incident._lat],
         zoom: Math.max(carte.getZoom(), 10),
-        offset: [0, 120],
+        offset: [0, decalageBulle],
         speed: 1.4,
       });
       setGroupeOuvert(null);
       setBulle(incident);
     } else {
       // Pas encore chargé sur la carte : on ouvre directement l'aperçu.
-      openModal({ id: cibleId });
+      if (estMobile) setBulle({ id: cibleId });
+      else openModal({ id: cibleId });
     }
     // Le jeton relance la même cible ; validIncidents est lu au moment du clic.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1168,8 +1178,9 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
               getMarkerColorClass={getMarkerColorClass}
               translateEtat={translateEtat}
               openModal={ouvrirBulle}
-              bulle={bulle}
+              bulle={estMobile ? null : bulle}
               fermerBulle={fermerBulle}
+              onCarteClic={estMobile ? fermerBulle : undefined}
               ouvrirApercu={ouvrirApercu}
               focusIso={COUNTRIES.find((country) => country.en === countryFilter)?.iso}
             />
@@ -1177,6 +1188,8 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
         })()}
 
 
+        {!estMobile && (
+        <>
         {/* ------------------------------------------------------------------
          * SWITCHER STYLE
          * ---------------------------------------------------------------- */}
@@ -1494,8 +1507,52 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
 
           </div>
         )}
+        </>
+        )}
 
       </div>
+
+      {estMobile && (bulle ? (
+        <ApercuMobile incident={bulle} onDetail={ouvrirApercu} onFermer={fermerBulle} />
+      ) : (
+        <HabillageCarteMobile
+          nonLues={mobile.nonLues}
+          onStatistiques={mobile.onStatistiques}
+          onActivite={mobile.onActivite}
+          onNotifications={mobile.onNotifications}
+          etat={statusFilter}
+          onEtat={(valeur) => {
+            setStatusFilter(valeur);
+            // Un statut posé depuis les statistiques céderait sinon le pas au
+            // choix fait ici à son prochain changement.
+            if (statutExterne) mobile.onStatut(valeur === 'resolved' ? 'resolved' : null);
+          }}
+          proprietaire={ownershipFilter}
+          onProprietaire={setOwnershipFilter}
+          pays={countryFilter}
+          onPays={setCountryFilter}
+          paysUtilisateur={userOrgCountry}
+          nomPays={COUNTRIES.find((c) => c.en === countryFilter)?.fr || null}
+          styles={Object.values(MAP_STYLES)}
+          styleActif={activeStyle}
+          onStyle={handleStyleChange}
+          graviteActive={mobile.graviteActive}
+          onGravite={mobile.onGravite}
+          zoneActive={mobile.zoneActive}
+          onToutEffacer={() => {
+            setOwnershipFilter('all');
+            setStatusFilter('active');
+            setCountryFilter('');
+            setActiveStyle('humanitarian');
+            mobile.onEffacer();
+          }}
+          nombre={validIncidents.length}
+          aPlus={hasMorePages}
+          chargementPlus={isLoadingMore || isLoadingPage}
+          onChargerPlus={loadMoreIncidents}
+          masquerNombre={isMapLoading}
+        />
+      ))}
 
 
       {/* ======================================================================
@@ -1507,11 +1564,15 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
           incident={selectedIncident}
           isLoading={isLoadingIncident}
           ouvert={modalShowing && !modalClosing}
+          mobile={estMobile}
           etapes={INCIDENT_STATUS_STEPS}
           coordonnees={(() => {
             if (!selectedIncident) return '';
             const { latitude, longitude, valid } = getIncidentCoordinates(selectedIncident);
-            return valid ? `${latitude.toFixed(4)}°N, ${longitude.toFixed(4)}°E` : 'Non spécifiées';
+            if (!valid) return 'Non spécifiées';
+            if (!estMobile) return `${latitude.toFixed(4)}°N, ${longitude.toFixed(4)}°E`;
+            const f = (n) => Math.abs(n).toFixed(4).replace('.', ',');
+            return `${f(latitude)}° ${latitude < 0 ? 'S' : 'N'}, ${f(longitude)}° ${longitude < 0 ? 'O' : 'E'}`;
           })()}
           onFermer={closeModal}
           onOuvrirFiche={() =>

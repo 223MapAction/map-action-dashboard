@@ -31,6 +31,7 @@ export const MapViewMapLibre = ({
   bulle = null,
   fermerBulle,
   ouvrirApercu,
+  onCarteClic,
 }) => {
   // react-map-gl v8 ne transmet pas cooperativeGestures a maplibre-gl :
   // on l'active nous-memes apres coup. Voir utils/gestesCarte.
@@ -64,6 +65,7 @@ export const MapViewMapLibre = ({
       minZoom={2}
       maxZoom={18}
       onMoveEnd={onMoveEnd}
+      onClick={onCarteClic}
     >
       <CountryFocusLayer
         Source={Source}

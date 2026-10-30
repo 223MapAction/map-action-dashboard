@@ -39,7 +39,7 @@ const dateLongue = (iso) =>
  * Photo en tête, pastilles, frise verticale de suivi, informations, médias,
  * organisations mobilisées, et l'action principale selon l'état.
  */
-export const PanneauDetail = ({ incident, isLoading, ouvert, etapes, coordonnees, onFermer, onOuvrirFiche }) => {
+export const PanneauDetail = ({ incident, isLoading, ouvert, etapes, coordonnees, onFermer, onOuvrirFiche, mobile = false }) => {
   const fermerRef = useRef(null);
 
   useEffect(() => {
@@ -79,9 +79,9 @@ export const PanneauDetail = ({ incident, isLoading, ouvert, etapes, coordonnees
 
   return (
     <>
-      <div className={`panneau-scrim ${ouvert ? 'is-open' : ''}`} onClick={onFermer} aria-hidden="true" />
+      <div className={`panneau-scrim ${mobile ? 'panneau-scrim-mobile' : ''} ${ouvert ? 'is-open' : ''}`} onClick={onFermer} aria-hidden="true" />
       <aside
-        className={`panneau-detail ${ouvert ? 'is-open' : ''}`}
+        className={`panneau-detail ${mobile ? 'panneau-mobile' : ''} ${ouvert ? 'is-open' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={incident ? `Détail : ${titreIncident(incident)}` : 'Détail du signalement'}
@@ -151,10 +151,10 @@ export const PanneauDetail = ({ incident, isLoading, ouvert, etapes, coordonnees
                 <dd>{dateLongue(incident.created_at) || 'Non spécifié'}</dd>
                 <dt>Coordonnées</dt>
                 <dd className="panneau-num">{coordonnees}</dd>
-                {organisation && (
+                {(organisation || mobile) && (
                   <>
                     <dt>Prise en charge</dt>
-                    <dd>{organisation}</dd>
+                    <dd>{organisation || 'Personne'}</dd>
                   </>
                 )}
               </dl>
@@ -206,12 +206,19 @@ export const PanneauDetail = ({ incident, isLoading, ouvert, etapes, coordonnees
 
         {pret && (
           <footer className="panneau-actions">
+            {mobile && (
+              <button type="button" className="bulle-btn" onClick={onOuvrirFiche}>
+                Fiche complète
+              </button>
+            )}
             <button type="button" className="bulle-btn bulle-btn-primaire" onClick={onOuvrirFiche}>
               {action}
             </button>
-            <button type="button" className="bulle-btn" onClick={onOuvrirFiche}>
-              Voir la fiche complète
-            </button>
+            {!mobile && (
+              <button type="button" className="bulle-btn" onClick={onOuvrirFiche}>
+                Voir la fiche complète
+              </button>
+            )}
           </footer>
         )}
       </aside>

@@ -14,6 +14,8 @@ import { authService } from '../auth/services/authService';
 import { logger } from '../../utils/logger';
 import { libelleGravite } from '../../utils/gravite';
 import { getIncidentsService } from '../incident/service/incident_service';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { DashboardMobile } from './mobile/DashboardMobile';
 
 const FiltrePastille = ({ libelle, onRetirer }) => (
   <span className="dashboard-filter-pill">
@@ -57,6 +59,8 @@ export const Dashboard = () => {
     mq.addEventListener('change', surChangement);
     return () => mq.removeEventListener('change', surChangement);
   }, []);
+
+  const estMobile = useMediaQuery('(max-width: 640px)');
 
   // Pilotage de la carte depuis les indicateurs, les widgets et la recherche.
   const [filtreCarte, setFiltreCarte] = useState({ statut: null, gravite: null, zone: null });
@@ -298,6 +302,26 @@ export const Dashboard = () => {
       setActivityModalClosing(false);
     }, 250);
   };
+
+  if (estMobile) {
+    return (
+      <DashboardMobile
+        stats={statsData}
+        filtreCarte={filtreCarte}
+        majFiltre={majFiltre}
+        effacerFiltres={() => setFiltreCarte({ statut: null, gravite: null, zone: null })}
+        filtreExterne={filtreExterne}
+        cible={cibleCarte}
+        ouvrirSurCarte={ouvrirSurCarte}
+        onFiltresChange={setContexteCarte}
+        activites={activitiesList}
+        isLoadingActivites={isLoadingActivities}
+        nextUrl={nextUrl}
+        onLoadMore={handleLoadMoreActivities}
+        isLoadingMore={isLoadingMore}
+      />
+    );
+  }
 
   return (
     <div className="dashboard-layout">
