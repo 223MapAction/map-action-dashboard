@@ -196,7 +196,18 @@ export const Impact = () => {
 
   // L'en-tête de la page reste collé sous celui de l'application.
   const repereRef = useRef(null);
+  const enteteRef = useRef(null);
   const [colle, setColle] = useState(false);
+  // La carte se colle juste sous l'en-tête de la page, dont la hauteur varie
+  // (filtres sur une ou deux lignes) : on la mesure au lieu de la deviner.
+  const [hauteurEntete, setHauteurEntete] = useState(180);
+  useEffect(() => {
+    const el = enteteRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const obs = new ResizeObserver(([e]) => setHauteurEntete(Math.round(e.target.getBoundingClientRect().height)));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   const surDefilement = (e) => {
     const repere = repereRef.current;
     if (repere) setColle(e.currentTarget.scrollTop > repere.offsetTop - 60);
@@ -275,7 +286,7 @@ export const Impact = () => {
       <div className={`ip-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
 
-        <main className="ip" onScroll={surDefilement}>
+        <main className="ip" onScroll={surDefilement} style={{ '--ip-entete': `${hauteurEntete}px` }}>
           <BandeauErreur
             erreur={erreurGlobal || erreurListe}
             onReessayer={() => { recGlobal(); recListe(); }}
@@ -283,7 +294,7 @@ export const Impact = () => {
           />
 
           <div ref={repereRef} aria-hidden="true" className="ip-repere-colle" />
-          <div className={`ip-entete ${colle ? 'is-colle' : ''}`}>
+          <div ref={enteteRef} className={`ip-entete ${colle ? 'is-colle' : ''}`}>
             <div className="ip-tete">
               <h1>Impact</h1>
               <p>Ce que les interventions ont changé sur le terrain, et pour combien de personnes.</p>

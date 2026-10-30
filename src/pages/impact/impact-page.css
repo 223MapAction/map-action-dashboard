@@ -230,7 +230,7 @@
   border: 1px solid var(--ip-ligne);
   border-radius: 14px;
   background: var(--color-surface);
-  scroll-margin-top: 220px;
+  scroll-margin-top: calc(var(--ip-entete, 180px) + 48px);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -349,12 +349,23 @@
 
 .ip-lien:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-/* Carte : collée sous l'en-tête pendant que la liste défile. */
-.ip-carte { position: sticky; top: 200px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Carte : fixe pendant que les signalements défilent, collée juste sous
+   l'en-tête de la page. `top` se compte depuis le bord du contenu de .ip
+   (60 px d'en-tête d'application + 24 px de marge) : l'en-tête de page,
+   collé à -24 px, s'arrête à --ip-entete - 24 px ; on ajoute 12 px d'air.
+   La hauteur remplit l'écran restant, moins la phrase d'aide. */
+.ip-carte {
+  position: sticky;
+  top: calc(var(--ip-entete, 180px) - 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
 
 .ip-carte-cadre {
   position: relative;
-  height: min(520px, calc(100dvh - 260px));
+  height: calc(100dvh - 60px - var(--ip-entete, 180px) - 64px);
   min-height: 320px;
   overflow: hidden;
   border: 1px solid var(--ip-ligne);
@@ -439,7 +450,12 @@
   .ip-grille3 { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  .ip-liste-carte { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* Sur téléphone, la bascule Liste / Carte remplace le côte à côte. */
+@media (max-width: 767.98px) {
   .ip-liste-carte { grid-template-columns: 1fr; }
   .ip-carte { position: static; }
 }
