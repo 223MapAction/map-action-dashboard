@@ -1,3 +1,5 @@
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleBasse, BoutonRegles, ReglesCollaboration } from '../collaboration/mobile/FeuilleBasse';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FiltersBar } from '../../components/molecules/FiltersBar';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -104,6 +106,19 @@ const RequestCardSkeleton = () => (
   </div>
 );
 
+// Sur téléphone, le détail d'un groupe s'ouvre dans une feuille au lieu de se déplier.
+const EnveloppeApercu = ({ estTelephone, incident, onClose, children }) => (estTelephone ? (
+  <FeuilleBasse ariaLabel={incident.projectTitle} onClose={onClose}>
+    <div className="vlm-apercu">
+      <div className="vlm-apercu-tete">
+        <span style={incident.projectImage ? { backgroundImage: `url("${incident.projectImage}")` } : undefined} />
+        <b>{incident.projectTitle}</b>
+      </div>
+      {children}
+    </div>
+  </FeuilleBasse>
+) : children);
+
 export const CollaborationRequests = ({
   embedded = false
 }) => {
@@ -147,6 +162,8 @@ export const CollaborationRequests = ({
 
     return true;
   };
+  const estTelephone = useEstTelephone();
+  const [reglesOuvertes, setReglesOuvertes] = useState(false);
   const [showInfoBanner, setShowInfoBanner] = useState(true);
   const {
     saisie: searchInput,
@@ -742,7 +759,9 @@ export const CollaborationRequests = ({
 
 
       {/* Collapsible Info Banner (Scenarios 2 & 3 Explanation) */}
-      {showInfoBanner && (
+      {estTelephone && <BoutonRegles onClick={() => setReglesOuvertes(true)} />}
+      {estTelephone && reglesOuvertes && <ReglesCollaboration onClose={() => setReglesOuvertes(false)} />}
+      {!estTelephone && showInfoBanner && (
         <div className="collaboration-info-banner">
           <div className="info-banner-content">
             <InfoCircle size={24} variant="Bold" className="info-banner-icon" style={{ color: 'var(--color-primary-text)' }} />
@@ -1009,6 +1028,7 @@ export const CollaborationRequests = ({
 
                 {/* Expanded content */}
                 {isExpanded && (
+                  <EnveloppeApercu estTelephone={estTelephone} incident={incident} onClose={() => setExpandedIncident(null)}>
                   <div className="incident-group-body">
                     <div className="incident-details-grid">
                       {/* Left: Your collaboration state details */}
@@ -1131,6 +1151,7 @@ export const CollaborationRequests = ({
                       </div>
                     </div>
                   </div>
+                  </EnveloppeApercu>
                 )}
               </section>
             );

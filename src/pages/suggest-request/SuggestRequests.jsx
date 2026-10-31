@@ -1,3 +1,5 @@
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { BoutonRegles, ReglesCollaboration } from '../collaboration/mobile/FeuilleBasse';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FiltersBar } from '../../components/molecules/FiltersBar';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -142,6 +144,8 @@ export const SuggestRequests = ({ embedded = false }) => {
   } = useRechercheDebouncee();
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const estTelephone = useEstTelephone();
+  const [reglesOuvertes, setReglesOuvertes] = useState(false);
   const [showInfoBanner, setShowInfoBanner] = useState(true);
 
   // Modals
@@ -583,7 +587,9 @@ export const SuggestRequests = ({ embedded = false }) => {
 
 
       {/* Info banner */}
-      {showInfoBanner && (
+      {estTelephone && <BoutonRegles onClick={() => setReglesOuvertes(true)} />}
+      {estTelephone && reglesOuvertes && <ReglesCollaboration onClose={() => setReglesOuvertes(false)} />}
+      {!estTelephone && showInfoBanner && (
         <div className="collaboration-info-banner">
           <div className="info-banner-content">
             <InfoCircle size={24} variant="Bold" className="info-banner-icon" style={{ color: 'var(--color-primary-text)' }} />
@@ -627,7 +633,7 @@ export const SuggestRequests = ({ embedded = false }) => {
 
             return (
               <section key={req.id} className="incident-group-card">
-                <header className="incident-group-header">
+                <header className="incident-group-header" onClick={estTelephone ? () => setSelectedIncident(req) : undefined}>
                   {/* Thumbnail */}
                   <div
                     className="incident-group-thumb"

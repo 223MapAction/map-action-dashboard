@@ -21,6 +21,7 @@ import {
   Gallery,
   Element3,
   RowVertical,
+  SearchNormal1,
 } from 'iconsax-react';
 import { Header, Sidebar } from '../../components/layout';
 import { CollaborationRequests } from '../collaboration-requests';
@@ -34,6 +35,10 @@ import { useReinitialisationSurChangement } from '../../hooks/useReinitialisatio
 import { useEnVue } from '../../hooks/useEnVue';
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { useSocketCollaborations } from '../../hooks/useSocketCollaborations';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleBasse } from './mobile/FeuilleBasse';
+import '../incident/components/IncidentDetail/vue-detail-mobile.css';
+import './mobile/collaboration-mobile.css';
 
 
 registerLocale('fr', fr);
@@ -80,6 +85,8 @@ const CollabCardCover = ({ className, image, children }) => {
 
 export const Collaboration = () => {
   const navigate = useNavigate();
+  const estTelephone = useEstTelephone();
+  const [filtresTelephone, setFiltresTelephone] = useState(false);
   const {
     isOpen: sidebarOpen,
     setOpen: setSidebarOpen,
@@ -416,6 +423,7 @@ export const Collaboration = () => {
   };
 
   const nbTotal = swrData?.count ?? collaborations.length;
+  const nbFiltresTelephone = [Boolean(roleFilter), statusFilter !== 'all', Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
 
   return (
     <div className="collaboration-layout">
@@ -427,10 +435,12 @@ export const Collaboration = () => {
       />
 
       <div className={`collaboration-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          sidebarCollapsed={sidebarCollapsed}
-        />
+        {!estTelephone && (
+          <Header
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            sidebarCollapsed={sidebarCollapsed}
+          />
+        )}
 
         <main className="collaboration-content">
           <div className="collab-page vl">
@@ -447,7 +457,7 @@ export const Collaboration = () => {
 
             <nav className="vd-tabs vl-tabs" role="tablist" aria-label="Sections">
               {[
-                ['collaborations', 'Mes collaborations', activeTab === 'collaborations' && !isLoading ? nbTotal : null],
+                ['collaborations', estTelephone ? 'Mes collab.' : 'Mes collaborations', activeTab === 'collaborations' && !isLoading ? nbTotal : null],
                 ['requests', 'Demandes'],
                 ['suggestions', 'Suggestions'],
               ].map(([cle, libelle, n]) => (
@@ -472,6 +482,91 @@ export const Collaboration = () => {
                     « Tous », une croix sur la periode) ; un bouton qui les
                     remet TOUS a zero d'un coup ne fait que reinitialiser par
                     erreur ce qu'on venait de choisir expres. */}
+                {estTelephone ? (
+                  <>
+                    <label className="vlm-rech">
+                      <SearchNormal1 size={17} color="currentColor" aria-hidden="true" />
+                      <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Titre, organisation, lieu…" aria-label="Rechercher une collaboration" />
+                    </label>
+                    <div className="vlm-pastilles">
+                      {[['all', 'Toutes'], ['in-progress', 'En cours'], ['completed', 'Terminées']].map(([cle, libelle]) => (
+                        <button key={cle} type="button" className={localStatusFilter === cle ? 'is-on' : ''} aria-pressed={localStatusFilter === cle} onClick={() => setLocalStatusFilter(cle)}>
+                          {libelle}<small>{counts[cle]}</small>
+                        </button>
+                      ))}
+                      <button type="button" onClick={() => setFiltresTelephone(true)}>
+                        Filtres{nbFiltresTelephone > 0 ? ` · ${nbFiltresTelephone}` : ''}
+                      </button>
+                    </div>
+                    {filtresTelephone && (
+                      <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresTelephone(false)}>
+                        <div className="vlm-filtres-tete">
+                          <button type="button" onClick={() => { setRoleFilter(''); setStatusFilter('all'); setIncidentFilter(''); resetDateRange(); }}>Tout effacer</button>
+                          <b>Filtres</b>
+                          <button type="button" onClick={() => setFiltresTelephone(false)}>Terminé</button>
+                        </div>
+                        <div className="vlm-filtres">
+                          <fieldset className="vlm-champ">
+                            <legend>Mon rôle</legend>
+                            <div className="vlm-seg">
+                              {[['', 'Tous'], ['leader', 'Leader'], ['contributor', 'Contrib.'], ['observer', 'Observ.']].map(([cle, libelle]) => (
+                                <button key={cle} type="button" className={roleFilter === cle ? 'is-on' : ''} aria-pressed={roleFilter === cle} onClick={() => setRoleFilter(cle)}>{libelle}</button>
+                              ))}
+                            </div>
+                          </fieldset>
+                          <fieldset className="vlm-champ">
+                            <legend>Statut</legend>
+                            <div className="vlm-seg">
+                              {[['all', 'Tous'], ['accepted', 'Acceptée'], ['pending', 'En attente'], ['declined', 'Refusée']].map(([cle, libelle]) => (
+                                <button key={cle} type="button" className={statusFilter === cle ? 'is-on' : ''} aria-pressed={statusFilter === cle} onClick={() => setStatusFilter(cle)}>{libelle}</button>
+                              ))}
+                            </div>
+                          </fieldset>
+                          <label className="vlm-champ">
+                            Signalement
+                            <select
+                              value={incidentFilter}
+                              onChange={(e) => setIncidentFilter(e.target.value)}
+                              onMouseDown={() => setListeSignalementsDemandee(true)}
+                              onFocus={() => setListeSignalementsDemandee(true)}
+                              aria-busy={chargementListeSignalements}
+                            >
+                              <option value="">Tous les signalements</option>
+                              {chargementListeSignalements && <option value="" disabled>Chargement des signalements...</option>}
+                              {incidentsList.map((inc) => <option key={inc.id} value={inc.id}>{inc.title}</option>)}
+                            </select>
+                          </label>
+                          <div className="vlm-champ">
+                            Période
+                            <DatePicker
+                              selectsRange
+                              startDate={dateFrom}
+                              endDate={dateTo}
+                              onChange={(update) => setDateRange(update)}
+                              locale="fr"
+                              dateFormat="dd MMM yyyy"
+                              placeholderText="Période…"
+                              isClearable={false}
+                              withPortal
+                              shouldCloseOnSelect={false}
+                              className="collab-date-input"
+                              calendarClassName="collab-datepicker"
+                              portalId="collab-datepicker-portal"
+                            />
+                          </div>
+                          <fieldset className="vlm-champ">
+                            <legend>Affichage</legend>
+                            <div className="vlm-seg">
+                              {[['cartes', 'Cartes'], ['liste', 'Liste']].map(([cle, libelle]) => (
+                                <button key={cle} type="button" className={vue === cle ? 'is-on' : ''} aria-pressed={vue === cle} onClick={() => changerVue(cle)}>{libelle}</button>
+                              ))}
+                            </div>
+                          </fieldset>
+                        </div>
+                      </FeuilleBasse>
+                    )}
+                  </>
+                ) : (
                 <div className="collab-filtres-fixes">
                   <FiltersBar
                     recherche={searchInput}
@@ -610,6 +705,7 @@ export const Collaboration = () => {
                     )}
                   </FiltersBar>
                 </div>
+                )}
 
                 {isLoading ? (
                   <div className={vue === 'cartes' ? 'vl-grid' : 'vl-rows'} aria-busy="true">

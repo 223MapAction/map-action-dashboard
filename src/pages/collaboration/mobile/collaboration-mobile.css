@@ -1,0 +1,235 @@
+/* ============================================================
+   COLLABORATIONS SUR TÉLÉPHONE (sous 640 px)
+   Même langage que Signalements : incident/mobile/mobile.css et
+   vue-detail-mobile.css. Le bureau n'est pas concerné.
+   ============================================================ */
+
+@media (max-width: 640px) {
+  /* Feuille basse */
+  .vlm-feuille {
+    width: 100%;
+    max-height: 90dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border-radius: 22px 22px 0 0;
+    background: #F2F4F7;
+    color: #1A1C1E;
+    outline: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sgm-monte 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .vlm-poignee { flex-shrink: 0; align-self: center; width: 38px; height: 5px; margin-top: 8px; border-radius: 99px; background: #C9CFD8; }
+  .vlm-regles { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; }
+  .vlm-regles h2 { margin: 0; font-size: 17px; font-weight: 600; }
+  .vlm-regles p { margin: 0; font-size: 14px; line-height: 1.5; color: #3F4650; }
+  .vlm-btn { min-height: 50px; border: none; border-radius: 14px; background: #1E78AC; font: inherit; font-size: 16px; font-weight: 600; color: #fff; cursor: pointer; }
+
+  .vlm-info {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 18px);
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #5B6472;
+    cursor: pointer;
+  }
+
+  /* Page */
+  .collaboration-content.collaboration-content { padding: 0; background: #F2F4F7; }
+
+  .collab-page.vl {
+    position: relative;
+    gap: 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(var(--am-tabbar-h, 0px) + 16px);
+    color: #1A1C1E;
+  }
+
+  .vl .vl-head h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.025em; }
+  .vl .vl-head p { display: none; }
+
+  .vl .vl-tabs {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    padding: 3px;
+    border: none;
+    border-radius: 11px;
+    background: #E4E7EC;
+  }
+
+  .vl .vl-tabs button { min-height: 34px; justify-content: center; gap: 4px; margin: 0; padding: 0 2px; border: none; border-radius: 9px; font-size: 13px; color: #3F4650; }
+  .vl .vl-tabs button.is-on { background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15); color: #1A1C1E; }
+  .vl .vl-tabs .vd-n { padding: 0; background: none; font-size: inherit; color: inherit; }
+
+  /* Recherche et pastilles */
+  .vlm-rech { min-height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 12px; background: #E4E7EC; color: #5B6472; }
+  .vlm-rech input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font: inherit; font-size: 16px; color: #1A1C1E; }
+  .vlm-rech:focus-within { box-shadow: 0 0 0 2px var(--color-primary); }
+
+  .vlm-pastilles { display: flex; gap: 8px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+
+  .vlm-pastilles button {
+    flex-shrink: 0;
+    min-height: 36px;
+    padding: 0 13px;
+    border: none;
+    border-radius: 99px;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1A1C1E;
+    cursor: pointer;
+  }
+
+  .vlm-pastilles button.is-on { background: #1A1C1E; color: #fff; }
+  .vlm-pastilles small { margin-left: 4px; font-size: inherit; font-weight: 400; opacity: 0.65; }
+
+  /* Feuille des filtres */
+  .vlm-filtres-tete { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 6px 8px; }
+  .vlm-filtres-tete b { font-size: 17px; font-weight: 600; }
+  .vlm-filtres-tete button { min-height: 44px; padding: 0 8px; border: none; background: none; font: inherit; font-size: 16px; color: #1E78AC; cursor: pointer; }
+  .vlm-filtres-tete button:first-child { justify-self: start; }
+  .vlm-filtres-tete button:last-child { justify-self: end; font-weight: 600; }
+  .vlm-filtres { display: flex; flex-direction: column; gap: 14px; padding: 6px 16px 20px; }
+  .vlm-champ { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: none; font-size: 13px; font-weight: 600; color: #5B6472; }
+  .vlm-champ legend { margin-bottom: 6px; padding: 0; font-size: 13px; }
+  .vlm-champ select,
+  .vlm-champ .collab-date-input { width: 100%; min-height: 46px; padding: 0 12px; border: none; border-radius: 12px; background: #fff; font: inherit; font-size: 16px; font-weight: 400; color: #1A1C1E; }
+  .vlm-champ .react-datepicker-wrapper { width: 100%; }
+
+  .vlm-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 3px; border-radius: 11px; background: #E4E7EC; }
+  .vlm-seg button { min-height: 38px; padding: 0 2px; border: none; border-radius: 9px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: #3F4650; cursor: pointer; }
+  .vlm-seg button.is-on { background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15); color: #1A1C1E; }
+
+  /* Cartes */
+  .vl .vl-grid,
+  .vl .vl-rows { gap: 12px; }
+  .vl .vl-card { border: none; border-radius: 18px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+  .vl .vl-card:hover { transform: none; }
+  .vl .vl-cover { height: 128px; }
+  .vl .vl-role { top: auto; bottom: 10px; }
+  .vl .vl-chip,
+  .vl .vl-role { padding: 4px 10px; }
+  .vl .vl-card-body { gap: 6px; padding: 12px 14px 8px; }
+  .vl .vl-lieu { font-size: 13px; font-weight: 400; color: #5B6472; }
+  .vl .vl-lieu svg { display: none; }
+  .vl .vl-title { font-size: 16px; line-height: 1.3; display: block; color: #1A1C1E; }
+  .vl .vl-orgs { font-size: 13px; color: #5B6472; }
+  .vl .vl-bar { background: #E9ECF0; }
+  .vl .vl-prog-l { font-size: 13px; }
+  .vl .vl-card-foot { padding: 0 14px 12px; border: none; font-size: 13px; color: #5B6472; }
+  .vl .vl-card-foot svg { display: none; }
+
+  /* Vue liste */
+  .vl .vl-row { grid-template-columns: 64px minmax(0, 1fr); column-gap: 10px; row-gap: 4px; border: none; border-radius: 14px; padding: 10px; }
+  .vl .vl-thumb { grid-row: 1 / span 3; width: 64px; height: 64px; border-radius: 10px; }
+  .vl .vl-row > .vd-chip { justify-self: start; grid-column: 2; }
+  .vl .vl-row-role { display: none; }
+  .vl .vl-row-prog { grid-column: 2; }
+  .vl .vl-row-al { display: none; }
+
+  .vl .vl-empty { padding: 18px 12px; border-radius: 18px; background: #fff; }
+  .vl .vl-empty .vd-empty-ic { display: none; }
+  .vl .am-pagination { margin: 0; padding: 0; }
+
+  /* Demandes et suggestions */
+  .vl .requests-empty { padding: 18px 12px; border-radius: 18px; background: #fff; text-align: center; }
+  .vl .incident-centric-list { display: flex; flex-direction: column; gap: 12px; }
+  .vl .incident-group-card { overflow: hidden; border: none; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+  .vl .incident-group-header { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+  .vl .incident-group-thumb { width: 100%; height: 96px; flex: none; border-radius: 0; }
+  .vl .incident-group-title-section { gap: 6px; padding: 12px 14px; }
+  .vl .incident-group-title { font-size: 16px !important; font-weight: 600 !important; }
+  .vl .incident-group-summary-side { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0 14px; }
+  .vl .incident-group-summary-side:has(button:not(.incident-group-toggle)) { padding-bottom: 14px; }
+  .vl .incident-group-summary-side > .header-action-buttons { display: contents !important; }
+  .vl .incident-group-summary-side button:not(.incident-group-toggle) { min-height: 44px; justify-content: center; border-radius: 12px !important; font-size: 14px !important; }
+  .vl .incident-group-toggle { display: none; }
+
+  .vlm-apercu { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px; }
+  .vlm-apercu-tete { display: flex; gap: 12px; }
+  .vlm-apercu-tete > span { width: 64px; height: 64px; flex-shrink: 0; border-radius: 10px; background: #E2E8F0 center / cover; }
+  .vlm-apercu-tete b { font-size: 16px; font-weight: 600; }
+  .vlm-apercu .incident-details-grid { display: flex; flex-direction: column; gap: 12px; }
+  .vlm-apercu .grid-column { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px; background: #fff; }
+  .vlm-apercu .detail-section-title { margin: 0; font-size: 15px; font-weight: 600; }
+  .vlm-apercu .btn { min-height: 50px; border-radius: 14px; }
+
+  /* ----------------------------------------------------------
+     Détail
+     ---------------------------------------------------------- */
+  .vc-shell-main { height: 100dvh; }
+  .vc-scroll { display: block; background: #F2F4F7; }
+  .vd.vc { max-width: none; }
+  .vc .vc-work { display: block; }
+  .vc .vc-work-main { gap: 12px; }
+
+  .vc .vd-tabs {
+    display: flex;
+    gap: 0;
+    margin: 0 16px;
+    padding: 0;
+    border-bottom: 1px solid #E4E7EC;
+    border-radius: 0;
+    background: #F2F4F7;
+  }
+
+  .vc .vd-tabs button { flex: 1; min-height: 44px; border-radius: 0; font-size: 14px; color: #5B6472; }
+  .vc .vd-tabs button.is-on { background: none; box-shadow: inset 0 -2px 0 #1E78AC; color: #1E78AC; }
+  .vc .vd-tabs .vd-n { margin-left: 2px; }
+
+  .vcm-suivi { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 16px; background: #fff; }
+  .vcm-suivi > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: #5B6472; }
+  .vcm-suivi b { font-size: 14.5px; color: #1A1C1E; }
+  .vcm-suivi em { font-style: normal; color: #B91C1C; }
+
+  .vcm-barre-ko { opacity: 0.55; }
+  .vc-shell:has(.vdm-barre) .vd-fab { bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+
+  /* Tâches : le ··· remplace les petites icônes */
+  .vc .vc-task-tools { opacity: 1; }
+  .vcm-plus { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; margin: -8px -8px 0 0; border: none; background: none; color: #5B6472; cursor: pointer; }
+  .vc .vc-task-title { font-size: 15px; }
+  .vc .vc-task-meta { font-size: 13px; color: #5B6472; }
+  .vc .vc-task-proof .vd-btn { min-height: 44px; }
+  .vc .vc-h-btn { min-height: 36px; }
+
+  .vcm-feuille-texte { margin: 0; font-size: 14px; line-height: 1.5; color: #3F4650; }
+  .vcm-champ { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+  .vcm-champ textarea { width: 100%; padding: 10px 12px; border: 1px solid #D5DAE2; border-radius: 10px; background: #fff; font: inherit; font-size: 16px; font-weight: 400; resize: none; }
+  .vcm-fichier { min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #E9ECF0; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .am-offcanvas-panel.feuille-haute .am-offcanvas-footer .vcm-ko { background: #E21313; }
+  .vcm-feuille-corps .vc-preview { align-self: stretch; max-width: none; }
+
+  /* Discussion : écran poussé */
+  .vcm-discussion { position: fixed; inset: 0; z-index: 1030; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); background: #F2F4F7; animation: sgm-monte 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .vcm-retour { min-height: 44px; align-self: flex-start; padding: 0 12px; border: none; background: none; font: inherit; font-size: 16px; color: #1E78AC; cursor: pointer; }
+  .vcm-discussion .vc-chat { flex: 1; height: auto; min-height: 0; border: none; border-radius: 0; }
+  .vcm-discussion .vc-chat-list { background: #F2F4F7; }
+  .vcm-discussion .vc-bubble { border: none; border-radius: 16px 16px 16px 4px; font-size: 15px; }
+  .vcm-discussion .vc-msg.is-me .vc-bubble { border-radius: 16px 16px 4px 16px; background: #1E78AC; }
+  .vcm-discussion .vc-compose { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  .vcm-discussion .vc-field { min-height: 44px; border: none; border-radius: 22px; background: #EEF0F3; font-size: 16px; }
+  .vcm-discussion .vc-send,
+  .vcm-discussion .vc-ico-lg { width: 44px; height: 44px; }
+  .vcm-discussion .vc-msg-foot .vc-ico { width: 36px; height: 36px; }
+
+  /* Fenêtres de la fiche : boutons empilés, le principal au-dessus. */
+  body:has(.vc-shell) .dg-pied { flex-direction: column-reverse; align-items: stretch; }
+  body:has(.vc-shell) .dg-pied > * { width: 100%; min-height: 50px; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vlm-feuille,
+  .vcm-discussion { animation: none !important; }
+}
