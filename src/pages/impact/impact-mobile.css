@@ -1,0 +1,57 @@
+/* ============================================================
+   IMPACT SUR TÉLÉPHONE (sous 640 px)
+   Trois vues : Chiffres, Signalements, Carte.
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .ip-layout .ip.ip {
+    gap: 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(var(--am-tabbar-h, 0px) + 16px);
+    background: #F2F4F7;
+    color: #1A1C1E;
+  }
+
+  .ip .ip-repere-colle { display: none; }
+  .ip .ip-entete { position: static; display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; background: none; box-shadow: none; }
+  .ip .ip-tete { display: flex; align-items: center; justify-content: space-between; margin: 0; }
+  .ip .ip-tete h1 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.025em; }
+  .ip .ip-tete p { display: none; }
+  .ip .ip-filtres { margin: 0; }
+  .ip .ip-statuts-pastilles { display: flex; gap: 8px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+  .ip .ip-statuts-pastilles button { flex-shrink: 0; min-height: 36px; padding: 0 14px; border: none; border-radius: 99px; background: #fff; font-size: 14px; font-weight: 600; color: #1A1C1E; }
+  .ip .ip-statuts-pastilles button.is-on { background: #1A1C1E; color: #fff; }
+  .ipm-vues { flex-shrink: 0; }
+
+  .ip .ip-section { gap: 12px; }
+  .ip .ip-section > h2,
+  .ip .ip-titre-ligne h2 { font-size: 15px; font-weight: 600; }
+  .ip .ip-grille4,
+  .ip .ip-grille3 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ip .ip-tuile { border: none; border-radius: 16px; box-shadow: none; }
+  .ip .ip-tuile.is-large { grid-column: auto; display: flex; flex-direction: column; gap: 14px; }
+  .ip .ip-chiffre { font-size: 32px; }
+  .ip .ip-recherche { flex: 1; max-width: none; height: 44px; border: none; border-radius: 12px; background: #E4E7EC; }
+  .ip .ip-recherche input { font-size: 16px; }
+  .ip .ip-titre-ligne.is-outils { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+
+  .ipm-liste { margin: 0; padding: 0; overflow: hidden; border-radius: 16px; background: #fff; list-style: none; }
+  .ipm-ligne { width: 100%; min-height: 76px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: none; border-bottom: 1px solid #F1F3F6; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .ipm-liste li:last-child .ipm-ligne { border-bottom: none; }
+  .ipm-num { width: 26px; height: 26px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: #1E78AC; font-size: 12.5px; font-weight: 700; color: #fff; }
+  .ipm-photo { width: 56px; height: 56px; flex-shrink: 0; overflow: hidden; border-radius: 10px; background: #E2E8F0; }
+  .ipm-photo > * { width: 100% !important; height: 100% !important; }
+  .ipm-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .ipm-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #5B6472; }
+  .ipm-t b { font-size: 15px; font-weight: 600; color: #1A1C1E; }
+
+  .ip .ip-liste-carte { display: block; }
+  .ip .ip-carte { position: static; }
+  .ip .ip-carte > .ip-aide { display: none; }
+  .ip .ip-carte-cadre { position: relative; height: calc(100dvh - var(--am-tabbar-h, 0px) - 260px); min-height: 320px; overflow: hidden; border-radius: 16px; }
+  .ipm-resume { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 12px; border: none; border-radius: 14px; background: #fff; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2); font: inherit; text-align: left; cursor: pointer; }
+
+  .ipm-fiche { gap: 12px; }
+  .ipm-fiche .ip-details { display: flex; flex-direction: column; gap: 12px; }
+  .ipm-fiche .ip-detail,
+  .ipm-fiche .ip-bloc { padding: 14px; border: none; border-radius: 16px; background: #fff; }
+}

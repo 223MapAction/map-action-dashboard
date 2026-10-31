@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import { SearchNormal1, ArrowDown2, Location } from 'iconsax-react';
+import { SearchNormal1, ArrowDown2, Location, Filter } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useSidebarState } from '../../hooks/useSidebarState';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -18,7 +18,11 @@ import { lireGlobal, lireSignalement } from './donnees';
 import { zonesGeoJSON, emprise } from './carte';
 import { CarteImpactMapLibre } from './CarteImpactMapLibre';
 import { CarteImpactMapbox } from './CarteImpactMapbox';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
+import { OffcanvasModal } from '../../components/molecules/OffcanvasModal';
 import './impact-page.css';
+import './impact-mobile.css';
 
 const CarteImpact = IS_MAPBOX ? CarteImpactMapbox : CarteImpactMapLibre;
 const VUE_PAR_DEFAUT = { longitude: -8, latitude: 12.6, zoom: 5 };
@@ -61,44 +65,9 @@ const Detail = ({ titre, lignes }) => (
   </div>
 );
 
-/** Un signalement retenu, replié ou déplié. */
-const Signalement = ({ s, n, deplie, onBasculer, onVoir, refCarte }) => {
-  const idCorps = `ip-sig-${s.id}`;
-  return (
-    <article ref={refCarte} className={`ip-sig ${deplie ? 'is-on' : ''}`}>
-      <button type="button" className="ip-sig-tete" aria-expanded={deplie} aria-controls={idCorps} onClick={onBasculer}>
-        <span className="ip-sig-photo">
-          {s.photo ? <BlurryImage src={s.photo} alt="" /> : null}
-          <span className={`ip-gravite is-${s.niveau}`}>{s.libelleNiveau}</span>
-        </span>
-        <span className="ip-sig-texte">
-          <span className="ip-sig-lieu">
-            <b className={`ip-num ${deplie ? 'is-on' : ''} ${s.lat === null ? 'is-sans' : ''}`} aria-hidden="true">{n}</b>
-            {[s.zone || 'Zone non précisée', s.coordonnees || 'coordonnées non précisées'].join(' · ')}
-          </span>
-          <b className="ip-sig-titre">{s.titre}</b>
-          {s.description && <span className="ip-sig-desc">{s.description}</span>}
-          <span className="ip-pastilles">
-            {s.analyse ? (
-              <>
-                {s.directs !== null && <span className="ip-pastille is-bleu">{nombreFr(s.directs)} directs</span>}
-                {s.indirects !== null && <span className="ip-pastille">{nombreFr(s.indirects)} indirects</span>}
-                {s.rayon > 0 && <span className="ip-pastille">rayon {nombreFr(s.rayon)} m</span>}
-              </>
-            ) : <span className="ip-pastille is-orange">Impact pas encore estimé</span>}
-          </span>
-          <span className="ip-sig-dates">
-            {[
-              s.signaleLe && `Signalé le ${dateFr(s.signaleLe)}`,
-              s.resoluLe ? `Résolu le ${dateFr(s.resoluLe)}` : 'Pas encore résolu',
-            ].filter(Boolean).join(' · ')}
-          </span>
-        </span>
-        <ArrowDown2 size={18} color="currentColor" className="ip-chevron" aria-hidden="true" />
-      </button>
-
-      {deplie && (
-        <div id={idCorps} className="ip-sig-corps">
+/** Le détail d'un signalement : dépliant sur grand écran, feuille sur téléphone. */
+const CorpsSignalement = ({ s }) => (
+  <>
           {s.analyse ? (
             <div className="ip-details">
               <Detail titre="Bénéficiaires directs" lignes={[
@@ -160,6 +129,48 @@ const Signalement = ({ s, n, deplie, onBasculer, onVoir, refCarte }) => {
               </ul>
             )}
           </div>
+  </>
+);
+
+/** Un signalement retenu, replié ou déplié. */
+const Signalement = ({ s, n, deplie, onBasculer, onVoir, refCarte }) => {
+  const idCorps = `ip-sig-${s.id}`;
+  return (
+    <article ref={refCarte} className={`ip-sig ${deplie ? 'is-on' : ''}`}>
+      <button type="button" className="ip-sig-tete" aria-expanded={deplie} aria-controls={idCorps} onClick={onBasculer}>
+        <span className="ip-sig-photo">
+          {s.photo ? <BlurryImage src={s.photo} alt="" /> : null}
+          <span className={`ip-gravite is-${s.niveau}`}>{s.libelleNiveau}</span>
+        </span>
+        <span className="ip-sig-texte">
+          <span className="ip-sig-lieu">
+            <b className={`ip-num ${deplie ? 'is-on' : ''} ${s.lat === null ? 'is-sans' : ''}`} aria-hidden="true">{n}</b>
+            {[s.zone || 'Zone non précisée', s.coordonnees || 'coordonnées non précisées'].join(' · ')}
+          </span>
+          <b className="ip-sig-titre">{s.titre}</b>
+          {s.description && <span className="ip-sig-desc">{s.description}</span>}
+          <span className="ip-pastilles">
+            {s.analyse ? (
+              <>
+                {s.directs !== null && <span className="ip-pastille is-bleu">{nombreFr(s.directs)} directs</span>}
+                {s.indirects !== null && <span className="ip-pastille">{nombreFr(s.indirects)} indirects</span>}
+                {s.rayon > 0 && <span className="ip-pastille">rayon {nombreFr(s.rayon)} m</span>}
+              </>
+            ) : <span className="ip-pastille is-orange">Impact pas encore estimé</span>}
+          </span>
+          <span className="ip-sig-dates">
+            {[
+              s.signaleLe && `Signalé le ${dateFr(s.signaleLe)}`,
+              s.resoluLe ? `Résolu le ${dateFr(s.resoluLe)}` : 'Pas encore résolu',
+            ].filter(Boolean).join(' · ')}
+          </span>
+        </span>
+        <ArrowDown2 size={18} color="currentColor" className="ip-chevron" aria-hidden="true" />
+      </button>
+
+      {deplie && (
+        <div id={idCorps} className="ip-sig-corps">
+          <CorpsSignalement s={s} />
 
           <button type="button" className="ip-lien" onClick={onVoir}>Voir le signalement</button>
         </div>
@@ -185,6 +196,10 @@ export const Impact = () => {
   const [page, setPage] = useState(1);
   const [deplie, setDeplie] = useState(null);
   const [vueMobile, setVueMobile] = useState('liste');
+  const estTelephone = useEstTelephone();
+  const [vueTel, setVueTel] = useState('chiffres');
+  const [fiche, setFiche] = useState(null);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches);
   useEffect(() => {
@@ -269,14 +284,27 @@ export const Impact = () => {
 
   const choisirSurCarte = (id) => {
     setDeplie(id);
+    if (estTelephone) return;
     if (isMobile) setVueMobile('liste');
     requestAnimationFrame(() => cartesRef.current[String(id)]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   const phrasePeriode = PERIODES.find((p) => p.valeur === periode)?.phrase || '';
   const listeInitiale = chargeListe && !D;
-  const voirCarte = !isMobile || vueMobile === 'carte';
-  const voirListe = !isMobile || vueMobile === 'liste';
+  const voirCarte = estTelephone ? vueTel === 'carte' : (!isMobile || vueMobile === 'carte');
+  const voirListe = estTelephone ? vueTel === 'signalements' : (!isMobile || vueMobile === 'liste');
+  const signalementChoisi = localises.find((x) => String(x.id) === String(deplie));
+
+  // Sur téléphone la carte n'existe qu'une fois sa vue ouverte : on la cadre alors.
+  useEffect(() => {
+    if (!estTelephone || vueTel !== 'carte') return undefined;
+    const minuteur = setTimeout(() => {
+      const carte = carteRef.current;
+      const cadre = emprise(localises);
+      if (carte && cadre) carte.fitBounds(cadre, { padding: 60, maxZoom: 10, duration: 600 });
+    }, 500);
+    return () => clearTimeout(minuteur);
+  }, [estTelephone, vueTel, localises]);
 
   const c = g?.directs.cohortes;
   const ci = g?.citoyens;
@@ -293,7 +321,7 @@ export const Impact = () => {
       />
 
       <div className={`ip-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
+        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
 
         <main className="ip" onScroll={surDefilement} style={{ '--ip-entete': `${hauteurEntete}px` }}>
           <BandeauErreur
@@ -306,17 +334,22 @@ export const Impact = () => {
           <div ref={enteteRef} className={`ip-entete ${colle ? 'is-colle' : ''}`}>
             <div className="ip-tete">
               <h1>Impact</h1>
+              {estTelephone && (
+                <button type="button" className={`vlm-filtre ${periode !== 'all' ? 'is-on' : ''}`} onClick={() => setFiltresOuverts(true)} aria-label="Filtres">
+                  <Filter size={18} color="currentColor" aria-hidden="true" />
+                </button>
+              )}
               <p>Ce que les interventions ont changé sur le terrain, et pour combien de personnes.</p>
             </div>
             <div className="ip-filtres">
               <div className={isMobile ? 'ip-statuts-pastilles' : 'ip-statuts'} role="tablist" aria-label="Signalements pris en compte">
                 {STATUTS.map((s) => (
                   <button key={s.valeur} type="button" role="tab" aria-selected={statut === s.valeur} className={statut === s.valeur ? 'is-on' : ''} onClick={() => setStatut(s.valeur)}>
-                    {isMobile ? s.court : s.libelle}
+                    {estTelephone && s.valeur === 'all' ? 'Tous' : isMobile ? s.court : s.libelle}
                   </button>
                 ))}
               </div>
-              {isMobile ? (
+              {estTelephone ? null : isMobile ? (
                 <label className="ip-periode-liste">
                   <span aria-hidden="true">Période : {PERIODES.find((p) => p.valeur === periode)?.libelle.toLowerCase()}</span>
                   <ArrowDown2 size={14} color="currentColor" aria-hidden="true" />
@@ -334,8 +367,16 @@ export const Impact = () => {
             </div>
           </div>
 
+          {estTelephone && (
+            <div className="vlm-seg ipm-vues" role="tablist" aria-label="Affichage">
+              {[['chiffres', 'Chiffres'], ['signalements', 'Signalements'], ['carte', 'Carte']].map(([v, l]) => (
+                <button key={v} type="button" role="tab" aria-selected={vueTel === v} className={vueTel === v ? 'is-on' : ''} onClick={() => setVueTel(v)}>{l}</button>
+              ))}
+            </div>
+          )}
+
           {/* Personnes et territoire */}
-          <section className="ip-section" aria-labelledby="ip-h-pers">
+          {(!estTelephone || vueTel === 'chiffres') && <section className="ip-section" aria-labelledby="ip-h-pers">
             <h2 id="ip-h-pers">Personnes et territoire</h2>
             {!g ? (
               <div className="ip-grille4">{[0, 1, 2].map((n) => <div key={n} className={`ip-tuile ${n === 0 ? 'is-large' : ''}`}><ShimmerText line={4} gap={10} /></div>)}</div>
@@ -390,10 +431,10 @@ export const Impact = () => {
                 </article>
               </div>
             )}
-          </section>
+          </section>}
 
           {/* Réservé au super-administrateur */}
-          {g?.plateforme && (
+          {g?.plateforme && (!estTelephone || vueTel === 'chiffres') && (
             <section className="ip-section" aria-labelledby="ip-h-plat">
               <div className="ip-titre-ligne">
                 <h2 id="ip-h-plat">Toute la plateforme</h2>
@@ -451,10 +492,10 @@ export const Impact = () => {
           )}
 
           {/* Signalements retenus : liste et carte des zones d'impact */}
-          <section className="ip-section" aria-labelledby="ip-h-sig">
+          {(!estTelephone || vueTel !== 'chiffres') && <section className="ip-section" aria-labelledby="ip-h-sig">
             <div className="ip-titre-ligne is-outils">
               <h2 id="ip-h-sig">Signalements retenus {!listeInitiale && <span className="ip-compte">{nombreFr(total)}</span>}</h2>
-              {isMobile && (
+              {isMobile && !estTelephone && (
                 <div className="ip-segment" role="radiogroup" aria-label="Affichage">
                   <button type="button" role="radio" aria-checked={vueMobile === 'liste'} onClick={() => setVueMobile('liste')}>Liste</button>
                   <button type="button" role="radio" aria-checked={vueMobile === 'carte'} onClick={() => setVueMobile('carte')}>Carte</button>
@@ -482,7 +523,25 @@ export const Impact = () => {
                     </div>
                   ) : (
                     <div className={`ip-liste-items ${chargeListe ? 'is-attente' : ''}`}>
-                      {signalements.map((s) => (
+                      {estTelephone ? (
+                        <ul className="ipm-liste">
+                          {signalements.map((s) => (
+                            <li key={s.id}>
+                              <button type="button" className="ipm-ligne" onClick={() => { setDeplie(s.id); setFiche(s); }}>
+                                <b className="ipm-num" aria-hidden="true">{numeros.get(String(s.id))}</b>
+                                <span className="ipm-photo">{s.photo ? <BlurryImage src={s.photo} alt="" /> : null}</span>
+                                <span className="ipm-t">
+                                  <b>{s.titre}</b>
+                                  <span>{[s.zone, s.resoluLe ? `Résolu le ${dateFr(s.resoluLe)}` : 'Pas encore résolu'].filter(Boolean).join(' · ')}</span>
+                                  <span>{s.analyse
+                                    ? [s.directs !== null && `${nombreFr(s.directs)} directs`, s.indirects !== null && `${nombreFr(s.indirects)} indirects`].filter(Boolean).join(' · ')
+                                    : 'Impact pas encore estimé'}</span>
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : signalements.map((s) => (
                         <Signalement
                           key={s.id}
                           s={s}
@@ -517,6 +576,15 @@ export const Impact = () => {
                       actif={deplie}
                       onSelect={choisirSurCarte}
                     />
+                    {estTelephone && signalementChoisi && (
+                      <button type="button" className="ipm-resume" onClick={() => setFiche(signalementChoisi)}>
+                        <b className="ipm-num" aria-hidden="true">{signalementChoisi.n}</b>
+                        <span className="ipm-t">
+                          <b>{signalementChoisi.titre}</b>
+                          <span>{[signalementChoisi.directs !== null && `${nombreFr(signalementChoisi.directs)} directs`, signalementChoisi.rayon > 0 && `rayon ${nombreFr(signalementChoisi.rayon)} m`].filter(Boolean).join(' · ')}</span>
+                        </span>
+                      </button>
+                    )}
                     <div className="ip-carte-legende">
                       <span><i aria-hidden="true" />Zone d’impact (rayon estimé)</span>
                       {nonLocalises.length > 0 && (
@@ -532,9 +600,39 @@ export const Impact = () => {
                 </aside>
               )}
             </div>
-          </section>
+          </section>}
         </main>
       </div>
+
+      {filtresOuverts && (
+        <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
+          <div className="vlm-filtres-tete">
+            <button type="button" onClick={() => setPeriode('all')}>Tout effacer</button>
+            <b>Filtres</b>
+            <button type="button" onClick={() => setFiltresOuverts(false)}>Terminé</button>
+          </div>
+          <div className="vlm-filtres">
+            <fieldset className="vlm-champ">
+              <legend>Période</legend>
+              <div className="vlm-seg">
+                {[['all', 'Tout'], ['30d', '30 j'], ['90d', '90 j'], ['year', 'Année']].map(([v, l]) => (
+                  <button key={v} type="button" className={periode === v ? 'is-on' : ''} aria-pressed={periode === v} onClick={() => setPeriode(v)}>{l}</button>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+        </FeuilleBasse>
+      )}
+
+      {fiche && (
+        <OffcanvasModal className="feuille-haute" closeVariant="plain" title={fiche.titre} subtitle={[fiche.zone, fiche.resoluLe ? `Résolu le ${dateFr(fiche.resoluLe)}` : 'Pas encore résolu'].filter(Boolean).join(' · ')} onClose={() => setFiche(null)}>
+          <div className="am-offcanvas-body ipm-fiche"><CorpsSignalement s={fiche} /></div>
+          <div className="am-offcanvas-footer">
+            <button type="button" className="am-btn am-btn--secondary" onClick={() => setFiche(null)}>Fermer</button>
+            <button type="button" className="am-btn am-btn--primary" onClick={() => navigate(`/signalements/${fiche.id}`, { state: { from: '/impact' } })}>Voir le signalement</button>
+          </div>
+        </OffcanvasModal>
+      )}
     </div>
   );
 };
