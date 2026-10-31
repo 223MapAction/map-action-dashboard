@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft2, Crown1, TickCircle, Gallery, Add,
-  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle,
+  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle, Message,
 } from 'iconsax-react';
 import { IS_MAPBOX } from '../../config/mapEngine';
 import { OSM_STYLE, MAPBOX_SATELLITE_STYLE, HAS_SATELLITE_STYLE as HAS_MAPBOX_SATELLITE } from '../../config/mapStyles';
@@ -16,7 +16,11 @@ import { ListeTaches } from './ListeTaches';
 import { Discussion } from './Discussion';
 import '../incident/components/IncidentDetail/vue-detail.css';
 import '../incident/components/IncidentDetail/vue-detail-agir.css';
+import '../incident/components/IncidentDetail/vue-detail-mobile.css';
 import './vue-collaboration.css';
+import '../collaboration/mobile/collaboration-mobile.css';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleActions } from '../incident/mobile/FeuilleActions';
 
 const MapDetailView = IS_MAPBOX ? MapDetailViewMapbox : MapDetailViewMapLibre;
 
@@ -68,6 +72,32 @@ export const VueCollaboration = ({
   discussion, onZoomImage, onToast,
 }) => {
   const [onglet, setOnglet] = useState('taches');
+  const estTelephone = useEstTelephone();
+  const [menuOuvert, setMenuOuvert] = useState(false);
+  const [discussionOuverte, setDiscussionOuverte] = useState(false);
+  const refPhoto = useRef(null);
+  const [photoPassee, setPhotoPassee] = useState(false);
+
+  // La barre compacte apparaît une fois la photo sortie de l'écran.
+  useEffect(() => {
+    const photo = refPhoto.current;
+    if (!estTelephone || !photo || typeof IntersectionObserver === 'undefined') return undefined;
+    const observateur = new IntersectionObserver(([e]) => setPhotoPassee(!e.isIntersecting));
+    observateur.observe(photo);
+    return () => observateur.disconnect();
+  }, [estTelephone]);
+
+  // La discussion est un écran poussé : le retour du téléphone la referme.
+  const ouvrirDiscussion = () => {
+    window.history.pushState({ discussion: true }, '');
+    setDiscussionOuverte(true);
+  };
+  useEffect(() => {
+    if (!discussionOuverte) return undefined;
+    const retour = () => setDiscussionOuverte(false);
+    window.addEventListener('popstate', retour);
+    return () => window.removeEventListener('popstate', retour);
+  }, [discussionOuverte]);
   const [fond, setFond] = useState('streets');
   const carteRef = useRef(null);
 
@@ -122,7 +152,7 @@ export const VueCollaboration = ({
 
   const onglets = [
     ['taches', 'Tâches', liste.length || null],
-    ...(etroit ? [['discussion', 'Discussion', discussion.messages.length || null]] : []),
+    ...(etroit && !estTelephone ? [['discussion', 'Discussion', discussion.messages.length || null]] : []),
     ['signalement', 'Signalement'],
     ['organisations', 'Organisations', organisations.length || null],
   ];
@@ -133,8 +163,106 @@ export const VueCollaboration = ({
     </button>
   );
 
+  const pastilles = (
+    <div className="vd-chips">
+      <span className={`vd-chip ${CHIP_ETAT[etat] || 'vc-chip-info'}`}><i style={{ backgroundColor: 'currentColor' }} />{formatEtat(etat)}</span>
+      {collaboration.userRole && (
+        <span className={`vd-chip ${estLeader ? 'vc-chip-lead' : 'vd-chip-neutre'}`}>
+          Votre rôle : {formatRole(collaboration.userRole)}
+        </span>
+      )}
+      {collaboration.status && collaboration.status !== 'accepted' && (
+        <span className={`vd-chip ${CHIP_STATUT[collaboration.status] || 'vd-chip-neutre'}`}>Invitation {formatStatus(collaboration.status).toLowerCase()}</span>
+      )}
+      {(pred?.sub_category || pred?.macro_category) && <span className="vd-chip vd-chip-motif">{pred.sub_category || pred.macro_category}</span>}
+    </div>
+  );
+
+  const bandeaux = (
+    <>
+      {lectureSeule && (
+        <div className="vd-banner vd-banner-ok">
+          <ShieldTick size={18} variant="Bold" color="currentColor" />
+          <span><b>Signalement résolu :</b> la collaboration est archivée. Tâches et discussion restent consultables en lecture seule.</span>
+        </div>
+      )}
+      {!lectureSeule && collaboration.status === 'pending' && (
+        <div className="vd-banner">
+          <InfoCircle size={18} variant="Bold" color="currentColor" />
+          <span><b>Invitation en attente :</b> votre participation n'a pas encore été confirmée par l'organisation leader.</span>
+        </div>
+      )}
+    </>
+  );
+
+  const iconeRetour = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>;
+  const iconeMenu = <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>;
+
+  const actionsMenu = [
+    { id: 'inviter', label: estLeader ? 'Inviter des organisations' : 'Suggérer des organisations', onSelect: onSuggerer },
+    { id: 'rapports', label: 'Rapports de terrain', onSelect: onRapports },
+  ];
+
   return (
     <div className="vd vc">
+      {estTelephone ? (
+        <>
+          {photoPassee && (
+            <header className="vdm-compacte">
+              <button type="button" onClick={onBack} aria-label="Retour aux collaborations">{iconeRetour}</button>
+              <b>{collaboration.title}</b>
+              {lectureSeule ? <span /> : <button type="button" onClick={() => setMenuOuvert(true)} aria-label="Autres actions">{iconeMenu}</button>}
+            </header>
+          )}
+
+          <div className="vdm-photo" ref={refPhoto}>
+            <div className="vd-stage">
+              {collaboration.image ? (
+                <button type="button" className="vd-photo" onClick={() => onZoomImage({ src: collaboration.image, alt: collaboration.title })} aria-label="Agrandir la photo">
+                  <BlurryImage src={collaboration.image} alt={collaboration.title} className="vd-photo-img" />
+                </button>
+              ) : (
+                <div className="vd-photo vd-photo-vide"><Gallery size={28} color="currentColor" /><span>Aucune photo</span></div>
+              )}
+            </div>
+            <div className="vdm-rangee">
+              <button type="button" className="vdm-rond" onClick={onBack} aria-label="Retour aux collaborations">{iconeRetour}</button>
+              {!lectureSeule && <button type="button" className="vdm-rond" onClick={() => setMenuOuvert(true)} aria-label="Autres actions">{iconeMenu}</button>}
+            </div>
+          </div>
+
+          <div className="vdm-corps">
+            {pastilles}
+            <div className="vdm-titre">
+              <h1>{collaboration.title}</h1>
+              <p>
+                {collaboration.location} · rejointe le {collaboration.joinedAt}
+                {collaboration.organisation && <><br />Organisation : {collaboration.organisation}</>}
+              </p>
+            </div>
+            {bandeaux}
+            <section className="vcm-suivi">
+              <span
+                className="vdm-anneau"
+                role="img"
+                aria-label={`Avancement ${progression} %`}
+                style={{ background: `conic-gradient(${progression === 100 ? 'var(--color-success-text)' : '#1E78AC'} 0 ${progression}%, #F1F3F6 0 100%)` }}
+              >
+                <span>{progression} %</span>
+              </span>
+              <span>
+                <b>Avancement : {nbFaites} tâche{nbFaites > 1 ? 's' : ''} sur {liste.length}</b>
+                <span>{nbEnCours} en cours{nbEchouees > 0 && <em> · {nbEchouees} échouée{nbEchouees > 1 ? 's' : ''}</em>}</span>
+                <span>Suivi : {formatEtat(etat).toLowerCase()}</span>
+                {modificationsEnAttente && <span>{progressionSauvee} % enregistré</span>}
+              </span>
+            </section>
+          </div>
+
+          {menuOuvert && <FeuilleActions titre={collaboration.title} actions={actionsMenu} onClose={() => setMenuOuvert(false)} />}
+        </>
+      ) : (
+      <>
       <nav className="vd-crumb" aria-label="Fil d'Ariane">
         <button type="button" className="vd-back" onClick={onBack} aria-label="Retour aux collaborations">
           <ArrowLeft2 size={16} color="currentColor" />
@@ -147,18 +275,7 @@ export const VueCollaboration = ({
       <header className="vd-head">
         <div className="vd-head-t">
           <h1>{collaboration.title}</h1>
-          <div className="vd-chips">
-            <span className={`vd-chip ${CHIP_ETAT[etat] || 'vc-chip-info'}`}><i style={{ backgroundColor: 'currentColor' }} />{formatEtat(etat)}</span>
-            {collaboration.userRole && (
-              <span className={`vd-chip ${estLeader ? 'vc-chip-lead' : 'vd-chip-neutre'}`}>
-                Votre rôle : {formatRole(collaboration.userRole)}
-              </span>
-            )}
-            {collaboration.status && collaboration.status !== 'accepted' && (
-              <span className={`vd-chip ${CHIP_STATUT[collaboration.status] || 'vd-chip-neutre'}`}>Invitation {formatStatus(collaboration.status).toLowerCase()}</span>
-            )}
-            {(pred?.sub_category || pred?.macro_category) && <span className="vd-chip vd-chip-motif">{pred.sub_category || pred.macro_category}</span>}
-          </div>
+          {pastilles}
           <div className="vd-meta">
             <span>{collaboration.location}</span>
             <span>Rejointe le {collaboration.joinedAt}</span>
@@ -193,18 +310,7 @@ export const VueCollaboration = ({
         </div>
       </header>
 
-      {lectureSeule && (
-        <div className="vd-banner vd-banner-ok">
-          <ShieldTick size={18} variant="Bold" color="currentColor" />
-          <span><b>Signalement résolu :</b> la collaboration est archivée. Tâches et discussion restent consultables en lecture seule.</span>
-        </div>
-      )}
-      {!lectureSeule && collaboration.status === 'pending' && (
-        <div className="vd-banner">
-          <InfoCircle size={18} variant="Bold" color="currentColor" />
-          <span><b>Invitation en attente :</b> votre participation n'a pas encore été confirmée par l'organisation leader.</span>
-        </div>
-      )}
+      {bandeaux}
 
       {/* Avancement + photo */}
       <section className="vd-hero vc-hero">
@@ -254,6 +360,9 @@ export const VueCollaboration = ({
           </div>
         </div>
       </section>
+
+      </>
+      )}
 
       {/* Espace de travail : onglets à gauche, discussion à droite */}
       <div className="vc-work">
@@ -433,6 +542,41 @@ export const VueCollaboration = ({
           </aside>
         )}
       </div>
+
+      {estTelephone && !lectureSeule && (
+        <div className="vdm-barre">
+          {estLeader ? (
+            <button
+              type="button"
+              className={`vdm-agir ${peutResoudre ? '' : 'vcm-barre-ko'}`}
+              onClick={peutResoudre ? onResoudre : () => onToast?.(raisonBlocage)}
+              aria-disabled={!peutResoudre}
+            >
+              Résoudre le signalement
+            </button>
+          ) : (
+            <button type="button" className="vdm-agir" onClick={onCreerTache}>Nouvelle tâche</button>
+          )}
+          {estLeader && (
+            <button type="button" className="vdm-agir-plus" onClick={onCreerTache} aria-label="Nouvelle tâche">
+              <Add size={20} color="currentColor" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {estTelephone && !discussionOuverte && (
+        <button type="button" className="vd-fab" onClick={ouvrirDiscussion} aria-label="Ouvrir la discussion">
+          <Message size={24} variant="Bold" color="currentColor" />
+        </button>
+      )}
+
+      {estTelephone && discussionOuverte && (
+        <div className="vcm-discussion">
+          <button type="button" className="vcm-retour" onClick={() => window.history.back()}>‹ Retour</button>
+          <Discussion discussion={discussion} lectureSeule={lectureSeule} onRapports={onRapports} />
+        </div>
+      )}
     </div>
   );
 };

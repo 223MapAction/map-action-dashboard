@@ -22,12 +22,14 @@ import { VueCollaboration } from './VueCollaboration';
 import { EditTaskModal } from './modal/EditTaskModal';
 import { ResolveModal } from './modal/ResolveModal';
 import { aujourdhui, bornesTaches } from './modal/dates';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
 import './collaboration-detail.css';
 import './modal/modales.css';
 
 
 /* Coquille commune : barre latérale, en-tête fixe, zone qui défile. */
 const Coquille = ({ children }) => {
+  const estTelephone = useEstTelephone();
   const {
     isOpen: sidebarOpen,
     setOpen: setSidebarOpen,
@@ -37,21 +39,29 @@ const Coquille = ({ children }) => {
 
   return (
     <div className="vc-shell">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
-      />
+      {/* Sur téléphone, l'écran est poussé : ni en-tête ni barre d'onglets. */}
+      {!estTelephone && (
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          isCollapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
+      )}
       <div className={`vc-shell-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
+        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
         <div className="vc-scroll">{children}</div>
       </div>
     </div>
   );
 };
 
-const Squelette = () => (
+const Squelette = () => (window.matchMedia?.('(max-width: 640px)').matches ? (
+  <div className="vd vc" aria-busy="true" aria-label="Chargement de la collaboration">
+    <ShimmerThumbnail height={300} className="m-0" />
+    <div style={{ padding: 16 }}><ShimmerTitle line={1} gap={8} /><ShimmerText line={4} gap={10} /></div>
+  </div>
+) : (
   <div className="vd vc" aria-busy="true" aria-label="Chargement de la collaboration">
     <div style={{ width: 220 }}><ShimmerText line={1} gap={0} /></div>
     <div style={{ maxWidth: 560 }}><ShimmerTitle line={1} gap={8} /><ShimmerText line={1} gap={8} /></div>
@@ -64,7 +74,7 @@ const Squelette = () => (
       <aside className="vc-work-side"><div className="vd-card vd-pad"><ShimmerTitle line={1} gap={8} /><ShimmerText line={8} gap={12} /></div></aside>
     </div>
   </div>
-);
+));
 
 
 export const CollaborationDetail = () => {

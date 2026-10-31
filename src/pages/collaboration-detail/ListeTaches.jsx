@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ShimmerTitle, ShimmerText } from 'react-shimmer-effects';
 import {
   TickCircle, Danger, Add, Trash, Edit2, Calendar, DocumentUpload, Play, ArrowDown2, TaskSquare, CloseCircle, RefreshLeftSquare,
@@ -6,6 +7,10 @@ import {
 import { BlurryImage } from '../../components/atoms/BlurryImage';
 import { formatFailureReason, formatDateTime } from './formatage';
 import { logger } from '../../utils/logger';
+import { OffcanvasModal } from '../../components/molecules/OffcanvasModal';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleActions } from '../incident/mobile/FeuilleActions';
+import '../incident/mobile/mobile.css';
 
 /* --------------------------------------------------------------------------
  * Liste des tâches de la collaboration
@@ -56,7 +61,16 @@ const Preuve = ({ preuve, onZoomImage, onVideo }) => {
   );
 };
 
+// Rendue dans body : les animations de la liste créent un contexte d'empilement
+// qui laisserait la feuille sous la barre d'action.
+const FeuilleHaute = (props) => createPortal(
+  <OffcanvasModal className="feuille-haute" closeVariant="plain" {...props} />,
+  document.body,
+);
+
 export const ListeTaches = ({ taches, chargement, lectureSeule, onCreer, onZoomImage }) => {
+  const estTelephone = useEstTelephone();
+  const [menuTache, setMenuTache] = useState(null);
   const {
     currentTasks, toggleTask, markTaskFailed, resetTaskStatus, startEditTask,
     setTaskToDelete, deletingTaskIds,
@@ -136,6 +150,17 @@ export const ListeTaches = ({ taches, chargement, lectureSeule, onCreer, onZoomI
     }
   };
 
+  const actionsTache = (task) => {
+    const active = !task.completed && !task.failed;
+    return [
+      active && { id: 'preuve', label: 'Terminer avec une preuve', onSelect: () => ouvrirPreuve(task.id) },
+      active && task.createdBy === 'me' && { id: 'modifier', label: 'Modifier', onSelect: () => startEditTask(task) },
+      active && { id: 'echec', label: 'Signaler un échec', onSelect: () => basculerEchec(task.id) },
+      task.failed && { id: 'remettre', label: 'Remettre en cours', onSelect: () => resetTaskStatus(task.id) },
+      { id: 'supprimer', label: 'Supprimer', tone: 'danger', onSelect: () => setTaskToDelete(task) },
+    ].filter(Boolean);
+  };
+
   if (chargement) {
     return (
       <div className="vc-tasks">
@@ -211,7 +236,12 @@ export const ListeTaches = ({ taches, chargement, lectureSeule, onCreer, onZoomI
                 </div>
               </div>
 
-              {!lectureSeule && (
+              {!lectureSeule && estTelephone && (
+                <button type="button" className="vcm-plus" onClick={() => setMenuTache(task)} disabled={enSuppression} aria-label={`Actions sur : ${task.title}`}>
+                  {enSuppression ? <Spin size={13} /> : <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>}
+                </button>
+              )}
+              {!lectureSeule && !estTelephone && (
                 <div className="vc-task-tools">
                   {active && task.createdBy === 'me' && (
                     <button type="button" className="vc-ico" onClick={() => startEditTask(task)} aria-label={`Modifier : ${task.title}`} title="Modifier">
@@ -242,8 +272,80 @@ export const ListeTaches = ({ taches, chargement, lectureSeule, onCreer, onZoomI
               </div>
             )}
 
+            {/* Sur téléphone, les deux formulaires s'ouvrent dans une feuille haute. */}
+            {estTelephone && active && expandedFailureTask === task.id && (
+              <FeuilleHaute
+                title="Signaler un échec"
+                subtitle={task.title}
+                closeDisabled={failureSaving}
+                onClose={() => { setExpandedFailureTask(null); setFailureReason(''); setFailureAlert(null); }}
+              >
+                <div className="am-offcanvas-body vcm-feuille-corps">
+                  {failureAlert && <div className={`vc-alert vc-alert-${failureAlert.type}`} role="alert">{failureAlert.message}</div>}
+                  <label className="vcm-champ">
+                    Pourquoi cette tâche n'a-t-elle pas pu être réalisée ?
+                    <textarea
+                      rows={4}
+                      value={failureReason}
+                      onChange={(e) => setFailureReason(e.target.value)}
+                      placeholder="Ex. : accès bloqué par la montée des eaux, matériel manquant…"
+                      disabled={failureSaving}
+                    />
+                  </label>
+                </div>
+                <div className="am-offcanvas-footer">
+                  <button type="button" className="am-btn am-btn--secondary" disabled={failureSaving} onClick={() => { setExpandedFailureTask(null); setFailureReason(''); setFailureAlert(null); }}>Annuler</button>
+                  <button type="button" className="am-btn am-btn--primary vcm-ko" disabled={!failureReason.trim() || failureSaving} onClick={() => markTaskFailed(task.id, failureReason.trim())}>
+                    {failureSaving ? 'Envoi…' : 'Marquer comme échouée'}
+                  </button>
+                </div>
+              </FeuilleHaute>
+            )}
+
+            {estTelephone && active && expandedProofTask === task.id && (
+              <FeuilleHaute
+                title="Terminer avec une preuve"
+                subtitle={task.title}
+                closeDisabled={enEnvoi}
+                onClose={fermerPreuve}
+              >
+                <div className="am-offcanvas-body vcm-feuille-corps">
+                  <p className="vcm-feuille-texte">Image, vidéo ou document (PDF, Word, Excel…) qui atteste de la réalisation.</p>
+                  {proofUploadError && <div className="vc-alert vc-alert-danger" role="alert">{proofUploadError}</div>}
+                  {proofUploadSuccess && <div className="vc-alert vc-alert-success" role="status">{proofUploadSuccess}</div>}
+                  {(proofPreviewUrl || selectedProofFile) && (
+                    <div className="vc-preview">
+                      {proofPreviewType === 'image' ? (
+                        <BlurryImage src={proofPreviewUrl} alt="Aperçu de la preuve" />
+                      ) : proofPreviewType === 'video' ? (
+                        <video src={proofPreviewUrl} controls />
+                      ) : (
+                        <span className="vc-preview-doc">
+                          <DocumentUpload size={22} variant="Bold" color="currentColor" />
+                          <span><b>{selectedProofFile?.name}</b>{selectedProofFile?.size ? <small>{(selectedProofFile.size / 1024).toFixed(1)} Ko</small> : null}</span>
+                        </span>
+                      )}
+                      <button type="button" className="vc-preview-x" onClick={viderFichier} disabled={enEnvoi} aria-label="Retirer le fichier">
+                        <CloseCircle size={20} variant="Bold" color="currentColor" />
+                      </button>
+                    </div>
+                  )}
+                  <label className="vcm-fichier">
+                    {selectedProofFile ? 'Changer de fichier' : 'Choisir un fichier'}
+                    <input type="file" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" disabled={enEnvoi} onChange={choisirFichier} hidden />
+                  </label>
+                </div>
+                <div className="am-offcanvas-footer">
+                  <button type="button" className="am-btn am-btn--secondary" disabled={enEnvoi} onClick={fermerPreuve}>Annuler</button>
+                  <button type="button" className="am-btn am-btn--primary" disabled={!selectedProofFile || enEnvoi} onClick={() => envoyerPreuve(task.id)}>
+                    {enEnvoi ? 'Envoi…' : 'Valider la tâche'}
+                  </button>
+                </div>
+              </FeuilleHaute>
+            )}
+
             {/* Signaler un échec */}
-            {active && expandedFailureTask === task.id && (
+            {!estTelephone && active && expandedFailureTask === task.id && (
               <div className="vc-task-panel vc-panel-ko">
                 {failureAlert && <div className={`vc-alert vc-alert-${failureAlert.type}`} role="alert">{failureAlert.message}</div>}
                 <label htmlFor={`echec-${task.id}`}>Pourquoi cette tâche n'a-t-elle pas pu être réalisée ?</label>
@@ -268,7 +370,7 @@ export const ListeTaches = ({ taches, chargement, lectureSeule, onCreer, onZoomI
             )}
 
             {/* Terminer avec une preuve */}
-            {active && expandedProofTask === task.id && (
+            {!estTelephone && active && expandedProofTask === task.id && (
               <div className="vc-task-panel">
                 <b>Terminer la tâche avec une preuve</b>
                 <p>Image, vidéo ou document (PDF, Word, Excel…) qui atteste de la réalisation.</p>
@@ -328,6 +430,9 @@ export const ListeTaches = ({ taches, chargement, lectureSeule, onCreer, onZoomI
           </li>
         );
       })}
+      {menuTache && (
+        <FeuilleActions titre={menuTache.title} actions={actionsTache(menuTache)} onClose={() => setMenuTache(null)} />
+      )}
     </ul>
   );
 };
