@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import { SearchNormal1, ArrowDown2, Eye, People, UserAdd, DocumentText, Location, Briefcase } from 'iconsax-react';
+import { SearchNormal1, ArrowDown2, Eye, People, UserAdd, DocumentText, Location, Briefcase, Filter } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
 import { useReinitialisationSurChangement } from '../../hooks/useReinitialisationSurChangement';
@@ -19,7 +19,11 @@ import { IncidentAgentsListModal } from './modal/IncidentAgentsListModal';
 import { getOrgInternalIncidentsService } from './service/mes_interventions_service';
 import { versIntervention } from './format';
 import '../collaboration-detail/modal/modales.css';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleActions } from '../incident/mobile/FeuilleActions';
+import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
 import './mes-interventions-liste.css';
+import './mes-interventions-mobile.css';
 
 const TAILLE_PAGE = 20;
 
@@ -67,6 +71,9 @@ const Avancement = ({ intervention: i }) => (
 
 const Contenu = () => {
   const navigate = useNavigate();
+  const estTelephone = useEstTelephone();
+  const [menu, setMenu] = useState(null);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
   const {
     isOpen: sidebarOpen,
     setOpen: setSidebarOpen,
@@ -179,7 +186,7 @@ const Contenu = () => {
       />
 
       <div className={`mi-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
+        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
 
         <main className="mi" onScroll={surDefilement}>
           <BandeauErreur
@@ -219,6 +226,11 @@ const Contenu = () => {
                 <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
                 <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Titre, description ou lieu" aria-label="Rechercher une intervention" />
               </label>
+              {estTelephone && (
+                <button type="button" className={`vlm-filtre ${sourceFilter !== 'agents_or_internal' ? 'is-on' : ''}`} onClick={() => setFiltresOuverts(true)} aria-label="Filtres">
+                  <Filter size={18} color="currentColor" aria-hidden="true" />
+                </button>
+              )}
               {!isMobile && (
                 <label className={`mi-filtre ${sourceFilter !== 'agents_or_internal' ? 'is-on' : ''}`}>
                   <span aria-hidden="true">Origine : {ORIGINES.find((o) => o.valeur === sourceFilter)?.libelle}</span>
@@ -238,6 +250,29 @@ const Contenu = () => {
               <p>{filtreActif || statusFilter
                 ? 'Aucun résultat avec ces critères. Modifiez la recherche ou le filtre.'
                 : 'Les signalements que votre organisation prend en charge apparaîtront ici.'}</p>
+            </div>
+          ) : estTelephone ? (
+            <div className="mim-cartes">
+              {chargementInitial ? [0, 1].map((n) => <div key={n} className="mim-carte"><ShimmerThumbnail height={92} className="m-0" /><div className="mim-corps"><ShimmerText line={2} gap={8} /></div></div>) : interventions.map((i) => (
+                <article key={i.id} className="mim-carte">
+                  <button type="button" className="mim-ouvrir" onClick={() => ouvrir(i)}>
+                    <span className="mim-photo">
+                      {i.photo && <BlurryImage src={i.photo} alt="" />}
+                      <span className="mim-etat">{i.etat.libelle}</span>
+                    </span>
+                    <span className="mim-corps">
+                      <b>{i.title || 'Sans titre'}</b>
+                      <span>{[i.lieu, i.mode?.libelle].filter(Boolean).join(' · ')}</span>
+                      <span className="mim-ligne"><span>{i.resoluLe ? `Résolu le ${i.resoluLe}` : 'Pas encore résolu'}</span><b>{i.avancement} %</b></span>
+                      <span className={`mi-barre ${i.etat.classe}`} aria-hidden="true"><span style={{ width: `${i.avancement}%` }} /></span>
+                      <span>{i.nbRapports ? `${i.nbRapports} rapport${i.nbRapports > 1 ? 's' : ''}` : 'Aucun rapport'}</span>
+                    </span>
+                  </button>
+                  <button type="button" className="mim-menu" onClick={() => setMenu(i)} aria-label={`Actions sur ${i.title || 'cette intervention'}`}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
+                  </button>
+                </article>
+              ))}
             </div>
           ) : isMobile ? (
             <div className="mi-cartes">
@@ -324,6 +359,39 @@ const Contenu = () => {
           )}
         </main>
       </div>
+
+      {menu && (
+        <FeuilleActions
+          titre={menu.title || 'Sans titre'}
+          onClose={() => setMenu(null)}
+          actions={[
+            { id: 'detail', label: 'Voir le signalement', onSelect: () => navigate(`/signalements/${menu.id}`, { state: { incident: menu, from: '/mes-interventions' } }) },
+            { id: 'team', label: 'Voir l’équipe', onSelect: () => openAgentsModal(menu) },
+            { id: 'assign', label: 'Assigner un agent', onSelect: () => openAssignModal(menu) },
+            menu.nbRapports > 0 && { id: 'rapports', label: `Rapports de terrain · ${menu.nbRapports}`, onSelect: () => openReportsModal(menu) },
+          ].filter(Boolean)}
+        />
+      )}
+
+      {filtresOuverts && (
+        <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
+          <div className="vlm-filtres-tete">
+            <button type="button" onClick={() => setSourceFilter('agents_or_internal')}>Tout effacer</button>
+            <b>Filtres</b>
+            <button type="button" onClick={() => setFiltresOuverts(false)}>Terminé</button>
+          </div>
+          <div className="vlm-filtres">
+            <fieldset className="vlm-champ">
+              <legend>Origine</legend>
+              <div className="vlm-seg">
+                {[['agents_or_internal', 'Toutes'], ['internal', 'Internes'], ['agents', 'Agents']].map(([v, l]) => (
+                  <button key={v} type="button" className={sourceFilter === v ? 'is-on' : ''} aria-pressed={sourceFilter === v} onClick={() => setSourceFilter(v)}>{l}</button>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+        </FeuilleBasse>
+      )}
 
       <MesInterventionsAssignModal />
       <IncidentAgentsListModal />

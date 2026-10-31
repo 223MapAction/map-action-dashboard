@@ -1,0 +1,55 @@
+/* ============================================================
+   MES INTERVENTIONS SUR TÉLÉPHONE (sous 640 px)
+   Même langage que Signalements et Collaborations.
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .mi-layout .mi.mi {
+    gap: 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(var(--am-tabbar-h, 0px) + 16px);
+    background: #F2F4F7;
+    color: #1A1C1E;
+  }
+
+  .mi .mi-repere { display: none; }
+  .mi .mi-entete { position: static; display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; background: none; box-shadow: none; }
+  .mi .mi-tete { order: 1; margin: 0; }
+  .mi .mi-tete h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.025em; }
+  .mi .mi-tete p { display: none; }
+  .mi .mi-outils { order: 2; display: flex; flex-wrap: nowrap; gap: 8px; margin: 0; }
+  .mi .mi-recherche { flex: 1; min-width: 0; max-width: none; height: 44px; border: none; border-radius: 12px; background: #E4E7EC; color: #5B6472; }
+  .mi .mi-recherche input { font-size: 16px; }
+  .mi .mi-statuts-pastilles { order: 3; display: flex; gap: 8px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+  .mi .mi-statuts-pastilles button { flex-shrink: 0; min-height: 36px; padding: 0 14px; border: none; border-radius: 99px; background: #fff; font-size: 14px; font-weight: 600; color: #1A1C1E; }
+  .mi .mi-statuts-pastilles button.is-on { background: #1A1C1E; color: #fff; }
+
+  .mim-cartes { display: flex; flex-direction: column; gap: 12px; }
+  .mim-carte { position: relative; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+  .mim-ouvrir { display: block; width: 100%; padding: 0; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .mim-photo { position: relative; display: block; height: 128px; overflow: hidden; background: #E2E8F0; }
+  .mim-photo > :not(.mim-etat) { width: 100% !important; height: 100% !important; max-width: none; }
+  .mim-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .mim-etat { position: absolute; left: 10px; bottom: 10px; padding: 4px 10px; border-radius: 99px; background: rgba(255, 255, 255, 0.92); font-size: 12px; font-weight: 600; color: #1A1C1E; }
+  .mim-corps { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 14px; font-size: 13px; color: #5B6472; }
+  .mim-corps > b { font-size: 16px; font-weight: 600; line-height: 1.3; color: #1A1C1E; }
+  .mim-ligne { display: flex; justify-content: space-between; gap: 10px; }
+  .mim-ligne b { color: #1A1C1E; }
+  .mim-menu { position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; display: grid; place-items: center; border: none; border-radius: 50%; background: rgba(15, 23, 42, 0.45); color: #fff; cursor: pointer; }
+
+  .mi-toast { bottom: calc(var(--am-tabbar-h, 0px) + 16px) !important; }
+
+  /* Fenêtres : feuille haute, Annuler ou Fermer en haut à gauche. */
+  body:has(.mi-layout) .dg:not(.dg-pile) { position: relative; height: calc(100dvh - env(safe-area-inset-top, 0px) - 50px); max-height: none; background: #F2F4F7; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-tete { display: block; padding: 8px 84px; text-align: center; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-fermer { display: none; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-titres h2 { font-size: 17px; font-weight: 600; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-titres p { margin: 0; overflow: hidden; font-size: 12.5px; color: #5B6472; white-space: nowrap; text-overflow: ellipsis; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-pied { display: block; background: #F2F4F7; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-pied .dg-btn-p { width: 100%; min-height: 52px; border-radius: 14px; background: #1E78AC; font-size: 16px; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-pied-info { display: block; margin-bottom: 8px; text-align: center; }
+  body:has(.mi-layout) .dg:not(.dg-pile) .dg-pied .dg-btn-g { position: absolute; top: 14px; left: 8px; min-height: 44px; padding: 0 8px; border: none; background: none; font-size: 16px; font-weight: 400; color: #1E78AC; }
+
+  /* L'équipe : on appelle, l'e-mail n'est pas affiché. */
+  .me-contact span { display: none; }
+  .me-contact a { min-height: 44px; display: inline-flex; align-items: center; }
+}
