@@ -1,4 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import { useEstTelephone } from '../../incident/mobile/useEstTelephone';
 import { CloseCircle } from 'iconsax-react';
 import { useOrganisationsContext } from '../context/OrganisationsContext';
 import { Dialogue } from '../../../components/molecules/Dialogue';
@@ -10,11 +12,38 @@ const IcoCorbeille = () => (
 );
 
 const DeleteOrganisationModal = () => {
-  const { deleteModal, isDeleting, deleteAlert, closeDeleteModal, confirmDelete } = useOrganisationsContext();
+  const { deleteModal, isDeleting, deleteAlert, closeDeleteModal, confirmDelete, openEdit } = useOrganisationsContext();
+  const estTelephone = useEstTelephone();
 
   if (!deleteModal.open) return null;
 
   const org = deleteModal.org;
+
+  if (estTelephone) {
+    return createPortal(
+      <div className="sgm-fond sgm-alerte-fond">
+        <div className="sgm-alerte" role="alertdialog" aria-modal="true" aria-labelledby="od-titre">
+          <div className="sgm-alerte-corps">
+            <b id="od-titre">Supprimer « {org?.name || 'cette organisation'} » ?</b>
+            <span>
+              L’organisation disparaît de Map Action
+              {org?.membersCount ? `, avec ses ${org.membersCount} membre${org.membersCount > 1 ? 's' : ''} rattaché${org.membersCount > 1 ? 's' : ''}` : ''}.
+              Cette action ne peut pas être annulée.
+            </span>
+            {deleteAlert.message && <div className="am-alert am-alert--danger" role="alert"><span className="am-alert__message">{deleteAlert.message}</span></div>}
+          </div>
+          {org?.status === 'active' && (
+            <button type="button" className="vcm-alerte-lien" disabled={isDeleting} onClick={() => { closeDeleteModal(); openEdit(org); }}>La passer plutôt en inactive</button>
+          )}
+          <div className="sgm-alerte-boutons">
+            <button type="button" onClick={closeDeleteModal} disabled={isDeleting}>Garder</button>
+            <button type="button" className="is-danger" onClick={() => confirmDelete(closeDeleteModal)} disabled={isDeleting}>Supprimer</button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return (
     <Dialogue

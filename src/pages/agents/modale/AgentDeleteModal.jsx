@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useEstTelephone } from '../../incident/mobile/useEstTelephone';
 import { CloseCircle } from 'iconsax-react';
 import { useAgentsContext } from './AgentsModalContext';
 import { removeOrganisationMemberService } from '../service/members_service';
@@ -17,7 +19,8 @@ const IcoRetrait = () => (
  * que le compte disparaît.
  */
 const FenetreRetrait = () => {
-  const { deleteModal, closeDeleteModal, mutateAgents, afficherToast } = useAgentsContext();
+  const { deleteModal, closeDeleteModal, mutateAgents, afficherToast, openEdit } = useAgentsContext();
+  const estTelephone = useEstTelephone();
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState(null);
   const agent = deleteModal.agent;
@@ -46,6 +49,33 @@ const FenetreRetrait = () => {
       setEnvoi(false);
     }
   };
+
+  if (estTelephone) {
+    return createPortal(
+      <div className="sgm-fond sgm-alerte-fond">
+        <div className="sgm-alerte" role="alertdialog" aria-modal="true" aria-labelledby="ad-titre">
+          <div className="sgm-alerte-corps">
+            <b id="ad-titre">Retirer {agent?.fullName || 'cet agent'} de l’équipe ?</b>
+            <span>
+              {agent?.agentCode ? `Son code d’accès ${agent.agentCode} cessera de fonctionner : l’agent` : 'L’agent'}
+              {' '}ne pourra plus se connecter au nom
+              {agent?.organisationName ? ` de ${agent.organisationName}` : ' de l’organisation'}.
+              Cette action ne peut pas être annulée.
+            </span>
+            {erreur && <div className="am-alert am-alert--danger" role="alert"><span className="am-alert__message">{erreur}</span></div>}
+          </div>
+          {agent?.status === 'active' && (
+            <button type="button" className="vcm-alerte-lien" disabled={envoi} onClick={() => { closeDeleteModal(); openEdit(agent); }}>Le passer plutôt en inactif</button>
+          )}
+          <div className="sgm-alerte-boutons">
+            <button type="button" onClick={closeDeleteModal} disabled={envoi}>Garder</button>
+            <button type="button" className="is-danger" onClick={() => retirer(closeDeleteModal)} disabled={envoi}>Retirer</button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return (
     <Dialogue

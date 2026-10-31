@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
-import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Profile2User, Call } from 'iconsax-react';
+import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Profile2User, Call, Filter } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useSidebarState } from '../../hooks/useSidebarState';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -19,7 +19,10 @@ import { formatTelephone, telLien, formatDateLongue } from './format';
 import { authService } from '../auth/services/authService';
 import { AVATAR_COLORS, AVATAR_COULEUR_DEFAUT } from '../../utils/couleursAvatar';
 import { logger } from '../../utils/logger';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
 import './agents-liste.css';
+import '../organisations/mobile/annuaire-mobile.css';
 
 const EMPTY_ARRAY = [];
 const TAILLE_PAGE = 20;
@@ -81,6 +84,9 @@ export const Agents = () => {
   } = useSidebarState();
 
   const { saisie: searchInput, setSaisie: setSearchInput, recherche: search } = useRechercheDebouncee();
+  const estTelephone = useEstTelephone();
+  const [fiche, setFiche] = useState(null);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -168,6 +174,7 @@ export const Agents = () => {
     deleteModal,
     closeDeleteModal,
     afficherToast,
+    openEdit,
     mutateAgents: () => {
       mutateAgents();
       mutateStats();
@@ -212,7 +219,7 @@ export const Agents = () => {
         />
 
         <div className={`agents-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
+          {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
 
           <main className="ag" onScroll={surDefilement}>
             <BandeauErreur
@@ -242,7 +249,7 @@ export const Agents = () => {
                   const n = compteurs[r.id];
                   return (
                     <button key={r.id || 'tous'} type="button" role="tab" aria-selected={actif} className={actif ? 'is-on' : ''} onClick={() => setRoleFilter(r.id)}>
-                      {r.onglet}
+                      {estTelephone && r.id === 'admin' ? 'Admins' : r.onglet}
                       {n !== undefined && (isMobile ? ` ${nombreFr(n)}` : <span className="ag-n">{nombreFr(n)}</span>)}
                     </button>
                   );
@@ -264,6 +271,11 @@ export const Agents = () => {
                     </select>
                   </label>
                 )}
+                {estTelephone && (
+                  <button type="button" className={`vlm-filtre ${statusFilter ? 'is-on' : ''}`} onClick={() => setFiltresOuverts(true)} aria-label="Filtres">
+                    <Filter size={18} color="currentColor" aria-hidden="true" />
+                  </button>
+                )}
                 {!isMobile && <span className="ag-annonce" role="status">{annonce}</span>}
               </div>
             </div>
@@ -275,6 +287,26 @@ export const Agents = () => {
                 <p>{filtreActif || roleFilter ? 'Aucun résultat avec ces critères. Modifiez la recherche ou le filtre.' : 'Ajoutez le premier agent de l’équipe : il recevra un code pour se connecter.'}</p>
                 {!filtreActif && !roleFilter && <button type="button" className="ag-btn-p" onClick={openCreate}><Add size={18} color="currentColor" />Nouvel agent</button>}
               </div>
+            ) : estTelephone ? (
+              <>
+                <ul className="anm-liste">
+                  {chargementInitial ? [0, 1, 2].map((n) => <li key={n} className="anm-squelette"><ShimmerText line={2} gap={8} /></li>) : pageAgents.map((a) => (
+                    <li key={a.id}>
+                      <button type="button" className={`anm-ligne ${a.status === 'inactive' ? 'is-inactif' : ''}`} onClick={() => setFiche(a)}>
+                        <AvatarAgent agent={a} taille={44} />
+                        <span className="anm-t">
+                          <b>{a.fullName}</b>
+                          <span>{ROLES.find((r) => r.id === a.role)?.label}{a.status === 'inactive' ? ' · Inactif' : ''}</span>
+                        </span>
+                        <span className="anm-chevron" aria-hidden="true">›</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {nbVisibles < total && (
+                  <button type="button" className="ag-plus" onClick={() => setNbVisibles((n) => n + TAILLE_PAGE)}>Afficher plus</button>
+                )}
+              </>
             ) : isMobile ? (
               <div className="ag-cartes">
                 {chargementInitial ? [0, 1, 2].map((n) => <div key={n} className="ag-carte"><ShimmerText line={3} gap={8} /></div>) : pageAgents.map((a) => (
@@ -350,6 +382,52 @@ export const Agents = () => {
             )}
           </main>
         </div>
+
+        {fiche && (
+          <FeuilleBasse ariaLabel={fiche.fullName} onClose={() => setFiche(null)}>
+            <div className="anm-fiche">
+              <div className="anm-fiche-tete">
+                <AvatarAgent agent={fiche} taille={52} />
+                <div>
+                  <h2>{fiche.fullName}</h2>
+                  <span>{ROLES.find((r) => r.id === fiche.role)?.label} · {fiche.status === 'active' ? 'Actif' : 'Inactif'}</span>
+                </div>
+              </div>
+              {fiche.phone && <a className="vlm-btn anm-appel" href={telLien(fiche.phone)}>Appeler le {formatTelephone(fiche.phone)}</a>}
+              <div className="anm-bloc">
+                {[['E-mail', fiche.email], ['Code d’accès', fiche.agentCode], ['Adresse', fiche.address], ['Organisation', fiche.organisationName], ['Dans l’équipe depuis', formatDateLongue(fiche.joinedAt)]]
+                  .filter(([, v]) => v)
+                  .map(([k, v]) => <div key={k} className="anm-kv"><span>{k}</span><b>{v}</b></div>)}
+              </div>
+              {(peutModifier(fiche) || peutSupprimer(fiche)) && (
+                <div className="anm-duo">
+                  {peutModifier(fiche) && <button type="button" className="vlm-btn vlm-btn-g" onClick={() => { const a = fiche; setFiche(null); openEdit(a); }}>Modifier</button>}
+                  {peutSupprimer(fiche) && <button type="button" className="vlm-btn vlm-btn-g anm-danger" onClick={() => { const a = fiche; setFiche(null); openDelete(a); }}>Retirer de l’équipe</button>}
+                </div>
+              )}
+            </div>
+          </FeuilleBasse>
+        )}
+
+        {filtresOuverts && (
+          <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
+            <div className="vlm-filtres-tete">
+              <button type="button" onClick={() => setStatusFilter('')}>Tout effacer</button>
+              <b>Filtres</b>
+              <button type="button" onClick={() => setFiltresOuverts(false)}>Terminé</button>
+            </div>
+            <div className="vlm-filtres">
+              <fieldset className="vlm-champ">
+                <legend>Statut</legend>
+                <div className="vlm-seg">
+                  {[{ valeur: '', libelle: 'Tous' }, ...STATUTS].map((s) => (
+                    <button key={s.valeur || 'tous'} type="button" className={statusFilter === s.valeur ? 'is-on' : ''} aria-pressed={statusFilter === s.valeur} onClick={() => setStatusFilter(s.valeur)}>{s.libelle}</button>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          </FeuilleBasse>
+        )}
 
         <AgentFormModal />
         <AgentDeleteModal />

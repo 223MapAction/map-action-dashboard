@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import useSWR from 'swr';
-import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Buildings2 } from 'iconsax-react';
+import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Buildings2, Filter } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
 import { useSidebarState } from '../../hooks/useSidebarState';
@@ -22,8 +22,11 @@ import { TableActionsMenu } from '../../components/molecules/TableActionsMenu';
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { AVATAR_COULEUR_DEFAUT } from '../../utils/couleursAvatar';
 import { libelleSecteur, libelleType, libellePays, nombreFr, COULEURS_ORGANISATION } from './libelles';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
 import './organisations.css';
 import './organisations-liste.css';
+import './mobile/annuaire-mobile.css';
 
 const EMPTY_FORM = {
   name: '',
@@ -71,6 +74,9 @@ export const Organisations = () => {
     setCollapsed: setSidebarCollapsed,
   } = useSidebarState();
 
+  const estTelephone = useEstTelephone();
+  const [fiche, setFiche] = useState(null);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -320,7 +326,7 @@ export const Organisations = () => {
   const contextValue = {
     formModal, closeFormModal, modalAlert, form, formErrors,
     setField, handlePhotoChange, removePhoto, isSubmitting, handleSubmit,
-    deleteModal, isDeleting, deleteAlert, closeDeleteModal, confirmDelete,
+    deleteModal, isDeleting, deleteAlert, closeDeleteModal, confirmDelete, openEdit,
   };
 
   const actionsDe = (org) => (
@@ -352,7 +358,7 @@ export const Organisations = () => {
         />
 
         <div className={`orgs-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
+          {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
 
           <main className="og" onScroll={surDefilement}>
             <BandeauErreur
@@ -396,6 +402,11 @@ export const Organisations = () => {
               </label>
               <Filtre libelle="Secteur" valeur={sectorFilter} onChange={setSectorFilter} options={SECTORS} />
               <Filtre libelle="Type" valeur={typeFilter} onChange={setTypeFilter} options={TYPES} />
+              {estTelephone && (
+                <button type="button" className={`vlm-filtre ${sectorFilter || typeFilter ? 'is-on' : ''}`} onClick={() => setFiltresOuverts(true)} aria-label="Filtres">
+                  <Filter size={18} color="currentColor" aria-hidden="true" />
+                </button>
+              )}
               {(filtreActif || statusFilter) && <span className="og-annonce" role="status">{annonce}</span>}
             </div>
             </div>
@@ -407,6 +418,22 @@ export const Organisations = () => {
                 <p>{filtreActif ? 'Aucun résultat avec ces critères. Modifiez la recherche ou les filtres.' : 'Ajoutez la première organisation partenaire pour qu’elle puisse agir sur les signalements.'}</p>
                 {!filtreActif && <button type="button" className="og-btn-p" onClick={openCreate}><Add size={18} color="currentColor" />Nouvelle organisation</button>}
               </div>
+            ) : estTelephone ? (
+              <ul className="anm-liste">
+                {swrLoading && !orgs.length ? [0, 1, 2].map((n) => <li key={n} className="anm-squelette"><ShimmerText line={2} gap={8} /></li>) : orgs.map((o) => (
+                  <li key={o.id}>
+                    <button type="button" className={`anm-ligne ${o.status === 'active' ? '' : 'is-inactif'}`} onClick={() => setFiche(o)}>
+                      <PastilleOrganisation org={o} taille={44} />
+                      <span className="anm-t">
+                        <b>{o.name}</b>
+                        <span>{[libelleType(o.type), libelleSecteur(o.sector), libellePays(o.country)].filter(Boolean).join(' · ')}</span>
+                        <span>{nombreFr(o.membersCount)} membres · {o.status === 'active' ? `${nombreFr(o.activeProjects)} signalements` : 'Inactive'}</span>
+                      </span>
+                      <span className="anm-chevron" aria-hidden="true">›</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             ) : isMobile ? (
               <div className="og-cartes">
                 {swrLoading && !orgs.length ? [0, 1, 2].map((n) => <div key={n} className="og-carte"><ShimmerText line={3} gap={8} /></div>) : orgs.map((o) => (
@@ -483,6 +510,64 @@ export const Organisations = () => {
             )}
           </main>
         </div>
+
+        {fiche && (
+          <FeuilleBasse ariaLabel={fiche.name} onClose={() => setFiche(null)}>
+            <div className="anm-fiche">
+              <div className="anm-fiche-tete">
+                <PastilleOrganisation org={fiche} taille={52} />
+                <div>
+                  <h2>{fiche.name}</h2>
+                  <span>{[fiche.acronym, fiche.status === 'active' ? 'Active' : 'Inactive'].filter(Boolean).join(' · ')}</span>
+                </div>
+              </div>
+              <div className="anm-bloc">
+                {[['Type', libelleType(fiche.type)], ['Secteur', libelleSecteur(fiche.sector)], ['Pays', libellePays(fiche.country)], ['Membres', nombreFr(fiche.membersCount)], ['Signalements pris en charge', nombreFr(fiche.activeProjects)]]
+                  .filter(([, v]) => v)
+                  .map(([k, v]) => <div key={k} className="anm-kv"><span>{k}</span><b>{v}</b></div>)}
+              </div>
+              {(fiche.email || fiche.phone || fiche.website) && (
+                <div className="anm-bloc">
+                  <h3>Contact</h3>
+                  {fiche.email && <a href={`mailto:${fiche.email}`}>{fiche.email}</a>}
+                  {fiche.phone && <a href={`tel:${fiche.phone}`}>{fiche.phone}</a>}
+                  {fiche.website && <a href={fiche.website} target="_blank" rel="noreferrer">{fiche.website}</a>}
+                </div>
+              )}
+              {fiche.description && <p className="anm-texte">{fiche.description}</p>}
+              <div className="anm-duo">
+                <button type="button" className="vlm-btn vlm-btn-g" onClick={() => { const o = fiche; setFiche(null); openEdit(o); }}>Modifier</button>
+                <button type="button" className="vlm-btn vlm-btn-g anm-danger" onClick={() => { const o = fiche; setFiche(null); openDelete(o); }}>Supprimer</button>
+              </div>
+            </div>
+          </FeuilleBasse>
+        )}
+
+        {filtresOuverts && (
+          <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
+            <div className="vlm-filtres-tete">
+              <button type="button" onClick={() => { setSectorFilter(''); setTypeFilter(''); }}>Tout effacer</button>
+              <b>Filtres</b>
+              <button type="button" onClick={() => setFiltresOuverts(false)}>Terminé</button>
+            </div>
+            <div className="vlm-filtres">
+              <label className="vlm-champ">
+                Secteur
+                <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)}>
+                  <option value="">Tous</option>
+                  {SECTORS.map((o) => <option key={o.en} value={o.en}>{o.fr}</option>)}
+                </select>
+              </label>
+              <label className="vlm-champ">
+                Type
+                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                  <option value="">Tous</option>
+                  {TYPES.map((o) => <option key={o.en} value={o.en}>{o.fr}</option>)}
+                </select>
+              </label>
+            </div>
+          </FeuilleBasse>
+        )}
 
         <FormOrganisationModal />
         <DeleteOrganisationModal />
