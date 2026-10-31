@@ -153,7 +153,6 @@ export const ListeTaches = ({ taches, chargement, lectureSeule, onCreer, onZoomI
   const actionsTache = (task) => {
     const active = !task.completed && !task.failed;
     return [
-      active && { id: 'preuve', label: 'Terminer avec une preuve', onSelect: () => ouvrirPreuve(task.id) },
       active && task.createdBy === 'me' && { id: 'modifier', label: 'Modifier', onSelect: () => startEditTask(task) },
       active && { id: 'echec', label: 'Signaler un échec', onSelect: () => basculerEchec(task.id) },
       task.failed && { id: 'remettre', label: 'Remettre en cours', onSelect: () => resetTaskStatus(task.id) },

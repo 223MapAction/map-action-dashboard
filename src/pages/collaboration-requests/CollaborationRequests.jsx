@@ -1,5 +1,4 @@
-import { useEstTelephone } from '../incident/mobile/useEstTelephone';
-import { FeuilleBasse, BoutonRegles, ReglesCollaboration } from '../collaboration/mobile/FeuilleBasse';
+import { ListeATraiter } from '../collaboration/mobile/ListeATraiter';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FiltersBar } from '../../components/molecules/FiltersBar';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -106,21 +105,11 @@ const RequestCardSkeleton = () => (
   </div>
 );
 
-// Sur téléphone, le détail d'un groupe s'ouvre dans une feuille au lieu de se déplier.
-const EnveloppeApercu = ({ estTelephone, incident, onClose, children }) => (estTelephone ? (
-  <FeuilleBasse ariaLabel={incident.projectTitle} onClose={onClose}>
-    <div className="vlm-apercu">
-      <div className="vlm-apercu-tete">
-        <span style={incident.projectImage ? { backgroundImage: `url("${incident.projectImage}")` } : undefined} />
-        <b>{incident.projectTitle}</b>
-      </div>
-      {children}
-    </div>
-  </FeuilleBasse>
-) : children);
-
 export const CollaborationRequests = ({
-  embedded = false
+  embedded = false,
+  aTraiter = false,
+  filtreTexte = '',
+  onNombre,
 }) => {
   const {
     isOpen: sidebarOpen,
@@ -162,8 +151,6 @@ export const CollaborationRequests = ({
 
     return true;
   };
-  const estTelephone = useEstTelephone();
-  const [reglesOuvertes, setReglesOuvertes] = useState(false);
   const [showInfoBanner, setShowInfoBanner] = useState(true);
   const {
     saisie: searchInput,
@@ -759,9 +746,7 @@ export const CollaborationRequests = ({
 
 
       {/* Collapsible Info Banner (Scenarios 2 & 3 Explanation) */}
-      {estTelephone && <BoutonRegles onClick={() => setReglesOuvertes(true)} />}
-      {estTelephone && reglesOuvertes && <ReglesCollaboration onClose={() => setReglesOuvertes(false)} />}
-      {!estTelephone && showInfoBanner && (
+      {showInfoBanner && (
         <div className="collaboration-info-banner">
           <div className="info-banner-content">
             <InfoCircle size={24} variant="Bold" className="info-banner-icon" style={{ color: 'var(--color-primary-text)' }} />
@@ -1028,7 +1013,6 @@ export const CollaborationRequests = ({
 
                 {/* Expanded content */}
                 {isExpanded && (
-                  <EnveloppeApercu estTelephone={estTelephone} incident={incident} onClose={() => setExpandedIncident(null)}>
                   <div className="incident-group-body">
                     <div className="incident-details-grid">
                       {/* Left: Your collaboration state details */}
@@ -1151,7 +1135,6 @@ export const CollaborationRequests = ({
                       </div>
                     </div>
                   </div>
-                  </EnveloppeApercu>
                 )}
               </section>
             );
@@ -1189,6 +1172,50 @@ export const CollaborationRequests = ({
       )}
     </>
   );
+
+  // Téléphone : seulement ce qui attend une réponse. Les suggestions reçues sont
+  // affichées par SuggestRequests, qui lit les mêmes données.
+  const elementsATraiter = !aTraiter ? [] : groupedIncidents.flatMap((g) => [...g.otherCollabs, ...(g.userCollab ? [g.userCollab] : [])]
+    .filter((r) => r.status === 'pending' && shouldShowAcceptForReq(r, g.userCollab))
+    .map((r) => ({
+      id: r.id,
+      titre: g.projectTitle,
+      type: 'Demande',
+      texte: `${r.applicantOrg || r.applicantName || r.organisation} : ${r.role}`,
+      motif: r.motif,
+      image: g.projectImage,
+      lieu: g.incidentDetails?.zone,
+      requete: { ...r, incidentDetails: g.incidentDetails, predictionDetails: g.predictionDetails },
+    })))
+    .filter((el) => !filtreTexte.trim() || `${el.titre} ${el.texte}`.toLowerCase().includes(filtreTexte.trim().toLowerCase()));
+
+  const nbATraiter = elementsATraiter.length;
+  useEffect(() => {
+    if (aTraiter) onNombre?.(isDataLoading ? null : nbATraiter);
+  }, [aTraiter, isDataLoading, nbATraiter, onNombre]);
+
+  if (aTraiter) {
+    return (
+      <>
+        <ListeATraiter
+          elements={elementsATraiter}
+          onVoir={setSelectedIncidentForModal}
+          onDecider={async (r, action) => {
+            // L'identifiant de collaboration suit le préfixe (collab_active_12, collab_ws_12).
+            const id = r.apiId || String(r.id).split('_').pop();
+            if (action === 'accept') await acceptCollaborationService(id);
+            else await rejectCollaborationService(id);
+            mutatePendingSuggestions();
+            mutateActiveCollabs();
+            mutatePendingInvitations();
+          }}
+        />
+        {selectedIncidentForModal && (
+          <RequestIncidentDetailModal incident={selectedIncidentForModal} onClose={() => setSelectedIncidentForModal(null)} />
+        )}
+      </>
+    );
+  }
 
   if (embedded) {
     return content;

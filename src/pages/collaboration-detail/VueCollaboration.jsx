@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft2, Crown1, TickCircle, Gallery, Add,
-  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle, Message,
+  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle,
 } from 'iconsax-react';
 import { IS_MAPBOX } from '../../config/mapEngine';
 import { OSM_STYLE, MAPBOX_SATELLITE_STYLE, HAS_SATELLITE_STYLE as HAS_MAPBOX_SATELLITE } from '../../config/mapStyles';
@@ -74,7 +74,6 @@ export const VueCollaboration = ({
   const [onglet, setOnglet] = useState('taches');
   const estTelephone = useEstTelephone();
   const [menuOuvert, setMenuOuvert] = useState(false);
-  const [discussionOuverte, setDiscussionOuverte] = useState(false);
   const refPhoto = useRef(null);
   const [photoPassee, setPhotoPassee] = useState(false);
 
@@ -87,17 +86,6 @@ export const VueCollaboration = ({
     return () => observateur.disconnect();
   }, [estTelephone]);
 
-  // La discussion est un écran poussé : le retour du téléphone la referme.
-  const ouvrirDiscussion = () => {
-    window.history.pushState({ discussion: true }, '');
-    setDiscussionOuverte(true);
-  };
-  useEffect(() => {
-    if (!discussionOuverte) return undefined;
-    const retour = () => setDiscussionOuverte(false);
-    window.addEventListener('popstate', retour);
-    return () => window.removeEventListener('popstate', retour);
-  }, [discussionOuverte]);
   const [fond, setFond] = useState('streets');
   const carteRef = useRef(null);
 
@@ -152,9 +140,11 @@ export const VueCollaboration = ({
 
   const onglets = [
     ['taches', 'Tâches', liste.length || null],
-    ...(etroit && !estTelephone ? [['discussion', 'Discussion', discussion.messages.length || null]] : []),
-    ['signalement', 'Signalement'],
-    ['organisations', 'Organisations', organisations.length || null],
+    ...(etroit ? [['discussion', 'Discussion', estTelephone ? null : (discussion.messages.length || null)]] : []),
+    ...(estTelephone ? [['infos', 'Infos']] : [
+      ['signalement', 'Signalement'],
+      ['organisations', 'Organisations', organisations.length || null],
+    ]),
   ];
 
   const boutonSuggerer = !lectureSeule && (
@@ -232,13 +222,9 @@ export const VueCollaboration = ({
           </div>
 
           <div className="vdm-corps">
-            {pastilles}
             <div className="vdm-titre">
               <h1>{collaboration.title}</h1>
-              <p>
-                {collaboration.location} · rejointe le {collaboration.joinedAt}
-                {collaboration.organisation && <><br />Organisation : {collaboration.organisation}</>}
-              </p>
+              <p>{collaboration.location}{collaboration.userRole && ` · Votre rôle : ${formatRole(collaboration.userRole)}`}</p>
             </div>
             {bandeaux}
             <section className="vcm-suivi">
@@ -251,9 +237,12 @@ export const VueCollaboration = ({
                 <span>{progression} %</span>
               </span>
               <span>
-                <b>Avancement : {nbFaites} tâche{nbFaites > 1 ? 's' : ''} sur {liste.length}</b>
-                <span>{nbEnCours} en cours{nbEchouees > 0 && <em> · {nbEchouees} échouée{nbEchouees > 1 ? 's' : ''}</em>}</span>
-                <span>Suivi : {formatEtat(etat).toLowerCase()}</span>
+                <b>{nbFaites} tâche{nbFaites > 1 ? 's' : ''} sur {liste.length} terminée{nbFaites > 1 ? 's' : ''}</b>
+                <span>
+                  {nbEnCours + nbEchouees === 0 && liste.length > 0
+                    ? 'Prêt à être résolu'
+                    : <>Reste {nbEnCours} en cours{nbEchouees > 0 && <em> et {nbEchouees} échouée{nbEchouees > 1 ? 's' : ''}</em>}</>}
+                </span>
                 {modificationsEnAttente && <span>{progressionSauvee} % enregistré</span>}
               </span>
             </section>
@@ -404,7 +393,7 @@ export const VueCollaboration = ({
             </section>
           )}
 
-          {ongletActif === 'signalement' && (
+          {(ongletActif === 'signalement' || ongletActif === 'infos') && (
             <section className="vd-panel">
               <div className="vd-grid2">
                 <div className="vd-card vd-pad">
@@ -509,7 +498,7 @@ export const VueCollaboration = ({
             </section>
           )}
 
-          {ongletActif === 'organisations' && (
+          {(ongletActif === 'organisations' || ongletActif === 'infos') && (
             <section className="vd-panel">
               <div className="vd-card vd-pad">
                 <h3>Organisations impliquées <small>{organisations.length ? `${organisations.length} organisation${organisations.length > 1 ? 's' : ''}` : 'aucune pour le moment'}</small></h3>
@@ -545,36 +534,16 @@ export const VueCollaboration = ({
 
       {estTelephone && !lectureSeule && (
         <div className="vdm-barre">
-          {estLeader ? (
-            <button
-              type="button"
-              className={`vdm-agir ${peutResoudre ? '' : 'vcm-barre-ko'}`}
-              onClick={peutResoudre ? onResoudre : () => onToast?.(raisonBlocage)}
-              aria-disabled={!peutResoudre}
-            >
-              Résoudre le signalement
-            </button>
+          {estLeader && peutResoudre && liste.length > 0 ? (
+            <>
+              <button type="button" className="vdm-agir vcm-resoudre" onClick={onResoudre}>Résoudre le signalement</button>
+              <button type="button" className="vdm-agir-plus" onClick={onCreerTache} aria-label="Nouvelle tâche">
+                <Add size={20} color="currentColor" />
+              </button>
+            </>
           ) : (
             <button type="button" className="vdm-agir" onClick={onCreerTache}>Nouvelle tâche</button>
           )}
-          {estLeader && (
-            <button type="button" className="vdm-agir-plus" onClick={onCreerTache} aria-label="Nouvelle tâche">
-              <Add size={20} color="currentColor" />
-            </button>
-          )}
-        </div>
-      )}
-
-      {estTelephone && !discussionOuverte && (
-        <button type="button" className="vd-fab" onClick={ouvrirDiscussion} aria-label="Ouvrir la discussion">
-          <Message size={24} variant="Bold" color="currentColor" />
-        </button>
-      )}
-
-      {estTelephone && discussionOuverte && (
-        <div className="vcm-discussion">
-          <button type="button" className="vcm-retour" onClick={() => window.history.back()}>‹ Retour</button>
-          <Discussion discussion={discussion} lectureSeule={lectureSeule} onRapports={onRapports} />
         </div>
       )}
     </div>

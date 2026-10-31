@@ -95,7 +95,11 @@ export const Collaboration = () => {
   } = useSidebarState();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const activeTab = tabParam === 'requests' ? 'requests' : tabParam === 'suggestions' ? 'suggestions' : 'collaborations';
+  // Téléphone : À traiter (par défaut), En cours, Terminées.
+  const ongletTelephone = tabParam === 'terminees' ? 'terminees' : tabParam === 'collaborations' ? 'collaborations' : 'atraiter';
+  const activeTab = estTelephone
+    ? (ongletTelephone === 'atraiter' ? 'requests' : 'collaborations')
+    : tabParam === 'requests' ? 'requests' : tabParam === 'suggestions' ? 'suggestions' : 'collaborations';
   const setActiveTab = (tab) => {
     const newParams = new URLSearchParams(searchParams);
     newParams.set('tab', tab);
@@ -112,7 +116,10 @@ export const Collaboration = () => {
   } = useRechercheDebouncee();
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('accepted');
-  const [localStatusFilter, setLocalStatusFilter] = useState('all');
+  const [filtreAvancementBureau, setLocalStatusFilter] = useState('all');
+  const localStatusFilter = estTelephone ? (ongletTelephone === 'terminees' ? 'completed' : 'in-progress') : filtreAvancementBureau;
+  const [nbDemandes, setNbDemandes] = useState(null);
+  const [nbSuggestions, setNbSuggestions] = useState(null);
   const [incidentFilter, setIncidentFilter] = useState('');
   const [dateRange, setDateRange] = useState([null, null]);
   const [dateFrom, dateTo] = dateRange;
@@ -226,7 +233,8 @@ export const Collaboration = () => {
 
   // Utiliser useSWR pour charger les collaborations
   const { data: swrData, error: swrError, isLoading, mutate } = useSWR(
-    ['collaborations', page, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
+    // Sur À traiter (téléphone), cette route à 10 s ne sert à rien.
+    estTelephone && activeTab !== 'collaborations' ? null : ['collaborations', page, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
     () => getCollaborationsService(buildParams(page)),
     // Cette route met 8 a 10 secondes. Les revalidations automatiques de SWR —
     // au focus de la fenetre, a la reconnexion, ou parce que la donnee est
@@ -399,13 +407,14 @@ export const Collaboration = () => {
   );
 
   // Cartes ou liste compacte : préférence de l'utilisateur, gardée d'une visite à l'autre.
-  const [vue, setVue] = useState(() => {
+  const [vuePreferee, setVue] = useState(() => {
     try {
       return localStorage.getItem(CLE_VUE) === 'liste' ? 'liste' : 'cartes';
     } catch {
       return 'cartes';
     }
   });
+  const vue = estTelephone ? 'cartes' : vuePreferee;
   const changerVue = (v) => {
     setVue(v);
     try {
@@ -423,7 +432,8 @@ export const Collaboration = () => {
   };
 
   const nbTotal = swrData?.count ?? collaborations.length;
-  const nbFiltresTelephone = [Boolean(roleFilter), statusFilter !== 'all', Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
+  const nbATraiter = (nbDemandes || 0) + (nbSuggestions || 0);
+  const nbFiltresTelephone = [Boolean(roleFilter), Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
 
   return (
     <div className="collaboration-layout">
@@ -455,24 +465,45 @@ export const Collaboration = () => {
               <p>Les signalements sur lesquels votre organisation agit avec d'autres.</p>
             </header>
 
+            {estTelephone && (
+              <div className="vlm-outils">
+                <label className="vlm-rech">
+                  <SearchNormal1 size={17} color="currentColor" aria-hidden="true" />
+                  <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Titre, organisation ou lieu" aria-label="Rechercher une collaboration" />
+                </label>
+                {activeTab === 'collaborations' && (
+                  <button type="button" className={`vlm-filtre ${nbFiltresTelephone ? 'is-on' : ''}`} onClick={() => setFiltresTelephone(true)} aria-label={`Filtres${nbFiltresTelephone ? `, ${nbFiltresTelephone} actifs` : ''}`}>
+                    <Filter size={18} color="currentColor" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            )}
+
             <nav className="vd-tabs vl-tabs" role="tablist" aria-label="Sections">
-              {[
-                ['collaborations', estTelephone ? 'Mes collab.' : 'Mes collaborations', activeTab === 'collaborations' && !isLoading ? nbTotal : null],
+              {(estTelephone ? [
+                ['atraiter', nbATraiter ? `À traiter · ${nbATraiter}` : 'À traiter'],
+                ['collaborations', 'En cours'],
+                ['terminees', 'Terminées'],
+              ] : [
+                ['collaborations', 'Mes collaborations', activeTab === 'collaborations' && !isLoading ? nbTotal : null],
                 ['requests', 'Demandes'],
                 ['suggestions', 'Suggestions'],
-              ].map(([cle, libelle, n]) => (
-                <button
-                  key={cle}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === cle}
-                  className={activeTab === cle ? 'is-on' : ''}
-                  onClick={() => setActiveTab(cle)}
-                >
-                  {libelle}
-                  {n ? <span className="vd-n">{n}</span> : null}
-                </button>
-              ))}
+              ]).map(([cle, libelle, n]) => {
+                const actif = estTelephone ? ongletTelephone === cle : activeTab === cle;
+                return (
+                  <button
+                    key={cle}
+                    type="button"
+                    role="tab"
+                    aria-selected={actif}
+                    className={actif ? 'is-on' : ''}
+                    onClick={() => setActiveTab(cle)}
+                  >
+                    {libelle}
+                    {n ? <span className="vd-n">{n}</span> : null}
+                  </button>
+                );
+              })}
             </nav>
 
             {activeTab === 'collaborations' ? (
@@ -484,24 +515,10 @@ export const Collaboration = () => {
                     erreur ce qu'on venait de choisir expres. */}
                 {estTelephone ? (
                   <>
-                    <label className="vlm-rech">
-                      <SearchNormal1 size={17} color="currentColor" aria-hidden="true" />
-                      <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Titre, organisation, lieu…" aria-label="Rechercher une collaboration" />
-                    </label>
-                    <div className="vlm-pastilles">
-                      {[['all', 'Toutes'], ['in-progress', 'En cours'], ['completed', 'Terminées']].map(([cle, libelle]) => (
-                        <button key={cle} type="button" className={localStatusFilter === cle ? 'is-on' : ''} aria-pressed={localStatusFilter === cle} onClick={() => setLocalStatusFilter(cle)}>
-                          {libelle}<small>{counts[cle]}</small>
-                        </button>
-                      ))}
-                      <button type="button" onClick={() => setFiltresTelephone(true)}>
-                        Filtres{nbFiltresTelephone > 0 ? ` · ${nbFiltresTelephone}` : ''}
-                      </button>
-                    </div>
                     {filtresTelephone && (
                       <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresTelephone(false)}>
                         <div className="vlm-filtres-tete">
-                          <button type="button" onClick={() => { setRoleFilter(''); setStatusFilter('all'); setIncidentFilter(''); resetDateRange(); }}>Tout effacer</button>
+                          <button type="button" onClick={() => { setRoleFilter(''); setIncidentFilter(''); resetDateRange(); }}>Tout effacer</button>
                           <b>Filtres</b>
                           <button type="button" onClick={() => setFiltresTelephone(false)}>Terminé</button>
                         </div>
@@ -511,14 +528,6 @@ export const Collaboration = () => {
                             <div className="vlm-seg">
                               {[['', 'Tous'], ['leader', 'Leader'], ['contributor', 'Contrib.'], ['observer', 'Observ.']].map(([cle, libelle]) => (
                                 <button key={cle} type="button" className={roleFilter === cle ? 'is-on' : ''} aria-pressed={roleFilter === cle} onClick={() => setRoleFilter(cle)}>{libelle}</button>
-                              ))}
-                            </div>
-                          </fieldset>
-                          <fieldset className="vlm-champ">
-                            <legend>Statut</legend>
-                            <div className="vlm-seg">
-                              {[['all', 'Tous'], ['accepted', 'Acceptée'], ['pending', 'En attente'], ['declined', 'Refusée']].map(([cle, libelle]) => (
-                                <button key={cle} type="button" className={statusFilter === cle ? 'is-on' : ''} aria-pressed={statusFilter === cle} onClick={() => setStatusFilter(cle)}>{libelle}</button>
                               ))}
                             </div>
                           </fieldset>
@@ -554,14 +563,6 @@ export const Collaboration = () => {
                               portalId="collab-datepicker-portal"
                             />
                           </div>
-                          <fieldset className="vlm-champ">
-                            <legend>Affichage</legend>
-                            <div className="vlm-seg">
-                              {[['cartes', 'Cartes'], ['liste', 'Liste']].map(([cle, libelle]) => (
-                                <button key={cle} type="button" className={vue === cle ? 'is-on' : ''} aria-pressed={vue === cle} onClick={() => changerVue(cle)}>{libelle}</button>
-                              ))}
-                            </div>
-                          </fieldset>
                         </div>
                       </FeuilleBasse>
                     )}
@@ -822,6 +823,20 @@ export const Collaboration = () => {
                       onChange={setPage}
                     />
                   </>
+                )}
+              </>
+            ) : estTelephone ? (
+              <>
+                <CollaborationRequests embedded aTraiter filtreTexte={search} onNombre={setNbDemandes} />
+                <SuggestRequests embedded aTraiter filtreTexte={search} onNombre={setNbSuggestions} />
+                {(nbDemandes === null || nbSuggestions === null) && (
+                  <div className="vlm-squelette" aria-busy="true" aria-label="Chargement"><span /><span /></div>
+                )}
+                {nbDemandes === 0 && nbSuggestions === 0 && (
+                  <div className="vd-card vd-empty vl-empty">
+                    <b>{search ? 'Aucune demande ne correspond' : 'Rien à traiter'}</b>
+                    <p>{search ? 'Modifiez la recherche.' : 'Les demandes et suggestions qui attendent votre réponse apparaîtront ici.'}</p>
+                  </div>
                 )}
               </>
             ) : activeTab === 'requests' ? (

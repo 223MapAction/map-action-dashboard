@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CloseCircle } from 'iconsax-react';
 import { Dialogue } from '../../../components/molecules/Dialogue';
 import { logger } from '../../../utils/logger';
 import { IcoCorbeille } from './icones';
+import { useEstTelephone } from '../../incident/mobile/useEstTelephone';
+import '../../incident/mobile/mobile.css';
 
 const messageErreur = (error) => {
   const data = error?.response?.data;
@@ -34,6 +37,7 @@ export const DeleteTaskModal = ({
   impact,
   onRemettre,
 }) => {
+  const estTelephone = useEstTelephone();
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
 
@@ -57,6 +61,28 @@ export const DeleteTaskModal = ({
     setErreur(null);
     onClose();
   };
+
+  if (estTelephone) {
+    return createPortal(
+      <div className="sgm-fond sgm-alerte-fond">
+        <div className="sgm-alerte" role="alertdialog" aria-modal="true" aria-labelledby="vcm-suppr-titre">
+          <div className="sgm-alerte-corps">
+            <b id="vcm-suppr-titre">Supprimer « {taskTitle || 'Sans titre'} » ?</b>
+            <span>{impact}</span>
+            {erreur && <div className="am-alert am-alert--danger" role="alert"><span className="am-alert__message">{erreur}</span></div>}
+          </div>
+          {onRemettre && (
+            <button type="button" className="vcm-alerte-lien" onClick={() => { onRemettre(); fermer(); }} disabled={enCours}>La remettre en cours</button>
+          )}
+          <div className="sgm-alerte-boutons">
+            <button type="button" onClick={fermer} disabled={enCours}>Garder</button>
+            <button type="button" className="is-danger" onClick={() => confirmer(fermer)} disabled={enCours}>Supprimer</button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return (
     <Dialogue

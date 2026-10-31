@@ -3,6 +3,7 @@ import { TickCircle, CloseCircle } from 'iconsax-react';
 import { Dialogue } from '../../../components/molecules/Dialogue';
 import { aujourdhui } from './dates';
 import { ChampDate } from './ChampDate';
+import { useEstTelephone } from '../../incident/mobile/useEstTelephone';
 import { IcoBouclier, IcoCoche, IcoCroix, IcoAlerte, IcoDepot } from './icones';
 
 // Le type du fichier se lit à sa couleur, comme dans un explorateur.
@@ -39,6 +40,7 @@ export const ResolveModal = ({
   fin, setFin,
   fichier, setFichier,
 }) => {
+  const estTelephone = useEstTelephone();
   const inputRef = useRef(null);
   const [survol, setSurvol] = useState(false);
   const today = aujourdhui();
@@ -77,15 +79,18 @@ export const ResolveModal = ({
         </div>
       )}
 
-      <ul className="rs-conditions" aria-label="Bilan de l'intervention">
-        {conditions.map((c) => (
-          <li key={c.texte}>
-            <span className="rs-coche" aria-hidden="true"><IcoCoche taille={12} epaisseur={3} /></span>
-            <span>{c.texte}</span>
-            <b>{c.valeur}</b>
-          </li>
-        ))}
-      </ul>
+      {/* Sur téléphone, le bouton n'apparaît que quand tout est prêt : le bilan n'apprend rien. */}
+      {!estTelephone && (
+        <ul className="rs-conditions" aria-label="Bilan de l'intervention">
+          {conditions.map((c) => (
+            <li key={c.texte}>
+              <span className="rs-coche" aria-hidden="true"><IcoCoche taille={12} epaisseur={3} /></span>
+              <span>{c.texte}</span>
+              <b>{c.valeur}</b>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <fieldset className="dg-fieldset">
         <legend>Période d'intervention</legend>
