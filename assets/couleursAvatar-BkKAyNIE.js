@@ -1,1 +1,0 @@
-var e=[`#EF4444`,`#F97316`,`#F59E0B`,`#22C55E`,`#3AA2DD`,`#1E40AF`,`#A855F7`,`#EC4899`,`#10B981`,`#6366F1`],t=`#3AA2DD`,n=n=>{if(n==null||n===``)return t;let r=Number(n);return Number.isFinite(r)?e[Math.abs(Math.trunc(r))%e.length]:t};export{t as n,n as r,e as t};

@@ -1,0 +1,1 @@
+var e=e=>{if(!e)return null;let t=String(e).replace(/\s/g,``),n=t.match(/^(\+\d{3})(\d{2})(\d{2})(\d{2})(\d{2})$/);return n?`${n[1]} ${n[2]} ${n[3]} ${n[4]} ${n[5]}`:t},t=e=>e?`tel:${String(e).replace(/\s/g,``)}`:void 0,n=e=>e?new Date(e).toLocaleDateString(`fr-FR`,{day:`numeric`,month:`short`,year:`numeric`}):null;export{e as n,t as r,n as t};
