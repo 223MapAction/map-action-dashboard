@@ -1,3 +1,4 @@
+import { ListeATraiter } from '../collaboration/mobile/ListeATraiter';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FiltersBar } from '../../components/molecules/FiltersBar';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -105,7 +106,10 @@ const RequestCardSkeleton = () => (
 );
 
 export const CollaborationRequests = ({
-  embedded = false
+  embedded = false,
+  aTraiter = false,
+  filtreTexte = '',
+  onNombre,
 }) => {
   const {
     isOpen: sidebarOpen,
@@ -1168,6 +1172,50 @@ export const CollaborationRequests = ({
       )}
     </>
   );
+
+  // Téléphone : seulement ce qui attend une réponse. Les suggestions reçues sont
+  // affichées par SuggestRequests, qui lit les mêmes données.
+  const elementsATraiter = !aTraiter ? [] : groupedIncidents.flatMap((g) => [...g.otherCollabs, ...(g.userCollab ? [g.userCollab] : [])]
+    .filter((r) => r.status === 'pending' && shouldShowAcceptForReq(r, g.userCollab))
+    .map((r) => ({
+      id: r.id,
+      titre: g.projectTitle,
+      type: 'Demande',
+      texte: `${r.applicantOrg || r.applicantName || r.organisation} : ${r.role}`,
+      motif: r.motif,
+      image: g.projectImage,
+      lieu: g.incidentDetails?.zone,
+      requete: { ...r, incidentDetails: g.incidentDetails, predictionDetails: g.predictionDetails },
+    })))
+    .filter((el) => !filtreTexte.trim() || `${el.titre} ${el.texte}`.toLowerCase().includes(filtreTexte.trim().toLowerCase()));
+
+  const nbATraiter = elementsATraiter.length;
+  useEffect(() => {
+    if (aTraiter) onNombre?.(isDataLoading ? null : nbATraiter);
+  }, [aTraiter, isDataLoading, nbATraiter, onNombre]);
+
+  if (aTraiter) {
+    return (
+      <>
+        <ListeATraiter
+          elements={elementsATraiter}
+          onVoir={setSelectedIncidentForModal}
+          onDecider={async (r, action) => {
+            // L'identifiant de collaboration suit le préfixe (collab_active_12, collab_ws_12).
+            const id = r.apiId || String(r.id).split('_').pop();
+            if (action === 'accept') await acceptCollaborationService(id);
+            else await rejectCollaborationService(id);
+            mutatePendingSuggestions();
+            mutateActiveCollabs();
+            mutatePendingInvitations();
+          }}
+        />
+        {selectedIncidentForModal && (
+          <RequestIncidentDetailModal incident={selectedIncidentForModal} onClose={() => setSelectedIncidentForModal(null)} />
+        )}
+      </>
+    );
+  }
 
   if (embedded) {
     return content;

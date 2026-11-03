@@ -10,63 +10,59 @@ import DatePicker, { registerLocale } from 'react-datepicker';
 import { fr } from 'date-fns/locale/fr';
 import 'react-datepicker/dist/react-datepicker.css';
 import {
-  SearchNormal1,
   ArrowDown2,
   Filter,
   Calendar,
   CalendarRemove,
   Location,
-  TickCircle,
-  Clock,
   People,
-  CloseCircle,
-  TaskSquare,
-  DocumentUpload,
-  Eye,
-  Add,
-  CloseSquare,
-  Danger,
-  Refresh,
-  Lock1,
   Crown1,
-  Buildings2,
-  Edit2,
-  Trash
+  Danger,
+  Gallery,
+  Element3,
+  RowVertical,
+  SearchNormal1,
 } from 'iconsax-react';
 import { Header, Sidebar } from '../../components/layout';
 import { CollaborationRequests } from '../collaboration-requests';
 import { SuggestRequests } from '../suggest-request/SuggestRequests';
 import { getCollaborationsService } from './service/collaboration_service';
 import { ShimmerThumbnail, ShimmerTitle, ShimmerText } from 'react-shimmer-effects';
-import { BlurryImage } from '../../components/atoms/BlurryImage';
+import '../incident/components/IncidentDetail/vue-detail.css';
 import './collaboration.css';
+import './collaboration-liste.css';
 import { useReinitialisationSurChangement } from '../../hooks/useReinitialisationSurChangement';
 import { useEnVue } from '../../hooks/useEnVue';
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { useSocketCollaborations } from '../../hooks/useSocketCollaborations';
+import { useEstTelephone } from '../incident/mobile/useEstTelephone';
+import { FeuilleBasse } from './mobile/FeuilleBasse';
+import '../incident/components/IncidentDetail/vue-detail-mobile.css';
+import './mobile/collaboration-mobile.css';
 
 
 registerLocale('fr', fr);
 
-// Organisations disponibles à suggérer
-const AVAILABLE_ORGS = [
-  { id: 'org-1', name: 'Croix-Rouge Sénégalaise', initials: 'CR', color: 'var(--color-danger-text)' },
-  { id: 'org-2', name: 'OCHA', initials: 'OC', color: 'var(--color-primary-text)' },
-  { id: 'org-3', name: 'PNUD Sénégal', initials: 'PN', color: 'var(--color-success-text)' },
-  { id: 'org-4', name: 'UNICEF', initials: 'UN', color: 'var(--color-primary-text)' },
-  { id: 'org-5', name: 'Médecins Sans Frontières', initials: 'MS', color: 'var(--color-warning-text)' },
-  { id: 'org-6', name: 'Action Contre la Faim', initials: 'AF', color: '#A855F7' },
-  { id: 'org-7', name: 'OXFAM', initials: 'OX', color: 'var(--color-success-text)' },
-  { id: 'org-8', name: 'Care International', initials: 'CI', color: '#EC4899' },
-  { id: 'org-9', name: 'Save the Children', initials: 'SC', color: 'var(--color-warning-text)' },
-  { id: 'org-10', name: 'World Vision', initials: 'WV', color: '#6366F1' }
-];
+const CLE_VUE = 'collaborations.vue';
 
-const ROLE_OPTIONS = [
-  { id: 'leader', label: 'Leader', icon: Crown1, color: 'var(--color-warning-text)', description: 'Pilote l\'action' },
-  { id: 'contributeur', label: 'Contributeur', icon: People, color: 'var(--color-primary-text)', description: 'Participe activement' },
-  { id: 'observateur', label: 'Observateur', icon: Eye, color: 'var(--color-text-secondary)', description: 'Suit l\'avancement' }
-];
+// Statut affiché sur une collaboration, une fois l'avancement pris en compte.
+const STATUTS = {
+  'in-progress': { libelle: 'En cours', classe: 'vl-s-cours' },
+  completed: { libelle: 'Terminée', classe: 'vl-s-fini' },
+  pending: { libelle: 'Invitation en attente', classe: 'vl-s-attente' },
+  declined: { libelle: 'Refusée', classe: 'vl-s-refus' },
+  rejected: { libelle: 'Refusée', classe: 'vl-s-refus' },
+};
+
+const ROLES = {
+  leader: 'Leader',
+  contributor: 'Contributeur',
+  contributeur: 'Contributeur',
+  observer: 'Observateur',
+  observateur: 'Observateur',
+};
+
+const libelleRole = (role) => ROLES[role] || (role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Membre');
 
 // La vignette de chaque carte est en background-image : `loading="lazy"` ne
 // s'applique qu'a <img>/<iframe>, pas a une div. Sans ce composant, les 20
@@ -80,7 +76,7 @@ const CollabCardCover = ({ className, image, children }) => {
     <div
       ref={ref}
       className={className}
-      style={enVue ? { backgroundImage: `url(${image})` } : undefined}
+      style={enVue && image ? { backgroundImage: `url(${image})` } : undefined}
     >
       {children}
     </div>
@@ -89,6 +85,8 @@ const CollabCardCover = ({ className, image, children }) => {
 
 export const Collaboration = () => {
   const navigate = useNavigate();
+  const estTelephone = useEstTelephone();
+  const [filtresTelephone, setFiltresTelephone] = useState(false);
   const {
     isOpen: sidebarOpen,
     setOpen: setSidebarOpen,
@@ -97,7 +95,11 @@ export const Collaboration = () => {
   } = useSidebarState();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const activeTab = tabParam === 'requests' ? 'requests' : tabParam === 'suggestions' ? 'suggestions' : 'collaborations';
+  // Téléphone : À traiter (par défaut), En cours, Terminées.
+  const ongletTelephone = tabParam === 'terminees' ? 'terminees' : tabParam === 'collaborations' ? 'collaborations' : 'atraiter';
+  const activeTab = estTelephone
+    ? (ongletTelephone === 'atraiter' ? 'requests' : 'collaborations')
+    : tabParam === 'requests' ? 'requests' : tabParam === 'suggestions' ? 'suggestions' : 'collaborations';
   const setActiveTab = (tab) => {
     const newParams = new URLSearchParams(searchParams);
     newParams.set('tab', tab);
@@ -114,12 +116,16 @@ export const Collaboration = () => {
   } = useRechercheDebouncee();
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('accepted');
-  const [localStatusFilter, setLocalStatusFilter] = useState('all');
+  const [filtreAvancementBureau, setLocalStatusFilter] = useState('all');
+  const localStatusFilter = estTelephone ? (ongletTelephone === 'terminees' ? 'completed' : 'in-progress') : filtreAvancementBureau;
+  const [nbDemandes, setNbDemandes] = useState(null);
+  const [nbSuggestions, setNbSuggestions] = useState(null);
   const [incidentFilter, setIncidentFilter] = useState('');
   const [dateRange, setDateRange] = useState([null, null]);
   const [dateFrom, dateTo] = dateRange;
 
-  // Role, signalement, acceptation et periode sont repliés derriere « Plus de
+  // Le role a sa propre liste, toujours visible (c'est le filtre qu'on change
+  // le plus apres le statut). Signalement, acceptation et periode sont repliés derriere « Plus de
   // filtres » : cette page etait la seule de l'app a afficher 3 menus
   // deroulants + un selecteur de dates + 3 pastilles en permanence, contre 1 a
   // 2 filtres ailleurs. On garde la recherche et les pastilles (les plus
@@ -129,7 +135,7 @@ export const Collaboration = () => {
   // partage avec ?incident=...) : sinon l'utilisateur verrait une liste
   // filtree sans savoir pourquoi, ni comment revenir en arriere.
   const filtresAvancesActifs =
-    statusFilter !== 'all' || Boolean(roleFilter) || Boolean(incidentFilter) ||
+    statusFilter !== 'all' || Boolean(incidentFilter) ||
     Boolean(dateFrom) || Boolean(dateTo);
   const [filtresAvancesOuverts, setFiltresAvancesOuverts] = useState(filtresAvancesActifs);
   // On n'ouvre le panneau QUE lorsque filtresAvancesActifs passe de faux a
@@ -139,7 +145,7 @@ export const Collaboration = () => {
     if (filtresAvancesActifs) setFiltresAvancesOuverts(true);
   });
   const nbFiltresAvancesActifs = [
-    statusFilter !== 'all', Boolean(roleFilter), Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo),
+    statusFilter !== 'all', Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo),
   ].filter(Boolean).length;
 
 
@@ -179,35 +185,6 @@ export const Collaboration = () => {
   const incidentsList = useMemo(() => {
     return rawIncidents?.results || (Array.isArray(rawIncidents) ? rawIncidents : []);
   }, [rawIncidents]);
-
-  // Modal tâches
-  const [selectedCollab, setSelectedCollab] = useState(null);
-  const [modalClosing, setModalClosing] = useState(false);
-  const [collabTasks, setCollabTasks] = useState({});
-  const [expandedFailureTask, setExpandedFailureTask] = useState(null);
-  const [failureReason, setFailureReason] = useState('');
-  // Progression sauvegardée (affichée sur la carte)
-  const [savedProgress, setSavedProgress] = useState({});
-  // Collaborations clôturées
-  const [closedCollabs, setClosedCollabs] = useState({});
-  // Confirmation de clôture
-  const [confirmClose, setConfirmClose] = useState(false);
-  // Modal d'ajout de tâche (séparé)
-  const [addTaskModal, setAddTaskModal] = useState({ open: false, collabId: null });
-  const [addTaskClosing, setAddTaskClosing] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskDeadline, setNewTaskDeadline] = useState('');
-  const [editingTaskId, setEditingTaskId] = useState(null);
-  const [editTaskTitle, setEditTaskTitle] = useState('');
-  const [editTaskDeadline, setEditTaskDeadline] = useState('');
-  // Bottom sheet mobile pour actions sur carte
-  const [mobileSheet, setMobileSheet] = useState({ open: false, collabId: null });
-  const [mobileSheetClosing, setMobileSheetClosing] = useState(false);
-  // Modal suggestion d'organisations (leader uniquement)
-  const [suggestOrgModal, setSuggestOrgModal] = useState({ open: false, collabId: null });
-  const [suggestClosing, setSuggestClosing] = useState(false);
-  const [suggestedOrgs, setSuggestedOrgs] = useState([]);
-  const [suggestSearch, setSuggestSearch] = useState('');
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
@@ -256,7 +233,8 @@ export const Collaboration = () => {
 
   // Utiliser useSWR pour charger les collaborations
   const { data: swrData, error: swrError, isLoading, mutate } = useSWR(
-    ['collaborations', page, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
+    // Sur À traiter (téléphone), cette route à 10 s ne sert à rien.
+    estTelephone && activeTab !== 'collaborations' ? null : ['collaborations', page, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
     () => getCollaborationsService(buildParams(page)),
     // Cette route met 8 a 10 secondes. Les revalidations automatiques de SWR —
     // au focus de la fenetre, a la reconnexion, ou parce que la donnee est
@@ -340,7 +318,10 @@ export const Collaboration = () => {
       const orgName = collab.organisation_name || collab.user_full_name || ``;
       const incidentLocation = collab.incident_details?.zone || collab.incident_zone || 'À définir';
       const incidentDescription = collab.incident_description || collab.incident_details?.description || collab.motivation || 'Aucune description';
-      const incidentProgress = collab.incident_progress || 0;
+      const incidentProgress = Math.max(0, Math.min(100, parseInt(collab.incident_progress, 10) || 0));
+      const tasks = collab.tasks || [];
+      // Leader : seulement si la ligne porte les organisations du signalement.
+      const leader = (collab.incident_details?.acting_organisations || []).find((o) => o.relation === 'leader')?.name || '';
       const participantsCount = collab.participants_count || collab.incident_details?.participants_count || 0;
       const statutBrut = statutsTempsReel[collab.id] || collab.status;
 
@@ -350,7 +331,7 @@ export const Collaboration = () => {
         title: incidentTitle,
         incidentId: collab.incident,
         userId: collab.user,
-        status: parseInt(incidentProgress) === 100 ? 'completed' : (statutBrut === 'accepted' ? 'in-progress' : statutBrut),
+        status: incidentProgress === 100 ? 'completed' : (statutBrut === 'accepted' ? 'in-progress' : statutBrut),
         createdAt: collab.created_at,
         motivation: collab.motivation,
         otherOption: collab.other_option,
@@ -377,7 +358,10 @@ export const Collaboration = () => {
         location: incidentLocation,
         description: incidentDescription,
         progress: incidentProgress,
-        tasks: collab.tasks || [],
+        tasks,
+        tasksDone: tasks.filter((t) => t.completed).length,
+        tasksFailed: tasks.filter((t) => t.failed).length,
+        leader,
         participantsCount
       };
     });
@@ -413,278 +397,43 @@ export const Collaboration = () => {
     navigate(`/collaboration-detail/${collab.id}`);
   };
 
-  const openTasksModal = (collab) => {
-    setSelectedCollab(collab);
-    setModalClosing(false);
-    // Initialiser les tâches si pas déjà fait
-    if (!collabTasks[collab.id] && collab.tasks) {
-      setCollabTasks(prev => ({
-        ...prev,
-        [collab.id]: collab.tasks
-      }));
-    }
-  };
-
-  const closeTasksModal = () => {
-    setModalClosing(true);
-    setTimeout(() => {
-      setSelectedCollab(null);
-      setModalClosing(false);
-      setConfirmClose(false);
-      setExpandedFailureTask(null);
-      setFailureReason('');
-    }, 280);
-  };
-
-  // Modal d'ajout de tâche
-  const openAddTaskModal = (collab) => {
-    if (!collabTasks[collab.id]) {
-      setCollabTasks(prev => ({ ...prev, [collab.id]: collab.tasks || [] }));
-    }
-    setAddTaskModal({ open: true, collabId: collab.id });
-  };
-
-  const closeAddTaskModal = () => {
-    setAddTaskClosing(true);
-    setTimeout(() => {
-      setAddTaskModal({ open: false, collabId: null });
-      setAddTaskClosing(false);
-      setNewTaskTitle('');
-      setNewTaskDeadline('');
-      setEditingTaskId(null);
-      setEditTaskTitle('');
-      setEditTaskDeadline('');
-    }, 280);
-  };
-
-  const submitNewTask = () => {
-    if (!newTaskTitle.trim() || !addTaskModal.collabId) return;
-    const newTask = {
-      id: `task-${Date.now()}`,
-      title: newTaskTitle.trim(),
-      deadline: newTaskDeadline || null,
-      createdBy: 'me',
-      createdAt: new Date().toISOString().slice(0, 10),
-      completed: false,
-      completedAt: null,
-      failed: false,
-      failedAt: null,
-      failureReason: null,
-      proof: null
-    };
-    setCollabTasks(prev => ({
-      ...prev,
-      [addTaskModal.collabId]: [...(prev[addTaskModal.collabId] || []), newTask]
-    }));
-    setNewTaskTitle('');
-    setNewTaskDeadline('');
-  };
-
-  const startEditTask = (task) => {
-    setEditingTaskId(task.id);
-    setEditTaskTitle(task.title);
-    setEditTaskDeadline(task.deadline || '');
-  };
-
-  const cancelEditTask = () => {
-    setEditingTaskId(null);
-    setEditTaskTitle('');
-    setEditTaskDeadline('');
-  };
-
-  const saveEditTask = (collabId, taskId) => {
-    if (!editTaskTitle.trim()) return;
-    setCollabTasks(prev => ({
-      ...prev,
-      [collabId]: prev[collabId].map(t =>
-        t.id === taskId
-          ? { ...t, title: editTaskTitle.trim(), deadline: editTaskDeadline || null }
-          : t
-      )
-    }));
-    cancelEditTask();
-  };
-
-  const deleteTask = (collabId, taskId) => {
-    setCollabTasks(prev => ({
-      ...prev,
-      [collabId]: prev[collabId].filter(t => t.id !== taskId)
-    }));
-  };
-
-  const closeMobileSheet = () => {
-    setMobileSheetClosing(true);
-    setTimeout(() => {
-      setMobileSheet({ open: false, collabId: null });
-      setMobileSheetClosing(false);
-    }, 280);
-  };
-
-  // Modal suggestion d'organisations
-  const openSuggestOrgModal = (collab) => {
-    setSuggestOrgModal({ open: true, collabId: collab.id });
-  };
-
-  const closeSuggestOrgModal = () => {
-    setSuggestClosing(true);
-    setTimeout(() => {
-      setSuggestOrgModal({ open: false, collabId: null });
-      setSuggestClosing(false);
-      setSuggestedOrgs([]);
-      setSuggestSearch('');
-    }, 280);
-  };
-
-  const toggleSuggestedOrg = (org) => {
-    setSuggestedOrgs(prev =>
-      prev.find(o => o.id === org.id)
-        ? prev.filter(o => o.id !== org.id)
-        : [...prev, { ...org, role: 'contributeur', comment: '' }]
-    );
-    setSuggestSearch('');
-  };
-
-  const updateSuggestedRole = (orgId, role) => {
-    setSuggestedOrgs(prev => prev.map(o => o.id === orgId ? { ...o, role } : o));
-  };
-
-  const updateSuggestedComment = (orgId, comment) => {
-    setSuggestedOrgs(prev => prev.map(o => o.id === orgId ? { ...o, comment } : o));
-  };
-
-  const submitSuggestions = () => {
- 
-    closeSuggestOrgModal();
-  };
-
-  const toggleTask = (collabId, taskId) => {
-    setCollabTasks(prev => ({
-      ...prev,
-      [collabId]: prev[collabId].map(task =>
-        task.id === taskId
-          ? {
-            ...task,
-            completed: !task.completed,
-            completedAt: !task.completed ? new Date().toISOString() : null,
-            failed: false,
-            failedAt: null,
-            failureReason: null
-          }
-          : task
-      )
-    }));
-  };
-
-  const markTaskFailed = (collabId, taskId, reason) => {
-    setCollabTasks(prev => ({
-      ...prev,
-      [collabId]: prev[collabId].map(task =>
-        task.id === taskId
-          ? {
-            ...task,
-            failed: true,
-            failedAt: new Date().toISOString(),
-            failureReason: reason,
-            completed: false,
-            completedAt: null
-          }
-          : task
-      )
-    }));
-  };
-
-  const resetTaskStatus = (collabId, taskId) => {
-    setCollabTasks(prev => ({
-      ...prev,
-      [collabId]: prev[collabId].map(task =>
-        task.id === taskId
-          ? {
-            ...task,
-            failed: false,
-            failedAt: null,
-            failureReason: null,
-            completed: false,
-            completedAt: null
-          }
-          : task
-      )
-    }));
-  };
-
-  const handleProofUpload = (collabId, taskId, file) => {
-    // Simuler l'upload de fichier
-    const fileType = file.type.startsWith('image/') ? 'image' : 'video';
-    const fakeUrl = URL.createObjectURL(file);
-
-    setCollabTasks(prev => ({
-      ...prev,
-      [collabId]: prev[collabId].map(task =>
-        task.id === taskId
-          ? {
-            ...task,
-            proof: { type: fileType, url: fakeUrl }
-          }
-          : task
-      )
-    }));
-  };
-
-  // Calculer la progression basée sur les tâches (état courant dans le modal)
-  const getCalculatedProgress = (collab) => {
-    const tasks = collabTasks[collab.id] || collab.tasks || [];
-    if (tasks.length === 0) return collab.progress;
-    const completed = tasks.filter(t => t.completed).length;
-    return Math.round((completed / tasks.length) * 100);
-  };
-
-  // Progression affichée sur la carte (sauvegardée)
-  const getSavedProgress = (collab) => {
-    if (savedProgress[collab.id] !== undefined) return savedProgress[collab.id];
-    return collab.progress;
-  };
-
-  // Vérifier s'il y a des changements non sauvegardés
-  const hasPendingChanges = (collab) => {
-    return getCalculatedProgress(collab) !== getSavedProgress(collab);
-  };
-
-  // Sauvegarder la progression
-  const saveProgress = (collabId) => {
-    const collab = collaborations.find(c => c.id === collabId);
-    if (!collab) return;
-    setSavedProgress(prev => ({
-      ...prev,
-      [collabId]: getCalculatedProgress(collab)
-    }));
-  };
-
-  // Clôturer une collaboration
-  const closeCollaboration = (collabId) => {
-    const collab = collaborations.find(c => c.id === collabId);
-    if (!collab) return;
-    setSavedProgress(prev => ({
-      ...prev,
-      [collabId]: getCalculatedProgress(collab)
-    }));
-    setClosedCollabs(prev => ({ ...prev, [collabId]: true }));
-    setConfirmClose(false);
-    closeTasksModal();
-  };
-
-  const isCollabClosed = (collabId) => {
-    return closedCollabs[collabId] === true;
-  };
-
   const counts = useMemo(
     () => ({
       all: collaborations.length,
-      'in-progress': collaborations.filter((c) => c.status === 'in-progress')
-        .length,
-      completed: collaborations.filter((c) => c.status === 'completed')
-        .length
+      'in-progress': collaborations.filter((c) => c.status === 'in-progress').length,
+      completed: collaborations.filter((c) => c.status === 'completed').length,
     }),
     [collaborations]
   );
+
+  // Cartes ou liste compacte : préférence de l'utilisateur, gardée d'une visite à l'autre.
+  const [vuePreferee, setVue] = useState(() => {
+    try {
+      return localStorage.getItem(CLE_VUE) === 'liste' ? 'liste' : 'cartes';
+    } catch {
+      return 'cartes';
+    }
+  });
+  const vue = estTelephone ? 'cartes' : vuePreferee;
+  const changerVue = (v) => {
+    setVue(v);
+    try {
+      localStorage.setItem(CLE_VUE, v);
+    } catch {
+      // Stockage indisponible (navigation privée) : la préférence vaut pour la session.
+    }
+  };
+
+  const clavierOuvrir = (e, c) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openCollabDetail(c);
+    }
+  };
+
+  const nbTotal = swrData?.count ?? collaborations.length;
+  const nbATraiter = (nbDemandes || 0) + (nbSuggestions || 0);
+  const nbFiltresTelephone = [Boolean(roleFilter), Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
 
   return (
     <div className="collaboration-layout">
@@ -695,102 +444,163 @@ export const Collaboration = () => {
         onCollapsedChange={setSidebarCollapsed}
       />
 
-      <div
-        className={`collaboration-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''
-          }`}
-      >
-        <Header
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          sidebarCollapsed={sidebarCollapsed}
-        />
+      <div className={`collaboration-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        {!estTelephone && (
+          <Header
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            sidebarCollapsed={sidebarCollapsed}
+          />
+        )}
 
         <main className="collaboration-content">
-          <div className="collab-page">
-
+          <div className="collab-page vl">
             <BandeauErreur
               erreur={swrError}
               onReessayer={mutate}
               message="Impossible de charger vos collaborations. La liste affichée peut ne plus être à jour."
             />
-            {/* Header avec tabs */}
-            <div className="collab-page-header">
-              <div>
-                <h1 className="collab-title">Collaborations</h1>
-                <p className="collab-subtitle">
-                  Gérez vos collaborations actives et vos demandes de participation.
-                </p>
+
+            <header className="vl-head">
+              <h1>Collaborations</h1>
+              <p>Les signalements sur lesquels votre organisation agit avec d'autres.</p>
+            </header>
+
+            {estTelephone && (
+              <div className="vlm-outils">
+                <label className="vlm-rech">
+                  <SearchNormal1 size={17} color="currentColor" aria-hidden="true" />
+                  <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Titre, organisation ou lieu" aria-label="Rechercher une collaboration" />
+                </label>
+                {activeTab === 'collaborations' && (
+                  <button type="button" className={`vlm-filtre ${nbFiltresTelephone ? 'is-on' : ''}`} onClick={() => setFiltresTelephone(true)} aria-label={`Filtres${nbFiltresTelephone ? `, ${nbFiltresTelephone} actifs` : ''}`}>
+                    <Filter size={18} color="currentColor" aria-hidden="true" />
+                  </button>
+                )}
               </div>
-            </div>
+            )}
 
-            {/* Tabs */}
-            <div className="collab-tabs">
-              <button
-                type="button"
-                className={`collab-tab ${activeTab === 'collaborations' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('collaborations')}
-              >
-                Mes collaborations
-              </button>
-              <button
-                type="button"
-                className={`collab-tab ${activeTab === 'requests' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('requests')}
-              >
-                Demandes
-              </button>
-              <button
-                type="button"
-                className={`collab-tab ${activeTab === 'suggestions' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('suggestions')}
-              >
-                Suggestions
-              </button>
-            </div>
+            <nav className="vd-tabs vl-tabs" role="tablist" aria-label="Sections">
+              {(estTelephone ? [
+                ['atraiter', nbATraiter ? `À traiter · ${nbATraiter}` : 'À traiter'],
+                ['collaborations', 'En cours'],
+                ['terminees', 'Terminées'],
+              ] : [
+                ['collaborations', 'Mes collaborations', activeTab === 'collaborations' && !isLoading ? nbTotal : null],
+                ['requests', 'Demandes'],
+                ['suggestions', 'Suggestions'],
+              ]).map(([cle, libelle, n]) => {
+                const actif = estTelephone ? ongletTelephone === cle : activeTab === cle;
+                return (
+                  <button
+                    key={cle}
+                    type="button"
+                    role="tab"
+                    aria-selected={actif}
+                    className={actif ? 'is-on' : ''}
+                    onClick={() => setActiveTab(cle)}
+                  >
+                    {libelle}
+                    {n ? <span className="vd-n">{n}</span> : null}
+                  </button>
+                );
+              })}
+            </nav>
 
-            {/* Contenu conditionnel */}
             {activeTab === 'collaborations' ? (
               <>
-                {/* Toolbar — fixe au defilement : voir .collab-filtres-fixes.
-                    Pas de bouton « Effacer » : chaque filtre a deja sa propre
+                {/* Pas de bouton « Effacer » : chaque filtre a deja sa propre
                     sortie (une pastille qu'on reclique, un menu qu'on remet a
                     « Tous », une croix sur la periode) ; un bouton qui les
-                    remet TOUS a zero d'un coup, a cote, ne fait que reinitialiser
-                    par erreur ce qu'on venait de choisir expres. */}
+                    remet TOUS a zero d'un coup ne fait que reinitialiser par
+                    erreur ce qu'on venait de choisir expres. */}
+                {estTelephone ? (
+                  <>
+                    {filtresTelephone && (
+                      <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresTelephone(false)}>
+                        <div className="vlm-filtres-tete">
+                          <button type="button" onClick={() => { setRoleFilter(''); setIncidentFilter(''); resetDateRange(); }}>Tout effacer</button>
+                          <b>Filtres</b>
+                          <button type="button" onClick={() => setFiltresTelephone(false)}>Terminé</button>
+                        </div>
+                        <div className="vlm-filtres">
+                          <fieldset className="vlm-champ">
+                            <legend>Mon rôle</legend>
+                            <div className="vlm-seg">
+                              {[['', 'Tous'], ['leader', 'Leader'], ['contributor', 'Contrib.'], ['observer', 'Observ.']].map(([cle, libelle]) => (
+                                <button key={cle} type="button" className={roleFilter === cle ? 'is-on' : ''} aria-pressed={roleFilter === cle} onClick={() => setRoleFilter(cle)}>{libelle}</button>
+                              ))}
+                            </div>
+                          </fieldset>
+                          <label className="vlm-champ">
+                            Signalement
+                            <select
+                              value={incidentFilter}
+                              onChange={(e) => setIncidentFilter(e.target.value)}
+                              onMouseDown={() => setListeSignalementsDemandee(true)}
+                              onFocus={() => setListeSignalementsDemandee(true)}
+                              aria-busy={chargementListeSignalements}
+                            >
+                              <option value="">Tous les signalements</option>
+                              {chargementListeSignalements && <option value="" disabled>Chargement des signalements...</option>}
+                              {incidentsList.map((inc) => <option key={inc.id} value={inc.id}>{inc.title}</option>)}
+                            </select>
+                          </label>
+                          <div className="vlm-champ">
+                            Période
+                            <DatePicker
+                              selectsRange
+                              startDate={dateFrom}
+                              endDate={dateTo}
+                              onChange={(update) => setDateRange(update)}
+                              locale="fr"
+                              dateFormat="dd MMM yyyy"
+                              placeholderText="Période…"
+                              isClearable={false}
+                              withPortal
+                              shouldCloseOnSelect={false}
+                              className="collab-date-input"
+                              calendarClassName="collab-datepicker"
+                              portalId="collab-datepicker-portal"
+                            />
+                          </div>
+                        </div>
+                      </FeuilleBasse>
+                    )}
+                  </>
+                ) : (
                 <div className="collab-filtres-fixes">
-                <FiltersBar
-                  recherche={searchInput}
-                  onRecherche={setSearchInput}
-                  placeholder="Rechercher un titre, une organisation, un lieu…"
-                  actifSupplementaire={localStatusFilter !== 'all' || filtresAvancesActifs}
-                >
-                    <button
-                      type="button"
-                      className={`collab-filter-pill ${localStatusFilter === 'all' ? 'is-active' : ''}`}
-                      onClick={() => setLocalStatusFilter('all')}
-                    >
-                      Toutes
-                      <span className="collab-filter-count">{counts.all}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`collab-filter-pill ${localStatusFilter === 'in-progress' ? 'is-active' : ''}`}
-                      onClick={() => setLocalStatusFilter('in-progress')}
-                    >
-                      En cours
-                      <span className="collab-filter-count">
-                        {counts['in-progress']}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`collab-filter-pill ${localStatusFilter === 'completed' ? 'is-active' : ''}`}
-                      onClick={() => setLocalStatusFilter('completed')}
-                    >
-                      Terminées
-                      <span className="collab-filter-count">
-                        {counts.completed}
-                      </span>
-                    </button>
+                  <FiltersBar
+                    recherche={searchInput}
+                    onRecherche={setSearchInput}
+                    placeholder="Titre, organisation, lieu…"
+                    actifSupplementaire={localStatusFilter !== 'all' || Boolean(roleFilter) || filtresAvancesActifs}
+                  >
+                    {[
+                      ['all', 'Toutes'],
+                      ['in-progress', 'En cours'],
+                      ['completed', 'Terminées'],
+                    ].map(([cle, libelle]) => (
+                      <button
+                        key={cle}
+                        type="button"
+                        className={`collab-filter-pill ${localStatusFilter === cle ? 'is-active' : ''}`}
+                        onClick={() => setLocalStatusFilter(cle)}
+                        aria-pressed={localStatusFilter === cle}
+                      >
+                        {libelle}
+                        <span className="collab-filter-count">{counts[cle]}</span>
+                      </button>
+                    ))}
+
+                    <div className={`am-filtres-select ${roleFilter ? 'is-active' : ''}`}>
+                      <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} aria-label="Filtrer par rôle">
+                        <option value="">Mon rôle : tous</option>
+                        <option value="leader">Leader</option>
+                        <option value="contributor">Contributeur</option>
+                        <option value="observer">Observateur</option>
+                      </select>
+                      <ArrowDown2 size={14} variant="Linear" color="currentColor" aria-hidden="true" />
+                    </div>
 
                     <button
                       type="button"
@@ -811,6 +621,15 @@ export const Collaboration = () => {
                       />
                     </button>
 
+                    <div className="vl-vue" role="group" aria-label="Affichage">
+                      <button type="button" aria-pressed={vue === 'cartes'} className={vue === 'cartes' ? 'is-on' : ''} onClick={() => changerVue('cartes')}>
+                        <Element3 size={15} color="currentColor" />Cartes
+                      </button>
+                      <button type="button" aria-pressed={vue === 'liste'} className={vue === 'liste' ? 'is-on' : ''} onClick={() => changerVue('liste')}>
+                        <RowVertical size={15} color="currentColor" />Liste
+                      </button>
+                    </div>
+
                     {filtresAvancesOuverts && (
                       <div className="collab-filtres-avances-panneau">
                         <div className="am-filtres-select">
@@ -823,20 +642,6 @@ export const Collaboration = () => {
                             <option value="accepted">Acceptée</option>
                             <option value="pending">En attente</option>
                             <option value="declined">Refusée</option>
-                          </select>
-                          <ArrowDown2 size={14} variant="Linear" color="currentColor" aria-hidden="true" />
-                        </div>
-
-                        <div className="am-filtres-select">
-                          <select
-                            value={roleFilter}
-                            onChange={(e) => setRoleFilter(e.target.value)}
-                            aria-label="Filtrer par rôle"
-                          >
-                            <option value="">Tous les rôles</option>
-                            <option value="leader">Leader</option>
-                            <option value="contributor">Contributeur</option>
-                            <option value="observer">Observateur</option>
                           </select>
                           <ArrowDown2 size={14} variant="Linear" color="currentColor" aria-hidden="true" />
                         </div>
@@ -875,9 +680,7 @@ export const Collaboration = () => {
                             onChange={(update) => setDateRange(update)}
                             locale="fr"
                             dateFormat="dd MMM yyyy"
-                            placeholderText={
-                              isMobile ? 'Période…' : 'Sélectionner une période…'
-                            }
+                            placeholderText={isMobile ? 'Période…' : 'Sélectionner une période…'}
                             isClearable={false}
                             monthsShown={isMobile ? 1 : 2}
                             withPortal={isMobile}
@@ -895,196 +698,123 @@ export const Collaboration = () => {
                               aria-label="Réinitialiser la période"
                               title="Réinitialiser"
                             >
-                              <CalendarRemove
-                                size={16}
-                                variant="Bold"
-                                color="var(--color-danger-text)"
-                              />
+                              <CalendarRemove size={16} variant="Bold" color="var(--color-danger-text)" />
                             </button>
                           )}
                         </div>
                       </div>
                     )}
-                </FiltersBar>
+                  </FiltersBar>
                 </div>
+                )}
 
-                {/* État de chargement avec react-shimmer-effects */}
-                {isLoading && (
-                  <div className="collab-grid">
-                    {[...Array(6)].map((_, idx) => (
-                      <article key={idx} className="collab-card" style={{ cursor: 'default' }}>
-                        <ShimmerThumbnail height={180} rounded className="m-0" />
-                        <div className="collab-card-body" style={{ padding: '20px' }}>
-                          {/* Org name shimmer */}
-                          <div style={{ width: '120px', marginBottom: '8px' }}>
-                            <ShimmerText line={1} gap={0} />
-                          </div>
-
-                          {/* Title shimmer */}
-                          <div style={{ width: '100%', marginBottom: '16px' }}>
-                            <ShimmerTitle line={1} gap={0} variant="primary" />
-                          </div>
-
-                          {/* Description shimmer */}
-                          <div style={{ marginBottom: '16px' }}>
-                            <ShimmerText line={2} gap={8} />
-                          </div>
-
-                          {/* Meta rows shimmer */}
-                          <div className="collab-card-meta" style={{ marginTop: 'auto' }}>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <ShimmerThumbnail height={14} width={14} rounded />
-                              <div style={{ width: '100px' }}><ShimmerText line={1} gap={0} /></div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
-                              <ShimmerThumbnail height={14} width={14} rounded />
-                              <div style={{ width: '150px' }}><ShimmerText line={1} gap={0} /></div>
-                            </div>
-                          </div>
-
-                          {/* Progress bar shimmer */}
-                          <div className="collab-progress" style={{ marginTop: '16px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <div style={{ width: '60px' }}><ShimmerText line={1} /></div>
-                              <div style={{ width: '40px' }}><ShimmerText line={1} /></div>
-                            </div>
-                            <ShimmerThumbnail height={8} rounded />
-                          </div>
+                {isLoading ? (
+                  <div className={vue === 'cartes' ? 'vl-grid' : 'vl-rows'} aria-busy="true">
+                    {[...Array(vue === 'cartes' ? 6 : 5)].map((_, i) => (
+                      vue === 'cartes' ? (
+                        <div key={i} className="vd-card vl-card">
+                          <ShimmerThumbnail height={136} className="m-0" />
+                          <div className="vl-card-body"><ShimmerText line={1} gap={0} /><ShimmerTitle line={2} gap={8} /><ShimmerThumbnail height={6} rounded className="m-0" /></div>
                         </div>
-                      </article>
+                      ) : (
+                        <div key={i} className="vd-card vl-row"><ShimmerThumbnail height={44} width={56} rounded className="m-0" /><div style={{ flex: 1 }}><ShimmerTitle line={1} gap={6} /></div></div>
+                      )
                     ))}
                   </div>
-                )}
-
-                {/* État d'erreur */}
-                {swrError && (
-                  <div className="collab-empty body-large text-center" >
-                    <p>Erreur lors du chargement des collaborations.</p>
-                    <button
-                      onClick={() => mutate()}
-                      className='btn btn-primary'
-                    >
-                      Réessayer
-                    </button>
+                ) : swrError && collaborations.length === 0 ? (
+                  <div className="vd-card vd-empty vl-empty">
+                    <span className="vd-empty-ic vl-empty-ko"><Danger size={24} variant="Bold" color="currentColor" /></span>
+                    <b>Les collaborations n'ont pas pu être chargées</b>
+                    <p>Vérifiez votre connexion, puis réessayez.</p>
+                    <button type="button" className="vd-btn vd-btn-p vd-btn-s vd-mt8" onClick={() => mutate()}>Réessayer</button>
                   </div>
-                )}
-
-                {/* Liste */}
-                {!isLoading && !swrError && filtered.length === 0 ? (
-                  <div className="collab-empty">
-                    <p>Aucune collaboration ne correspond à vos critères.</p>
+                ) : filtered.length === 0 ? (
+                  <div className="vd-card vd-empty vl-empty">
+                    <span className="vd-empty-ic vl-empty-ic"><People size={24} variant="Bold" color="currentColor" /></span>
+                    <b>Aucune collaboration ne correspond</b>
+                    <p>
+                      {search || localStatusFilter !== 'all' || roleFilter || filtresAvancesActifs
+                        ? 'Modifiez la recherche ou les filtres pour élargir les résultats.'
+                        : "Vous ne participez encore à aucune collaboration. Depuis un signalement, choisissez « Lancer une collaboration » ou acceptez une invitation dans l'onglet Demandes."}
+                    </p>
                   </div>
-                ) : !isLoading && !swrError ? (
+                ) : (
                   <>
-                    <div className="collab-grid">
-                      {filtered.map((c) => (
-                        <article
-                          key={c.id}
-                          className="collab-card collab-card-clickable"
-                          onClick={() => openCollabDetail(c)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              openCollabDetail(c);
-                            }
-                          }}
-                        >
-                          <CollabCardCover className="collab-card-cover" image={c.image}>
-                            <span
-                              className={`collab-status-badge collab-status-${c.status}`}
+                    {vue === 'cartes' ? (
+                      <div className="vl-grid">
+                        {filtered.map((c) => {
+                          const s = STATUTS[c.status] || STATUTS['in-progress'];
+                          return (
+                            <article
+                              key={c.id}
+                              className="vd-card vl-card"
+                              onClick={() => openCollabDetail(c)}
+                              onKeyDown={(e) => clavierOuvrir(e, c)}
+                              role="link"
+                              tabIndex={0}
+                              aria-label={`Ouvrir la collaboration : ${c.title}`}
                             >
-                              {c.status === 'completed' ? (
-                                <>
-                                  <TickCircle
-                                    size={14}
-                                    variant="Bold"
-                                    color="var(--color-surface)"
-                                  />
-                                  Terminée
-                                </>
-                              ) : (
-                                <>
-                                  <Clock size={14} variant="Bold" color="var(--color-surface)" />
-                                  En cours
-                                </>
-                              )}
-                            </span>
-                          </CollabCardCover>
-
-                          <div className="collab-card-body">
-                            <div className="collab-card-org">{c.organisation}</div>
-                            <h3 className="collab-card-title">{c.title}</h3>
-                            {/* Badge de rôle */}
-                            {c.userRole && (
-                              <div className={`collab-role-badge collab-role-${c.userRole}`}>
-                                {c.userRole === 'leader' && <Crown1 size={12} variant="Bold" color="var(--color-warning-text)" />}
-                                {c.userRole === 'contributor' && <People size={12} variant="Bold" color="var(--color-primary-text)" />}
-                                {c.userRole === 'observateur' && <Eye size={12} variant="Bold" color="var(--color-text-secondary)" />}
-                                <span>Votre rôle : {c.userRole.charAt(0).toUpperCase() + c.userRole.slice(1)}</span>
-                              </div>
-                            )}
-                            <p className="collab-card-desc">{c.description}</p>
-
-                            <div className="collab-card-meta">
-                              <div className="collab-meta-row">
-                                <Location
-                                  size={14}
-                                  variant="Bold"
-                                  color="var(--color-text-secondary)"
-                                />
-                                <span>{c.location}</span>
-                              </div>
-                              <div className="collab-meta-row">
-                                <Calendar
-                                  size={14}
-                                  variant="Bold"
-                                  color="var(--color-text-secondary)"
-                                />
-                                <span>
-                                  {c.startDate} → {c.endDate}
-                                </span>
-                              </div>
-                              <div className="collab-meta-row">
-                                <People
-                                  size={14}
-                                  variant="Bold"
-                                  color="var(--color-text-secondary)"
-                                />
-                                <span>
+                              <CollabCardCover className="vl-cover" image={c.image}>
+                                {!c.image && <Gallery size={26} color="currentColor" aria-hidden="true" />}
+                                <span className={`vd-chip vl-chip ${s.classe}`}><i style={{ backgroundColor: 'currentColor' }} />{s.libelle}</span>
+                                {c.userRole && <span className="vd-chip vl-role">{c.userRole === 'leader' && <Crown1 size={12} variant="Bold" color="currentColor" />}{libelleRole(c.userRole)}</span>}
+                              </CollabCardCover>
+                              <div className="vl-card-body">
+                                <span className="vl-lieu"><Location size={13} color="currentColor" />{c.location}</span>
+                                <h3 className="vl-title">{c.title}</h3>
+                                <span className="vl-orgs">
+                                  {c.leader && <>Leader : <b>{c.leader}</b> · </>}
                                   {c.participantsCount} {c.participantsCount > 1 ? 'participants' : 'participant'}
                                 </span>
+                                <div className="vl-prog">
+                                  <div className="vl-prog-l">
+                                    <span>{c.tasks.length ? `${c.tasksDone} / ${c.tasks.length} tâches` : 'Aucune tâche'}</span>
+                                    <b>{c.progress} %</b>
+                                  </div>
+                                  <div className="vl-bar"><i className={s.classe} style={{ width: `${c.progress}%` }} /></div>
+                                </div>
                               </div>
-                            </div>
-
-                            <div className="collab-progress">
-                              <div className="collab-progress-head">
-                                <span>Progression</span>
-                                <span className="collab-progress-value">
-                                  {getSavedProgress(c)}%
-                                </span>
+                              <footer className="vl-card-foot">
+                                <span><Calendar size={13} color="currentColor" />Depuis le {c.startDate}</span>
+                                {c.tasksFailed > 0 && <span className="vl-alerte">{c.tasksFailed} tâche{c.tasksFailed > 1 ? 's' : ''} échouée{c.tasksFailed > 1 ? 's' : ''}</span>}
+                              </footer>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="vl-rows">
+                        {filtered.map((c) => {
+                          const s = STATUTS[c.status] || STATUTS['in-progress'];
+                          return (
+                            <article
+                              key={c.id}
+                              className="vd-card vl-row"
+                              onClick={() => openCollabDetail(c)}
+                              onKeyDown={(e) => clavierOuvrir(e, c)}
+                              role="link"
+                              tabIndex={0}
+                              aria-label={`Ouvrir la collaboration : ${c.title}`}
+                            >
+                              <CollabCardCover className="vl-thumb" image={c.image}>
+                                {!c.image && <Gallery size={18} color="currentColor" aria-hidden="true" />}
+                              </CollabCardCover>
+                              <div className="vl-row-t">
+                                <b>{c.title}</b>
+                                <span>{c.location}{c.leader ? ` · Leader : ${c.leader}` : ''}</span>
                               </div>
-                              <div className="collab-progress-bar">
-                                <div
-                                  className={`collab-progress-fill collab-progress-${isCollabClosed(c.id) ? 'completed' : c.status}`}
-                                  style={{ width: `${getSavedProgress(c)}%` }}
-                                />
+                              <span className={`vd-chip ${s.classe}`}>{s.libelle}</span>
+                              <span className="vd-chip vd-chip-neutre vl-row-role">{libelleRole(c.userRole)}</span>
+                              <div className="vl-row-prog">
+                                <div className="vl-bar"><i className={s.classe} style={{ width: `${c.progress}%` }} /></div>
+                                <b>{c.progress} %</b>
                               </div>
-                            </div>
-
-                            {isCollabClosed(c.id) && (
-                              <div className="collab-closed-badge">
-                                <Lock1 size={14} variant="Bold" color="var(--color-surface)" />
-                                Collaboration clôturée
-                              </div>
-                            )}
-
-
-                          </div>
-                        </article>
-                      ))}
-                    </div>
+                              {c.tasksFailed > 0 ? <span className="vl-alerte vl-row-al">{c.tasksFailed} échouée{c.tasksFailed > 1 ? 's' : ''}</span> : <span className="vl-row-al" />}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     <Pagination
                       page={page}
@@ -1093,7 +823,21 @@ export const Collaboration = () => {
                       onChange={setPage}
                     />
                   </>
-                ) : null}
+                )}
+              </>
+            ) : estTelephone ? (
+              <>
+                <CollaborationRequests embedded aTraiter filtreTexte={search} onNombre={setNbDemandes} />
+                <SuggestRequests embedded aTraiter filtreTexte={search} onNombre={setNbSuggestions} />
+                {(nbDemandes === null || nbSuggestions === null) && (
+                  <div className="vlm-squelette" aria-busy="true" aria-label="Chargement"><span /><span /></div>
+                )}
+                {nbDemandes === 0 && nbSuggestions === 0 && (
+                  <div className="vd-card vd-empty vl-empty">
+                    <b>{search ? 'Aucune demande ne correspond' : 'Rien à traiter'}</b>
+                    <p>{search ? 'Modifiez la recherche.' : 'Les demandes et suggestions qui attendent votre réponse apparaîtront ici.'}</p>
+                  </div>
+                )}
               </>
             ) : activeTab === 'requests' ? (
               <CollaborationRequests embedded={true} />
@@ -1103,886 +847,6 @@ export const Collaboration = () => {
           </div>
         </main>
       </div>
-
-      {/* Modal Tâches */}
-      {selectedCollab && (
-        <div
-          className={`tasks-modal-overlay ${modalClosing ? 'closing' : ''}`}
-          onClick={closeTasksModal}
-        >
-          <aside
-            className={`tasks-modal ${modalClosing ? 'closing' : ''}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="tasks-modal-header">
-              <div>
-                <h3 className="tasks-modal-title">{selectedCollab.title}</h3>
-                <p className="tasks-modal-subtitle">
-                  {selectedCollab.organisation} • {selectedCollab.location}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="tasks-modal-close"
-                aria-label="Fermer la liste des tâches"
-                onClick={closeTasksModal}
-              >
-                <CloseCircle size={24} variant="Linear" color="var(--color-text-primary)" />
-              </button>
-            </header>
-
-            <div className="tasks-modal-body">
-              {/* Badge clôturée */}
-              {isCollabClosed(selectedCollab.id) && (
-                <div className="tasks-closed-banner">
-                  <Lock1 size={18} variant="Bold" color="var(--color-success-text)" />
-                  <span>Cette collaboration a été clôturée</span>
-                </div>
-              )}
-
-              {/* Progression globale */}
-              <div className="tasks-progress-section">
-                <div className="tasks-progress-header">
-                  <span className="tasks-progress-label">Progression</span>
-                  <div className="tasks-progress-values">
-                    {hasPendingChanges(selectedCollab) && (
-                      <span className="tasks-progress-saved">
-                        Sauvegardée : {getSavedProgress(selectedCollab)}%
-                      </span>
-                    )}
-                    <span className="tasks-progress-percent">
-                      {getCalculatedProgress(selectedCollab)}%
-                    </span>
-                  </div>
-                </div>
-                <div className="tasks-progress-bar">
-                  <div
-                    className="tasks-progress-fill"
-                    style={{ width: `${getCalculatedProgress(selectedCollab)}%` }}
-                  />
-                </div>
-                <div className="tasks-progress-stats">
-                  <span>{(collabTasks[selectedCollab.id] || selectedCollab.tasks).filter(t => t.completed).length} tâches terminées</span>
-                  <span>•</span>
-                  <span>{(collabTasks[selectedCollab.id] || selectedCollab.tasks).filter(t => t.failed).length} échouées</span>
-                  <span>•</span>
-                  <span>{(collabTasks[selectedCollab.id] || selectedCollab.tasks).filter(t => !t.completed && !t.failed).length} en cours</span>
-                </div>
-
-                {/* Bouton mettre à jour progression */}
-                {!isCollabClosed(selectedCollab.id) && hasPendingChanges(selectedCollab) && (
-                  <button
-                    type="button"
-                    className="tasks-update-progress-btn"
-                    onClick={() => saveProgress(selectedCollab.id)}
-                  >
-                    <Refresh size={16} variant="Bold" color="var(--color-surface)" />
-                    Mettre à jour la progression
-                  </button>
-                )}
-              </div>
-
-              {/* Liste des tâches */}
-              <div className="tasks-list">
-                {(collabTasks[selectedCollab.id] || selectedCollab.tasks).map((task) => (
-                  <div key={task.id} className={`task-item ${task.completed ? 'is-completed' : ''} ${task.failed ? 'is-failed' : ''}`}>
-                    <div className="task-main">
-                      <label className="task-checkbox-wrapper">
-                        <input
-                          type="checkbox"
-                          checked={task.completed}
-                          onChange={() => toggleTask(selectedCollab.id, task.id)}
-                          className="task-checkbox"
-                          disabled={task.failed}
-                        />
-                        <span className="task-checkmark">
-                          <TickCircle size={20} variant="Bold" color="var(--color-surface)" />
-                        </span>
-                      </label>
-
-                      <div className="task-content">
-                        <div className="task-title-row">
-                          <div className="task-title">{task.title}</div>
-                          {task.failed && (
-                            <span className="task-failed-badge">
-                              <Danger size={14} variant="Bold" color="var(--color-surface)" />
-                              Échouée
-                            </span>
-                          )}
-                        </div>
-                        <div className="task-meta">
-                          <span className={`task-creator ${task.createdBy === 'me' ? 'is-me' : ''}`}>
-                            {task.createdBy === 'me' ? 'Créée par moi' : `Créée par ${task.createdBy}`}
-                          </span>
-                          <span>•</span>
-                          <span>{new Date(task.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                          {task.completedAt && (
-                            <>
-                              <span>•</span>
-                              <span className="task-completed-date">
-                                Terminée le {new Date(task.completedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                              </span>
-                            </>
-                          )}
-                          {task.failedAt && (
-                            <>
-                              <span>•</span>
-                              <span className="task-failed-date">
-                                Échouée le {new Date(task.failedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {!task.completed && !task.failed && (
-                        <button
-                          type="button"
-                          className="task-fail-btn"
-                          onClick={() => {
-                            if (expandedFailureTask === task.id) {
-                              setExpandedFailureTask(null);
-                              setFailureReason('');
-                            } else {
-                              setExpandedFailureTask(task.id);
-                              setFailureReason('');
-                            }
-                          }}
-                          title="Marquer comme échouée"
-                        >
-                          <CloseSquare size={18} variant="Bold" color="var(--color-danger-text)" />
-                        </button>
-                      )}
-
-                      {task.failed && (
-                        <button
-                          type="button"
-                          className="task-reset-btn"
-                          onClick={() => resetTaskStatus(selectedCollab.id, task.id)}
-                          title="Réinitialiser la tâche"
-                        >
-                          <Add size={18} variant="Bold" color="var(--color-text-secondary)" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Raison de l'échec */}
-                    {task.failed && task.failureReason && (
-                      <div className="task-failure-section">
-                        <div className="task-failure-label">Raison de l'échec :</div>
-                        <div className="task-failure-reason">{task.failureReason}</div>
-                      </div>
-                    )}
-
-                    {/* Formulaire inline pour marquer comme échouée */}
-                    {!task.completed && !task.failed && expandedFailureTask === task.id && (
-                      <div className="task-failure-form">
-                        <label htmlFor={`failure-reason-${task.id}`} className="failure-form-label">
-                          Raison de l'échec <span className="required">*</span>
-                        </label>
-                        <p className="failure-form-help">
-                          Expliquez pourquoi cette tâche n'a pas pu être réalisée.
-                        </p>
-                        <textarea
-                          id={`failure-reason-${task.id}`}
-                          className="failure-form-textarea"
-                          rows={4}
-                          value={failureReason}
-                          onChange={(e) => setFailureReason(e.target.value)}
-                          placeholder="Ex : Conditions météorologiques défavorables, manque de matériel..."
-                          autoFocus
-                        />
-                        <div className="failure-form-actions">
-                          <button
-                            type="button"
-                            className="failure-form-cancel"
-                            onClick={() => {
-                              setExpandedFailureTask(null);
-                              setFailureReason('');
-                            }}
-                          >
-                            Annuler
-                          </button>
-                          <button
-                            type="button"
-                            className="failure-form-confirm"
-                            onClick={() => {
-                              if (failureReason.trim()) {
-                                markTaskFailed(selectedCollab.id, task.id, failureReason.trim());
-                                setExpandedFailureTask(null);
-                                setFailureReason('');
-                              }
-                            }}
-                            disabled={!failureReason.trim()}
-                          >
-                            <Danger size={16} variant="Bold" color="var(--color-surface)" />
-                            Marquer comme échouée
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Preuve */}
-                    {task.completed && (
-                      <div className="task-proof-section">
-                        {task.proof ? (
-                          <div className="task-proof-display">
-                            <div className="task-proof-label">Preuve fournie :</div>
-                            {task.proof.type === 'image' ? (
-                              <div className="task-proof-image">
-                                <BlurryImage src={task.proof.url} alt="Preuve" />
-                              </div>
-                            ) : (
-                              <div className="task-proof-video">
-                                <iframe
-                                  src={task.proof.url}
-                                  title="Preuve vidéo"
-                                  frameBorder="0"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen
-                                />
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="task-proof-upload">
-                            <label className="task-proof-btn">
-                              <DocumentUpload size={16} variant="Bold" color="var(--color-primary-text)" />
-                              Ajouter une preuve (image/vidéo)
-                              <input
-                                type="file"
-                                accept="image/*,video/*"
-                                onChange={(e) => {
-                                  if (e.target.files[0]) {
-                                    handleProofUpload(selectedCollab.id, task.id, e.target.files[0]);
-                                  }
-                                }}
-                                style={{ display: 'none' }}
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Footer avec bouton clôturer */}
-            {!isCollabClosed(selectedCollab.id) && (
-              <footer className="tasks-modal-footer">
-                {confirmClose ? (
-                  <div className="tasks-close-confirm">
-                    <p className="tasks-close-confirm-text">
-                      <Danger size={18} variant="Bold" color="var(--color-warning-text)" />
-                      Êtes-vous sûr de vouloir clôturer cette collaboration ? Cette action est irréversible.
-                    </p>
-                    <div className="tasks-close-confirm-actions">
-                      <button
-                        type="button"
-                        className="tasks-close-cancel"
-                        onClick={() => setConfirmClose(false)}
-                      >
-                        Annuler
-                      </button>
-                      <button
-                        type="button"
-                        className="tasks-close-confirm-btn"
-                        onClick={() => closeCollaboration(selectedCollab.id)}
-                      >
-                        <Lock1 size={16} variant="Bold" color="var(--color-surface)" />
-                        Confirmer la clôture
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="tasks-footer-actions">
-                    <button
-                      type="button"
-                      className="tasks-footer-close-btn"
-                      onClick={closeTasksModal}
-                    >
-                      <CloseCircle size={16} variant="Linear" color="currentColor" />
-                      Fermer
-                    </button>
-                    <button
-                      type="button"
-                      className="tasks-close-collab-btn"
-                      onClick={() => setConfirmClose(true)}
-                    >
-                      <Lock1 size={16} variant="Bold" color="var(--color-surface)" />
-                      Clôturer la collab
-                    </button>
-                  </div>
-                )}
-              </footer>
-            )}
-          </aside>
-        </div>
-      )}
-
-      {/* Modal Ajouter / Gérer mes tâches */}
-      {addTaskModal.open && (() => {
-        const currentCollab = collaborations.find(c => c.id === addTaskModal.collabId);
-        const allTasks = collabTasks[addTaskModal.collabId] || currentCollab?.tasks || [];
-        const myTasks = allTasks.filter(t => t.createdBy === 'me');
-        return (
-          <div
-            className={`tasks-modal-overlay ${addTaskClosing ? 'closing' : ''}`}
-            onClick={closeAddTaskModal}
-          >
-            <aside
-              className={`tasks-modal ${addTaskClosing ? 'closing' : ''}`}
-              onClick={(e) => e.stopPropagation()}
-              role="dialog"
-            >
-              <header className="tasks-modal-header">
-                <div>
-                  <h3 className="tasks-modal-title">Gérer mes tâches</h3>
-                  <p className="tasks-modal-subtitle">
-                    {currentCollab?.title}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="tasks-modal-close"
-                  aria-label="Fermer le formulaire de tâche"
-                  onClick={closeAddTaskModal}
-                >
-                  <CloseCircle size={24} variant="Linear" color="var(--color-text-primary)" />
-                </button>
-              </header>
-
-              <div className="tasks-modal-body">
-                {/* Formulaire d'ajout */}
-                <div className="tasks-add-form">
-                  <div className="tasks-add-form-header">
-                    <h4 className="tasks-add-form-title">
-                      Nouvelle tâche
-                    </h4>
-                  </div>
-
-                  <label className="tasks-add-label">
-                    Titre <span className="required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="tasks-add-input"
-                    value={newTaskTitle}
-                    onChange={(e) => setNewTaskTitle(e.target.value)}
-                    placeholder="Ex : Collecte des déchets zone A"
-                  />
-
-                  <label className="tasks-add-label">
-                    Date d'échéance (optionnel)
-                  </label>
-                  <input
-                    type="date"
-                    className="tasks-add-input"
-                    value={newTaskDeadline}
-                    onChange={(e) => setNewTaskDeadline(e.target.value)}
-                  />
-
-                  <div className="tasks-add-form-actions">
-                    <button
-                      type="button"
-                      className="tasks-add-confirm"
-                      onClick={submitNewTask}
-                      disabled={!newTaskTitle.trim()}
-                    >
-                      <Add size={16} variant="Bold" color="var(--color-surface)" />
-                      Ajouter à la liste
-                    </button>
-                  </div>
-                </div>
-
-                {/* Liste de mes tâches */}
-                <div className="my-tasks-section">
-                  <div className="my-tasks-header">
-                    <h4 className="my-tasks-title">
-                      Mes tâches ({myTasks.length})
-                    </h4>
-                  </div>
-
-                  {myTasks.length === 0 ? (
-                    <div className="my-tasks-empty">
-                      <TaskSquare size={32} variant="Linear" color="var(--color-text-muted)" />
-                      <p>Vous n'avez encore ajouté aucune tâche.</p>
-                    </div>
-                  ) : (
-                    <div className="my-tasks-list">
-                      {myTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          className={`my-task-item ${task.completed ? 'is-completed' : ''} ${task.failed ? 'is-failed' : ''}`}
-                        >
-                          {editingTaskId === task.id ? (
-                            <div className="my-task-edit">
-                              <input
-                                type="text"
-                                className="tasks-add-input"
-                                value={editTaskTitle}
-                                onChange={(e) => setEditTaskTitle(e.target.value)}
-                                placeholder="Titre"
-                                autoFocus
-                              />
-                              <input
-                                type="date"
-                                className="tasks-add-input"
-                                value={editTaskDeadline}
-                                onChange={(e) => setEditTaskDeadline(e.target.value)}
-                              />
-                              <div className="my-task-edit-actions">
-                                <button
-                                  type="button"
-                                  className="my-task-btn-cancel"
-                                  onClick={cancelEditTask}
-                                >
-                                  Annuler
-                                </button>
-                                <button
-                                  type="button"
-                                  className="my-task-btn-save"
-                                  onClick={() => saveEditTask(addTaskModal.collabId, task.id)}
-                                  disabled={!editTaskTitle.trim()}
-                                >
-                                  <TickCircle size={14} variant="Bold" color="var(--color-surface)" />
-                                  Enregistrer
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="my-task-info">
-                                <div className="my-task-title">{task.title}</div>
-                                <div className="my-task-meta">
-                                  {task.deadline && (
-                                    <span className="my-task-deadline">
-                                      <Calendar size={12} variant="Linear" color="var(--color-text-secondary)" />
-                                      {task.deadline}
-                                    </span>
-                                  )}
-                                  {task.completed && (
-                                    <span className="my-task-status completed">
-                                      <TickCircle size={12} variant="Bold" color="var(--color-success-text)" />
-                                      Terminée
-                                    </span>
-                                  )}
-                                  {task.failed && (
-                                    <span className="my-task-status failed">
-                                      <Danger size={12} variant="Bold" color="var(--color-danger-text)" />
-                                      Échouée
-                                    </span>
-                                  )}
-                                  {!task.completed && !task.failed && (
-                                    <span className="my-task-status pending">
-                                      <Clock size={12} variant="Bold" color="var(--color-warning-text)" />
-                                      En cours
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="my-task-actions">
-                                <button
-                                  type="button"
-                                  className="my-task-action-btn edit"
-                                  onClick={() => startEditTask(task)}
-                                  title="Modifier"
-                                >
-                                  <Edit2 size={16} variant="Linear" color="var(--color-primary-text)" />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="my-task-action-btn delete"
-                                  onClick={() => deleteTask(addTaskModal.collabId, task.id)}
-                                  title="Supprimer"
-                                >
-                                  <Trash size={16} variant="Linear" color="var(--color-danger-text)" />
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <footer className="tasks-modal-footer">
-                <div className="tasks-footer-actions">
-                  <button
-                    type="button"
-                    className="tasks-footer-close-btn"
-                    onClick={closeAddTaskModal}
-                  >
-                    <CloseCircle size={16} variant="Linear" color="currentColor" />
-                    Annuler
-                  </button>
-                  <button
-                    type="button"
-                    className="tasks-close-collab-btn"
-                    onClick={closeAddTaskModal}
-                  >
-                    <TickCircle size={16} variant="Bold" color="var(--color-surface)" />
-                    Confirmer
-                  </button>
-                </div>
-              </footer>
-            </aside>
-          </div>
-        );
-      })()}
-
-      {/* Bottom sheet mobile - Actions sur la carte */}
-      {mobileSheet.open && (() => {
-        const c = collaborations.find(x => x.id === mobileSheet.collabId);
-        if (!c) return null;
-        const closed = isCollabClosed(c.id);
-        return (
-          <div
-            className={`mobile-sheet-overlay ${mobileSheetClosing ? 'closing' : ''}`}
-            onClick={closeMobileSheet}
-          >
-            <div
-              className={`mobile-sheet ${mobileSheetClosing ? 'closing' : ''}`}
-              onClick={(e) => e.stopPropagation()}
-              role="dialog"
-            >
-              <div className="mobile-sheet-handle" />
-
-              <div className="mobile-sheet-header">
-                <div
-                  className="mobile-sheet-cover"
-                  style={{ backgroundImage: `url(${c.image})` }}
-                />
-                <div className="mobile-sheet-info">
-                  <div className="mobile-sheet-org">{c.organisation}</div>
-                  <h3 className="mobile-sheet-title">{c.title}</h3>
-                  {c.userRole && (
-                    <div className={`collab-role-badge collab-role-${c.userRole}`}>
-                      {c.userRole === 'leader' && <Crown1 size={12} variant="Bold" color="var(--color-warning-text)" />}
-                      {c.userRole === 'contributeur' && <People size={12} variant="Bold" color="var(--color-primary-text)" />}
-                      {c.userRole === 'observateur' && <Eye size={12} variant="Bold" color="var(--color-text-secondary)" />}
-                      <span>{c.userRole.charAt(0).toUpperCase() + c.userRole.slice(1)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mobile-sheet-actions">
-                {c.tasks && c.tasks.length > 0 && (
-                  <button
-                    type="button"
-                    className="mobile-sheet-action primary"
-                    onClick={() => {
-                      closeMobileSheet();
-                      setTimeout(() => openTasksModal(c), 300);
-                    }}
-                  >
-                    <div className="mobile-sheet-action-icon" style={{ backgroundColor: 'rgba(var(--rgb-primary), 0.12)' }}>
-                      <TaskSquare size={20} variant="Bold" color="var(--color-primary-text)" />
-                    </div>
-                    <div className="mobile-sheet-action-text">
-                      <span className="mobile-sheet-action-label">Voir les tâches</span>
-                      <span className="mobile-sheet-action-sub">
-                        {(collabTasks[c.id] || c.tasks).filter(t => t.completed).length}/{c.tasks.length} terminées
-                      </span>
-                    </div>
-                  </button>
-                )}
-
-                {!closed && (
-                  <button
-                    type="button"
-                    className="mobile-sheet-action"
-                    onClick={() => {
-                      closeMobileSheet();
-                      setTimeout(() => openAddTaskModal(c), 300);
-                    }}
-                  >
-                    <div className="mobile-sheet-action-icon" style={{ backgroundColor: 'rgba(var(--rgb-primary), 0.12)' }}>
-                      <Add size={20} variant="Bold" color="var(--color-primary-text)" />
-                    </div>
-                    <div className="mobile-sheet-action-text">
-                      <span className="mobile-sheet-action-label">Ajouter une tâche</span>
-                      <span className="mobile-sheet-action-sub">Créer et gérer mes tâches</span>
-                    </div>
-                  </button>
-                )}
-
-                {!closed && c.userRole === 'leader' && (
-                  <button
-                    type="button"
-                    className="mobile-sheet-action"
-                    onClick={() => {
-                      closeMobileSheet();
-                      setTimeout(() => openSuggestOrgModal(c), 300);
-                    }}
-                  >
-                    <div className="mobile-sheet-action-icon" style={{ backgroundColor: 'rgba(var(--rgb-warning), 0.12)' }}>
-                      <Buildings2 size={20} variant="Bold" color="var(--color-warning-text)" />
-                    </div>
-                    <div className="mobile-sheet-action-text">
-                      <span className="mobile-sheet-action-label">Suggérer des organisations</span>
-                      <span className="mobile-sheet-action-sub">Inviter d'autres organisations</span>
-                    </div>
-                  </button>
-                )}
-
-                {closed && (
-                  <div className="mobile-sheet-closed-info">
-                    <Lock1 size={20} variant="Bold" color="var(--color-success-text)" />
-                    <span>Cette collaboration est clôturée</span>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                className="mobile-sheet-cancel"
-                onClick={closeMobileSheet}
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Modal Suggérer des organisations */}
-      {suggestOrgModal.open && (() => {
-        const currentCollab = collaborations.find(c => c.id === suggestOrgModal.collabId);
-        const filteredOrgs = AVAILABLE_ORGS.filter(o =>
-          o.name.toLowerCase().includes(suggestSearch.toLowerCase())
-        );
-        return (
-          <div
-            className={`tasks-modal-overlay ${suggestClosing ? 'closing' : ''}`}
-            onClick={closeSuggestOrgModal}
-          >
-            <aside
-              className={`tasks-modal ${suggestClosing ? 'closing' : ''}`}
-              onClick={(e) => e.stopPropagation()}
-              role="dialog"
-            >
-              <header className="tasks-modal-header">
-                <div>
-                  <h3 className="tasks-modal-title">
-                    <Crown1
-                      size={20}
-                      variant="Bold"
-                      color="var(--color-warning-text)"
-                      style={{ marginRight: 6, verticalAlign: 'middle' }}
-                    />
-                    Suggérer des organisations
-                  </h3>
-                  <p className="tasks-modal-subtitle">
-                    {currentCollab?.title}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="tasks-modal-close"
-                  aria-label="Fermer la suggestion d’organisation"
-                  onClick={closeSuggestOrgModal}
-                >
-                  <CloseCircle size={24} variant="Linear" color="var(--color-text-primary)" />
-                </button>
-              </header>
-
-              <div className="tasks-modal-body">
-                {/* Bandeau d'info */}
-                <div className="suggest-info-banner">
-                  <Crown1 size={18} variant="Bold" color="var(--color-warning-text)" />
-                  <span>
-                    En tant que <strong>leader</strong>, vous pouvez suggérer d'autres
-                    organisations et leur attribuer un rôle.
-                  </span>
-                </div>
-
-                {/* Recherche */}
-                <div className="suggest-section">
-                  <label className="suggest-section-label">
-                    Rechercher une organisation
-                  </label>
-                  <div className="suggest-search-wrapper">
-                    <div className="suggest-search">
-                      <SearchNormal1 size={16} variant="Linear" color="var(--color-text-secondary)" />
-                      <input
-                        type="text"
-                        className="suggest-search-input"
-                        placeholder="Tapez le nom d'une organisation..."
-                        value={suggestSearch}
-                        onChange={(e) => setSuggestSearch(e.target.value)}
-                      />
-                      {suggestSearch && (
-                        <button
-                          type="button"
-                          className="suggest-search-clear"
-                          onClick={() => setSuggestSearch('')}
-                        >
-                          <CloseCircle size={16} variant="Linear" color="var(--color-text-secondary)" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Résultats déroulants - uniquement si recherche active */}
-                    {suggestSearch.trim() && (
-                      <div className="suggest-search-results">
-                        {filteredOrgs.filter(o => !suggestedOrgs.find(s => s.id === o.id)).length === 0 ? (
-                          <div className="suggest-search-empty">
-                            <Buildings2 size={20} variant="Linear" color="var(--color-text-muted)" />
-                            <span>Aucune organisation trouvée</span>
-                          </div>
-                        ) : (
-                          filteredOrgs
-                            .filter(o => !suggestedOrgs.find(s => s.id === o.id))
-                            .map(org => (
-                              <button
-                                type="button"
-                                key={org.id}
-                                className="suggest-search-result"
-                                onClick={() => toggleSuggestedOrg(org)}
-                              >
-                                <div
-                                  className="suggest-org-avatar"
-                                  style={{ backgroundColor: org.color }}
-                                >
-                                  {org.initials}
-                                </div>
-                                <span className="suggest-org-name">{org.name}</span>
-                                <Add size={18} variant="Linear" color="var(--color-primary-text)" />
-                              </button>
-                            ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Organisations sélectionnées avec rôles */}
-                <div className="suggest-section">
-                  <label className="suggest-section-label">
-                    <People size={16} variant="Bold" color="var(--color-primary-text)" />
-                    Sélectionnées ({suggestedOrgs.length})
-                  </label>
-
-                  {suggestedOrgs.length === 0 ? (
-                    <div className="suggest-empty">
-                      <People size={28} variant="Linear" color="var(--color-text-muted)" />
-                      <p>Aucune organisation sélectionnée pour le moment.</p>
-                    </div>
-                  ) : (
-                    <div className="suggest-roles-list">
-                      {suggestedOrgs.map(org => {
-                        const currentRole = ROLE_OPTIONS.find(r => r.id === org.role);
-                        return (
-                          <div key={org.id} className="suggest-role-row">
-                            <div className="suggest-role-row-header">
-                              <div className="suggest-role-org">
-                                <div
-                                  className="suggest-org-avatar"
-                                  style={{ backgroundColor: org.color }}
-                                >
-                                  {org.initials}
-                                </div>
-                                <span className="suggest-org-name">{org.name}</span>
-                              </div>
-                              <button
-                                type="button"
-                                className="suggest-remove-btn"
-                                onClick={() => toggleSuggestedOrg(org)}
-                                title="Retirer"
-                              >
-                                <CloseCircle size={18} variant="Linear" color="var(--color-danger-text)" />
-                              </button>
-                            </div>
-
-                            <div className="suggest-role-attribution">
-                              <span className="suggest-role-attribution-label">Rôle :</span>
-                              <div className="role-options">
-                                {ROLE_OPTIONS.map(role => {
-                                  const RoleIcon = role.icon;
-                                  const isRoleSel = org.role === role.id;
-                                  return (
-                                    <button
-                                      type="button"
-                                      key={role.id}
-                                      className={`role-option ${isRoleSel ? 'is-selected' : ''}`}
-                                      onClick={() => updateSuggestedRole(org.id, role.id)}
-                                      style={
-                                        isRoleSel
-                                          ? { borderColor: role.color, color: role.color }
-                                          : {}
-                                      }
-                                    >
-                                      <RoleIcon
-                                        size={12}
-                                        variant={isRoleSel ? 'Bold' : 'Linear'}
-                                        color={isRoleSel ? role.color : 'var(--color-text-secondary)'}
-                                      />
-                                      {role.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {currentRole && (
-                              <p className="suggest-role-desc">
-                                {currentRole.description}
-                              </p>
-                            )}
-
-                            {/* Commentaire par org */}
-                            <div className="suggest-role-comment">
-                              <label className="suggest-role-attribution-label">
-                                <Edit2 size={12} variant="Bold" color="var(--color-primary-text)" />
-                                Commentaire (optionnel)
-                              </label>
-                              <textarea
-                                className="suggest-textarea"
-                                rows={2}
-                                value={org.comment || ''}
-                                onChange={(e) => updateSuggestedComment(org.id, e.target.value)}
-                                placeholder="Pourquoi suggérez-vous cette organisation ?"
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <footer className="tasks-modal-footer">
-                <div className="tasks-footer-actions">
-                  <button
-                    type="button"
-                    className="tasks-footer-close-btn"
-                    onClick={closeSuggestOrgModal}
-                  >
-                    <CloseCircle size={16} variant="Linear" color="currentColor" />
-                    Annuler
-                  </button>
-                  <button
-                    type="button"
-                    className="tasks-close-collab-btn"
-                    onClick={submitSuggestions}
-                    disabled={suggestedOrgs.length === 0}
-                  >
-                    <Buildings2 size={16} variant="Bold" color="var(--color-surface)" />
-                    Envoyer ({suggestedOrgs.length})
-                  </button>
-                </div>
-              </footer>
-            </aside>
-          </div>
-        );
-      })()}
     </div>
   );
 };

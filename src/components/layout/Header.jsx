@@ -1,220 +1,64 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import useSWR from 'swr';
-import { User, Setting2, LogoutCurve, ArrowDown2, Notification, Danger, People, InfoCircle } from 'iconsax-react';
-import notifSound from '../../assets/notif.mp3';
+import { User, Trash, LogoutCurve, ArrowDown2, Notification, Danger, People, InfoCircle } from 'iconsax-react';
 import { authService } from '../../pages/auth/services/authService';
-import { getNotifications, markNotificationAsRead } from './service/notification_service';
+import { useNotifications, getRelativeTime, formatNotificationMessage, cibleNotification } from './useNotifications';
 import { BlurryImage } from '../atoms/BlurryImage';
-import { API_URL_BASE } from '../../config/api_url_base';
 import './header.css';
-import { logger } from '../../utils/logger';
+import { HeaderSearch } from './HeaderSearch';
 
-export const Header = ({ onMenuToggle, user }) => {
+// Pictogrammes au trait de la maquette (18 px, trait 1,8).
+const IconeTrait = ({ children }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+);
+const IconeCloche = () => (
+  <IconeTrait><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10.3 21a2 2 0 0 0 3.4 0" /></IconeTrait>
+);
+const IconeProfil = () => (
+  <IconeTrait><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></IconeTrait>
+);
+const IconeCorbeille = () => (
+  <IconeTrait><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></IconeTrait>
+);
+const IconeSortie = () => (
+  <IconeTrait><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" /></IconeTrait>
+);
+
+const initialesUtilisateur = (u) => {
+  const prenom = (u?.first_name || '').trim();
+  const nom = (u?.last_name || '').trim();
+  const lettres = (prenom[0] || '') + (nom[0] || '');
+  return (lettres || prenom.slice(0, 2) || 'U').toUpperCase();
+};
+
+export const Header = ({ onMenuToggle, onToggleCollapse, actionsContainer = null, user }) => {
   const navigate = useNavigate();
   const currentUser = user || authService.getCurrentUser();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [nextNotificationsUrl, setNextNotificationsUrl] = useState(null);
-  const [isLoadingMoreNotifications, setIsLoadingMoreNotifications] = useState(false);
-  const { data: notificationsData, isLoading: isLoadingNotifications, mutate: mutateNotifications } = useSWR(
-    '/MapApi/notifications/?page_size=15',
-    () => getNotifications(15),
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: true,
-    
-    }
-  );
-
-  const notifications = useMemo(() => {
-    return notificationsData?.results || (Array.isArray(notificationsData) ? notificationsData : []);
-  }, [notificationsData]);
-
-  useEffect(() => {
-  }, [notifications, notificationsData]);
-
-  // Synchroniser nextUrl quand les données SWR changent
-  useEffect(() => {
-    if (notificationsData && notificationsData.next !== undefined) {
-      setNextNotificationsUrl(notificationsData.next);
-    }
-  }, [notificationsData]);
-
-  // Écoute temps réel des notifications via WebSockets
-  useEffect(() => {
-    const wsBaseUrl = window.location.protocol === 'https:' || API_URL_BASE.startsWith('https')
-      ? API_URL_BASE.replace(/^https/, 'wss')
-      : API_URL_BASE.replace(/^http/, 'ws');
-    const token = authService.getAccessToken();
-    const query = token ? `?token=${token}` : '';
-
-    let socket = null;
-    let isCleanedUp = false;
-    let delay = 3000;
-
-    const shouldRetry = (code) => ![1000, 4001, 4003, 4004].includes(code);
-
-    const connect = () => {
-      if (isCleanedUp) return;
-      socket = new WebSocket(`${wsBaseUrl}/ws/notifications/${query}`);
-
-      socket.onopen = () => {
-        delay = 3000;
-      };
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.event === 'notification' || data.message) {
-            // Jouer le son de notification
-            try {
-              const audio = new Audio(notifSound);
-              audio.play().catch(() => {});
-            } catch {
-              // Le son de notification est un confort, pas une fonctionnalite :
-              // le navigateur peut le refuser tant que l'utilisateur n'a pas
-              // interagi avec la page. Echouer ici ne doit rien interrompre.
-            }
-
-            const newNotification = {
-              id: data.id || `notif-${Date.now()}`,
-              title: data.title,
-              type: data.type,
-              incident_title: data.incident_title,
-              message: data.message,
-              read: data.read ?? false,
-              link: data.link,
-              created_at: data.created_at || new Date().toISOString()
-            };
-
-            mutateNotifications(prev => {
-              const list = prev?.results || (Array.isArray(prev) ? prev : []);
-              if (list.some(n => n.id === newNotification.id)) return prev;
-              const sorted = [newNotification, ...list];
-              const currentUnreadCount = prev?.unread_count ?? list.filter(n => !n.read).length;
-              const newUnreadCount = !newNotification.read ? currentUnreadCount + 1 : currentUnreadCount;
-              return Array.isArray(prev) ? sorted : { ...prev, results: sorted, unread_count: newUnreadCount };
-            }, { revalidate: false });
-          }
-        } catch (e) {
-          logger.error('[WS-Notifications] Erreur parsing message:', e);
-        }
-      };
-      socket.onerror = () => socket.close();
-      socket.onclose = (e) => {
-        if (!isCleanedUp && shouldRetry(e.code)) {
-          setTimeout(connect, delay);
-          delay = Math.min(delay * 2, 30000);
-        }
-      };
-    };
-
-    const handleBeforeUnload = () => {
-      isCleanedUp = true;
-      if (socket) {
-        socket.close(1000, "Page unloading");
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    connect();
-
-    return () => {
-      isCleanedUp = true;
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (socket) {
-        socket.close(1000, "Component unmounting");
-      }
-    };
-  }, [mutateNotifications]);
-
-  const handleLoadMoreNotifications = async () => {
-    if (!nextNotificationsUrl || isLoadingMoreNotifications) return;
-    try {
-      setIsLoadingMoreNotifications(true);
-      const data = await getNotifications(nextNotificationsUrl);
-      const results = data.results || [];
-      
-      mutateNotifications(prev => {
-        const list = prev?.results || (Array.isArray(prev) ? prev : []);
-        const merged = [...list];
-        results.forEach(notif => {
-          if (!merged.some(m => m.id === notif.id)) {
-            merged.push(notif);
-          }
-        });
-        const sorted = merged.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        return Array.isArray(prev) ? sorted : { ...prev, results: sorted, next: data.next || null };
-      }, { revalidate: false });
-
-      setNextNotificationsUrl(data.next || null);
-    } catch (error) {
-      logger.error('[HEADER] Erreur chargement notifications supplémentaires:', error);
-    } finally {
-      setIsLoadingMoreNotifications(false);
-    }
-  };
-
-  // Utiliser unread_count de l'API si disponible, sinon calculer localement
-  const unreadCount = notificationsData?.unread_count ?? notifications.filter(n => !n.read).length;
-
-  // Formater le temps relatif
-  const getRelativeTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'À l\'instant';
-    if (diffMins < 60) return `Il y a ${diffMins}min`;
-    if (diffHours < 24) return `Il y a ${diffHours}h`;
-    return `Il y a ${diffDays}j`;
-  };
-
-  const formatNotificationMessage = (msg) => {
-    if (!msg) return '';
-    return msg.replace(/L'organisation None/gi, "Une organisation");
-  };
+  const {
+    notifications,
+    isLoadingNotifications,
+    nextNotificationsUrl,
+    isLoadingMoreNotifications,
+    handleLoadMoreNotifications,
+    unreadCount,
+    marquerLue,
+    handleMarkAllRead,
+  } = useNotifications();
 
   // Marquer une notification comme lue et naviguer
   const handleNotificationClick = async (notification) => {
-    let targetUrl = null;
-    if (notification.link) {
-      if (typeof notification.link === 'object') {
-        targetUrl = notification.link.url;
-      } else if (typeof notification.link === 'string') {
-        try {
-          const parsed = JSON.parse(notification.link);
-          targetUrl = parsed.url;
-        } catch {
-          if (notification.link.startsWith('/')) {
-            targetUrl = notification.link;
-          }
-        }
-      }
-    }
-
+    const targetUrl = cibleNotification(notification);
     if (targetUrl) {
       navigate(targetUrl);
       setShowNotifications(false);
     }
-
-    if (!notification.read) {
-      try {
-        await markNotificationAsRead(notification.id);
-        mutateNotifications(prev => {
-          const list = prev?.results || (Array.isArray(prev) ? prev : []);
-          const updated = list.map(n => n.id === notification.id ? { ...n, read: true } : n);
-          const currentUnreadCount = prev?.unread_count ?? list.filter(n => !n.read).length;
-          const newUnreadCount = Math.max(0, currentUnreadCount - 1);
-          return Array.isArray(prev) ? updated : { ...prev, results: updated, unread_count: newUnreadCount };
-        }, { revalidate: false });
-      } catch (error) {
-        logger.error('[HEADER] Erreur marquage notification:', error);
-      }
-    }
+    await marquerLue(notification);
   };
 
   // Fonction pour obtenir l'icône selon le type de notification
@@ -235,22 +79,9 @@ export const Header = ({ onMenuToggle, user }) => {
     }
   };
 
-  return (
-    <header className="app-header">
-      <div className="header-left">
-        <button
-          className="menu-toggle btn btn-icon"
-          onClick={onMenuToggle}
-          aria-label="Toggle menu"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M3 12h18M3 6h18M3 18h18" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </button>
-
-
-      </div>
-
+  // Cloche et avatar. Le dashboard peut les déplacer en haut du panneau
+  // d'activité (`actionsContainer`), qui monte alors jusqu'en haut de l'écran.
+  const blocDroite = (
       <div className="header-right">
 
 
@@ -260,7 +91,7 @@ export const Header = ({ onMenuToggle, user }) => {
             onClick={() => setShowNotifications(!showNotifications)}
             aria-label="Notifications"
           >
-            <Notification size={24} variant="Outline" />
+            <IconeCloche />
             {unreadCount > 0 && (
               <span className="notification-badge">{unreadCount}</span>
             )}
@@ -270,7 +101,13 @@ export const Header = ({ onMenuToggle, user }) => {
             <div className="notification-menu">
               <div className="notification-menu-header">
                 <h3>Notifications</h3>
-                <span className="notification-count">{unreadCount} non lues</span>
+                {unreadCount > 0 ? (
+                  <button type="button" className="notification-read-all" onClick={handleMarkAllRead}>
+                    Tout marquer comme lu
+                  </button>
+                ) : (
+                  <span className="notification-count">Tout est lu</span>
+                )}
               </div>
 
               <div className="notification-menu-divider"></div>
@@ -348,12 +185,12 @@ export const Header = ({ onMenuToggle, user }) => {
                 />
               ) : (
                 <>
-                  <div style={{ color: "white", fontWeight: "bold" }}>
-                    {currentUser?.first_name?.charAt(0).toUpperCase() || 'U'}
+                  <div style={{ color: "var(--color-surface)", fontWeight: "bold" }}>
+                    {initialesUtilisateur(currentUser)}
                   </div>
 
                   <div className="header-profile-fallback" >
-                    <User size={18} variant="Bold" style={{ fill: "white" }} />
+                    <User size={18} variant="Bold" style={{ fill: "var(--color-surface)" }} />
                   </div>
                 </>
               )}
@@ -379,8 +216,19 @@ export const Header = ({ onMenuToggle, user }) => {
                       navigate('/profile');
                     }}
                   >
-                    <User size={18} variant="Outline" />
+                    <IconeProfil />
                     <span>Mon profil</span>
+                  </button>
+
+                  <button
+                    className="profile-menu-item"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      navigate('/trash');
+                    }}
+                  >
+                    <IconeCorbeille />
+                    <span>Corbeille</span>
                   </button>
 
 
@@ -393,8 +241,8 @@ export const Header = ({ onMenuToggle, user }) => {
                       navigate('/login');
                     }}
                   >
-                    <LogoutCurve size={18} variant="Outline" />
-                    <span>Déconnexion</span>
+                    <IconeSortie />
+                    <span>Se déconnecter</span>
                   </button>
                 </div>
               </div>
@@ -402,6 +250,29 @@ export const Header = ({ onMenuToggle, user }) => {
           </div>
         )}
       </div>
+  );
+
+  return (
+    <header className="app-header">
+      <div className="header-left">
+        <button
+          className={`menu-toggle btn btn-icon ${onToggleCollapse ? 'menu-toggle-desktop' : ''}`}
+          onClick={() => {
+            // Sur desktop, le bouton réduit la navigation ; sur mobile il l'ouvre.
+            if (onToggleCollapse && window.innerWidth >= 1024) onToggleCollapse();
+            else onMenuToggle?.();
+          }}
+          aria-label="Afficher ou réduire la navigation"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M3 12h18M3 6h18M3 18h18" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        <HeaderSearch />
+      </div>
+
+      {actionsContainer ? createPortal(blocDroite, actionsContainer) : blocDroite}
     </header>
   );
 };

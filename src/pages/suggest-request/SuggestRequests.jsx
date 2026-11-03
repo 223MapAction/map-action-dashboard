@@ -1,3 +1,4 @@
+import { ListeATraiter } from '../collaboration/mobile/ListeATraiter';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FiltersBar } from '../../components/molecules/FiltersBar';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -125,7 +126,7 @@ const CardSkeleton = () => (
 
 /* ──────────────────── Main Component ──────────────────── */
 
-export const SuggestRequests = ({ embedded = false }) => {
+export const SuggestRequests = ({ embedded = false, aTraiter = false, filtreTexte = '', onNombre }) => {
   const {
     isOpen: sidebarOpen,
     setOpen: setSidebarOpen,
@@ -793,6 +794,44 @@ export const SuggestRequests = ({ embedded = false }) => {
       )}
     </>
   );
+
+  // Téléphone : seulement ce qui attend une réponse.
+  const elementsATraiter = !aTraiter ? [] : allRequests
+    .filter((r) => r.status === 'pending' && canActOnRequest(r))
+    .map((r) => ({
+      id: r.id,
+      titre: r.projectTitle,
+      type: r.type === 'suggestion' ? 'Suggestion' : 'Invitation',
+      texte: r.type === 'suggestion' ? `${r.suggestedByOrg} vous suggère d'intervenir` : `${r.applicantOrg} vous invite : ${r.role}`,
+      motif: r.suggestionMessage || r.motif,
+      image: r.projectImage ? getStableImageUrl(r.apiId || r.id, r.projectImage) : '',
+      lieu: r.incidentZone,
+      requete: r,
+    }))
+    .filter((el) => !filtreTexte.trim() || `${el.titre} ${el.texte}`.toLowerCase().includes(filtreTexte.trim().toLowerCase()));
+
+  const nbATraiter = elementsATraiter.length;
+  useEffect(() => {
+    if (aTraiter) onNombre?.(isLoading ? null : nbATraiter);
+  }, [aTraiter, isLoading, nbATraiter, onNombre]);
+
+  if (aTraiter) {
+    return (
+      <>
+        <ListeATraiter
+          elements={elementsATraiter}
+          onVoir={setSelectedIncident}
+          onDecider={async (r, action) => {
+            if (action === 'accept') await acceptPartnerSuggestionService(r.incidentId, r.apiId);
+            else await rejectPartnerSuggestionService(r.incidentId, r.apiId);
+            mutateSuggestions();
+            mutateSentSuggestions();
+          }}
+        />
+        {selectedIncident && <RequestIncidentDetailModal incident={selectedIncident} onClose={() => setSelectedIncident(null)} />}
+      </>
+    );
+  }
 
   if (embedded) return content;
 

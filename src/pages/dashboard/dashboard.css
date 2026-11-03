@@ -73,7 +73,7 @@
   /* Sidebar droite fixe */
   .dashboard-sidebar-right {
     display: block;
-    width: 320px;
+    width: 340px;
     background-color: var(--color-surface);
     border-left: 1px solid var(--color-border);
     overflow-y: auto;
@@ -82,6 +82,135 @@
     height: 100vh;
     height: 100dvh;
   }
+}
+
+/* Filtres appliqués à la carte depuis le dashboard */
+.dashboard-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.dashboard-filters-label {
+  font-size: var(--font-size-body-small);
+  color: var(--color-text-secondary);
+}
+
+.dashboard-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 11px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary-surface);
+  color: var(--color-primary-text);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.dashboard-filter-pill button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dashboard-filters-reset {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Panneau d'activité repliable (desktop) */
+@media (min-width: 1024px) {
+  .dashboard-sidebar-right {
+    flex: none;
+    transition: width 0.28s ease;
+  }
+
+  .dashboard-sidebar-right.collapsed {
+    width: 52px;
+    overflow: hidden;
+  }
+}
+
+.activity-rail {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: calc(60px + var(--spacing-4)) 0 var(--spacing-4);
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.activity-rail:hover {
+  background: var(--color-primary-surface);
+  color: var(--color-primary-text);
+}
+
+.activity-rail:focus-visible,
+.activity-collapse-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.activity-rail-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.activity-rail-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.activity-collapse-btn {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.activity-collapse-btn:hover {
+  background: var(--color-primary-surface);
+  color: var(--color-primary-text);
 }
 
 /* ============================================
@@ -236,5 +365,128 @@
   .activity-fab,
   .activity-modal-overlay {
     display: none;
+  }
+}
+
+/* Barres de défilement fines et claires (zone centrale et fil d'activité),
+   au lieu de la barre grise du navigateur collée au panneau d'activité. */
+.dashboard-content,
+.dashboard-sidebar-right,
+.activity-list {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+
+.dashboard-content::-webkit-scrollbar,
+.dashboard-sidebar-right::-webkit-scrollbar,
+.activity-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-content::-webkit-scrollbar-thumb,
+.dashboard-sidebar-right::-webkit-scrollbar-thumb,
+.activity-list::-webkit-scrollbar-thumb {
+  background-color: #CBD5E1;
+  border-radius: 8px;
+}
+
+.dashboard-content::-webkit-scrollbar-track,
+.dashboard-sidebar-right::-webkit-scrollbar-track,
+.activity-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============================================
+   PANNEAU D'ACTIVITÉ PLEINE HAUTEUR (desktop)
+   La cloche et l'avatar quittent l'en-tête pour le haut du panneau ;
+   l'en-tête ne couvre plus que la zone centrale.
+   ============================================ */
+@media (min-width: 1024px) {
+  .dashboard-main .app-header {
+    left: 240px;
+    width: auto;
+    transition: left 0.25s ease, right 0.28s ease;
+  }
+
+  .dashboard-main.sidebar-collapsed .app-header {
+    left: 64px;
+    width: auto;
+  }
+
+  .dashboard-main.feed-ouvert .app-header {
+    right: 340px;
+  }
+
+  .dashboard-main.feed-reduit .app-header {
+    right: 52px;
+  }
+
+  .dashboard-sidebar-right {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    z-index: 101;
+  }
+
+  .feed-actions {
+    flex: none;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 var(--spacing-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .feed-actions:empty {
+    display: none;
+  }
+
+  .feed-actions .header-right {
+    gap: var(--spacing-3);
+  }
+
+  .dashboard-sidebar-right .activity-panel {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .dashboard-sidebar-right .activity-header {
+    margin-top: 0;
+  }
+
+  /* Panneau réduit : cloche et avatar empilés au-dessus du rail. Le
+     débordement reste visible pour que leurs menus déroulants s'affichent. */
+  .dashboard-sidebar-right.collapsed {
+    overflow: visible;
+  }
+
+  .dashboard-sidebar-right.collapsed .feed-actions {
+    height: auto;
+    padding: var(--spacing-3) 0;
+    justify-content: center;
+  }
+
+  .dashboard-sidebar-right.collapsed .feed-actions .header-right {
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  .dashboard-sidebar-right.collapsed .activity-rail {
+    flex: 1;
+    height: auto;
+    padding-top: var(--spacing-4);
+  }
+}
+
+/* L'en-tête est fixe (60 px) : le contenu démarre juste dessous, avec le même
+   espacement de 20 px que la maquette. */
+.dashboard-content {
+  padding-top: calc(60px + var(--spacing-5));
+}
+
+@media (min-width: 768px) {
+  .dashboard-content {
+    padding: calc(60px + var(--spacing-5)) var(--spacing-5) var(--spacing-5);
   }
 }

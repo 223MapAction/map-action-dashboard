@@ -43,6 +43,28 @@ export const getOrganisationMembersService = async (organisationId, search = '',
 };
 
 /**
+ * Récupère TOUS les agents correspondant aux filtres.
+ *
+ * La page découpe elle-même la liste en pages : si l'API pagine sa réponse
+ * (`next`), on suit les pages jusqu'au bout, sinon seuls les premiers agents
+ * s'afficheraient sans qu'aucun message ne le signale.
+ */
+export const getTousLesAgentsService = async (search = '', role = '', status = '', organisationId = null) => {
+    const premiere = await getOrganisationMembersService(organisationId, search, role, status);
+    if (Array.isArray(premiere)) return premiere;
+
+    const membres = [...(premiere?.results || [])];
+    let suivante = premiere?.next;
+    const axios = authService.createAuthenticatedAxios();
+    while (suivante) {
+        const { data } = await axios.get(suivante);
+        membres.push(...(data?.results || []));
+        suivante = data?.next;
+    }
+    return membres;
+};
+
+/**
  * Récupère les statistiques des agents de la plateforme
  * @returns {Promise<Object>} Statistiques {total, active, admins, bureau_agents, field_agents}
  */

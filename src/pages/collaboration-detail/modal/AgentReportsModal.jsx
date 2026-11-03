@@ -1,331 +1,176 @@
 import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { DocumentText, Location, Calendar, CloseSquare } from 'iconsax-react';
+import { DocumentText, Danger } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { getFieldReportsService } from '../../collaboration/service/collaboration_service';
 import { BlurryImage } from '../../../components/atoms/BlurryImage';
-
-import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
+import { Dialogue } from '../../../components/molecules/Dialogue';
 import { ImageViewer } from '../../../components/molecules/ImageViewer';
 import { logger } from '../../../utils/logger';
-const formatDate = (isoString) => {
-  if (!isoString) return 'Non spécifiée';
-  try {
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return isoString;
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch {
-    return isoString;
-  }
+import { IcoRapport, IcoAgrandir } from './icones';
+
+// Une couleur stable par agent : on reconnaît d'un coup d'œil qui est passé.
+const COULEURS_AGENTS = ['#0E7490', '#7C3AED', '#B45309', '#1E78AC', '#BE185D', '#15803D'];
+const couleurAgent = (nom = '') => COULEURS_AGENTS[[...nom].reduce((h, c, i) => h + c.charCodeAt(0) * (i + 1), 0) % COULEURS_AGENTS.length];
+
+// Au-delà de cette distance, l'agent n'était manifestement pas devant le
+// signalement : on le dit plutôt que d'afficher un nombre brut.
+const SEUIL_SUR_PLACE = 50;
+
+const quand = (iso) => {
+  if (!iso) return 'Date inconnue';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const jour = new Date(d); jour.setHours(0, 0, 0, 0);
+  const auj = new Date(); auj.setHours(0, 0, 0, 0);
+  const ecart = Math.round((auj - jour) / 86400000);
+  const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ');
+  if (ecart === 0) return `Aujourd'hui, ${heure}`;
+  if (ecart === 1) return `Hier, ${heure}`;
+  return `${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}, ${heure}`;
 };
 
-export const AgentReportsModal = ({ isOpen, onClose, incidentId, incidentTitle }) => {
-  const [shouldRender, setShouldRender] = useState(isOpen);
-  const [isClosing, setIsClosing] = useState(false);
+const depuis = (iso) => {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (Number.isNaN(min) || min < 0) return '';
+  if (min < 60) return `il y a ${Math.max(min, 1)} min`;
+  if (min < 1440) return `il y a ${Math.floor(min / 60)} h`;
+  return `il y a ${Math.floor(min / 1440)} j`;
+};
 
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      setIsClosing(false);
-    } else {
-      setIsClosing(true);
-      const timer = setTimeout(() => {
-        setShouldRender(false);
-      }, 300); // Matches transition duration
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
+const initiales = (nom = '') => nom.split(/\s+/).filter(Boolean).slice(0, 2).map((m) => m[0].toUpperCase()).join('') || 'AG';
 
-  /** Photo de rapport ouverte en plein écran, ou null. { src, alt } */
+export const AgentReportsModal = ({ isOpen, onClose, incidentId, latitude, longitude }) => {
   const [imageAZoomer, setImageAZoomer] = useState(null);
-  const [reportsList, setReportsList] = useState([]);
-  const [nextUrl, setNextUrl] = useState(null);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [liste, setListe] = useState([]);
+  const [suivante, setSuivante] = useState(null);
+  const [chargeSuite, setChargeSuite] = useState(false);
+  const [avecPhoto, setAvecPhoto] = useState(false);
 
-  const { data: initialData, error, isLoading } = useSWR(
+  const { data, error, isLoading } = useSWR(
     isOpen && incidentId ? `field-reports-${incidentId}` : null,
     () => getFieldReportsService({ incident_id: incidentId, page_size: 10 }),
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false },
   );
 
-  // Initialiser ou réinitialiser les états locaux
   useEffect(() => {
-    if (initialData) {
-      const results = initialData.results || [];
-      setReportsList(results);
-      setNextUrl(initialData.next || null);
-    }
-  }, [initialData]);
+    if (!data) return;
+    setListe(data.results || []);
+    setSuivante(data.next || null);
+  }, [data]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setReportsList([]);
-      setNextUrl(null);
-    }
-  }, [isOpen]);
-
-  const loadMore = async () => {
-    if (!nextUrl || isLoadingMore) return;
-    setIsLoadingMore(true);
+  const plus = async () => {
+    if (!suivante || chargeSuite) return;
+    setChargeSuite(true);
     try {
-      const data = await getFieldReportsService({ url: nextUrl });
-      if (data) {
-        const newResults = data.results || [];
-        setReportsList(prev => [...prev, ...newResults]);
-        setNextUrl(data.next || null);
-      }
+      const page = await getFieldReportsService({ url: suivante });
+      setListe((l) => [...l, ...(page?.results || [])]);
+      setSuivante(page?.next || null);
     } catch (err) {
       logger.error('[AgentReportsModal] Erreur chargement rapports:', err);
     } finally {
-      setIsLoadingMore(false);
+      setChargeSuite(false);
     }
   };
 
-  const handleClose = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      onClose();
-    }, 250);
-  };
+  if (!isOpen) return null;
 
-  if (!shouldRender) return null;
-
-
-
-  const displayedReports = (reportsList || []).filter(report => {
-    const reportIncidentId = report.incident ?? report.incident_id;
-    if (reportIncidentId === undefined || reportIncidentId === null) return false;
-    return String(reportIncidentId).toLowerCase() === String(incidentId).toLowerCase();
+  // L'API renvoie parfois des rapports d'autres signalements : on ne garde que les siens.
+  const rapports = liste.filter((r) => {
+    const id = r.incident ?? r.incident_id;
+    return id !== undefined && id !== null && String(id).toLowerCase() === String(incidentId).toLowerCase();
   });
+  const nbPhotos = rapports.filter((r) => r.photo).length;
+  const affiches = avecPhoto ? rapports.filter((r) => r.photo) : rapports;
+  const dernier = rapports[0]?.visited_at || rapports[0]?.created_at;
 
   return (
-    <OffcanvasModal
-      onClose={handleClose}
-      isClosing={isClosing}
-      title="Rapports des agents"
-      subtitle={incidentTitle || `Incident #${incidentId}`}
-      ariaLabel="Liste des rapports de terrain des agents"
-      closeVariant="plain"
+    <Dialogue
+      onClose={onClose}
+      taille="lg"
+      titre="Rapports de terrain"
+      sousTitre="Les visites des agents sur place, de la plus récente à la plus ancienne"
+      icone={<IcoRapport />}
+      barre={rapports.length > 0 ? (
+        <>
+          <div className="dg-segment" role="group" aria-label="Filtrer les rapports">
+            <button type="button" aria-pressed={!avecPhoto} onClick={() => setAvecPhoto(false)}>Tous · {rapports.length}</button>
+            <button type="button" aria-pressed={avecPhoto} onClick={() => setAvecPhoto(true)} disabled={!nbPhotos}>Avec photo · {nbPhotos}</button>
+          </div>
+          {dernier && <span>Dernière visite {depuis(dernier)}</span>}
+        </>
+      ) : null}
+      pied={({ close }) => (
+        <>
+          {suivante ? (
+            <button type="button" className="dg-btn dg-btn-texte" onClick={plus} disabled={chargeSuite}>
+              {chargeSuite ? <><span className="dg-spin" aria-hidden="true" />Chargement…</> : 'Charger les plus anciens'}
+            </button>
+          ) : <span className="dg-pied-info">{rapports.length ? 'Tous les rapports sont affichés' : ''}</span>}
+          <span className="dg-espace" />
+          <button type="button" className="dg-btn dg-btn-g" onClick={close}>Fermer</button>
+        </>
+      )}
     >
-
-        {/* ── Body ───────────────────────────────────────── */}
-        <div className="am-offcanvas-body">
-          {isLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '16px',
-                    backgroundColor: 'var(--color-surface)',
-                    gap: '12px',
-                    boxShadow: 'var(--shadow-sm)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div style={{ marginRight: '12px', flexShrink: 0 }}>
-                      <ShimmerThumbnail height={40} width={40} rounded />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ width: '50%', height: '16px', marginBottom: '6px' }}>
-                        <ShimmerThumbnail height={16} rounded />
-                      </div>
-                      <div style={{ width: '30%', height: '12px' }}>
-                        <ShimmerThumbnail height={12} rounded />
-                      </div>
-                    </div>
+      {isLoading ? (
+        <div className="ar-fil" aria-busy="true">
+          {[0, 1, 2].map((n) => (
+            <div key={n} className="ar-item"><ShimmerThumbnail height={34} width={34} rounded /><div><ShimmerText line={3} gap={8} /></div></div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="dg-alerte dg-alerte-ko" role="alert">
+          <Danger size={18} variant="Bold" color="currentColor" />
+          <span>Les rapports n'ont pas pu être chargés. Vérifiez votre connexion puis rouvrez cette fenêtre.</span>
+        </div>
+      ) : rapports.length === 0 ? (
+        <div className="ar-vide">
+          <span className="ar-vide-ic"><DocumentText size={24} variant="Bold" color="currentColor" /></span>
+          <b>Aucune visite pour l'instant</b>
+          <p>Les rapports des agents apparaîtront ici dès leur premier passage sur place, avec leurs notes et leurs photos.</p>
+        </div>
+      ) : (
+        <ol className="ar-fil">
+          {affiches.map((r) => {
+            const distance = Number(r.distance_meters);
+            const surPlace = Number.isFinite(distance) && distance <= SEUIL_SUR_PLACE;
+            const lat = r.location_lat ?? latitude;
+            const lon = r.location_lon ?? longitude;
+            return (
+              <li key={r.id} className="ar-item">
+                <span className="ar-av" style={{ backgroundColor: couleurAgent(r.agent_name) }} aria-hidden="true">{initiales(r.agent_name)}</span>
+                <div className="ar-contenu">
+                  <div className="ar-tete">
+                    <b>{r.agent_name || 'Agent de terrain'}</b>
+                    <time dateTime={r.visited_at || r.created_at}>{quand(r.visited_at || r.created_at)}</time>
                   </div>
-                  <div style={{ marginTop: '8px' }}>
-                    <ShimmerText line={2} gap={8} />
+                  {r.notes && <p className="ar-notes">{r.notes}</p>}
+                  {r.photo && (
+                    <button type="button" className="ar-photo" onClick={() => setImageAZoomer({ src: r.photo, alt: `Photo de ${r.agent_name || "l'agent"}` })} aria-label={`Agrandir la photo de ${r.agent_name || "l'agent"}`}>
+                      <BlurryImage src={r.photo} alt="" />
+                      <span><IcoAgrandir />Agrandir</span>
+                    </button>
+                  )}
+                  <div className="ar-tags">
+                    {Number.isFinite(distance) && (
+                      <span className={`ar-tag ${surPlace ? 'is-ok' : 'is-loin'}`}>
+                        <i aria-hidden="true" />{surPlace ? 'Sur place' : 'À distance'} · {Math.round(distance)} m
+                      </span>
+                    )}
+                    {r.incident_zone && <span className="ar-tag">{r.incident_zone}</span>}
+                    {lat && lon && (
+                      <a className="ar-tag ar-lien" href={`https://www.google.com/maps?q=${lat},${lon}`} target="_blank" rel="noreferrer">Voir sur la carte</a>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : error ? (
-            <div className="d-flex flex-column align-items-center justify-content-center p-5 border rounded bg-light text-center" style={{ gap: '12px' }}>
-              <CloseSquare size={48} variant="Linear" color="var(--color-danger)" />
-              <div>
-                <span className="fw-semibold d-block" style={{ fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)' }}>
-                  Erreur de chargement
-                </span>
-                <span className="text-muted d-block mt-1" style={{ fontSize: 'var(--font-size-caption)' }}>
-                  Une erreur est survenue lors de la récupération des rapports de terrain.
-                </span>
-              </div>
-            </div>
-          ) : displayedReports.length === 0 ? (
-            <div className="d-flex flex-column align-items-center justify-content-center p-5 border rounded bg-light text-center" style={{ gap: '12px', borderStyle: 'dashed' }}>
-              <DocumentText size={48} variant="Linear" color="var(--color-text-muted)" />
-              <div>
-                <span className="fw-semibold d-block" style={{ fontSize: 'var(--font-size-body)', color: 'var(--color-text-primary)' }}>
-                  Aucun rapport disponible
-                </span>
-                <span className="text-muted d-block mt-1" style={{ fontSize: 'var(--font-size-caption)' }}>
-                  Aucun rapport de terrain n'a encore été remonté pour cet incident.
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="incidents-reports-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 'var(--font-size-body-small)', fontWeight: '600', color: 'var(--color-text-secondary)' }}>
-                  {displayedReports.length} rapport(s) de terrain trouvé(s)
-                </span>
-              </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {displayedReports.map((report) => (
-                  <div
-                    key={report.id}
-                    className="incidents-report-item"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '16px',
-                      backgroundColor: 'var(--color-surface)',
-                      gap: '12px',
-                      boxShadow: 'var(--shadow-sm)'
-                    }}
-                  >
-                    {/* Header: Agent info */}
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: '600', color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {report.agent_name || 'Agent de terrain'}
-                        </div>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {formatDate(report.visited_at || report.created_at)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notes */}
-                    {report.notes && (
-                      <div style={{
-                        padding: '12px',
-                        backgroundColor: 'var(--color-background)',
-                        borderRadius: '8px',
-                        borderLeft: '3px solid var(--color-primary)',
-                        fontSize: 'var(--font-size-body)',
-                        color: 'var(--color-text-secondary)',
-                        lineHeight: '1.6'
-                      }}>
-                        {report.notes}
-                      </div>
-                    )}
-
-                    {/* Metadata */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px dashed var(--color-border)', paddingTop: '10px', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)' }}>
-                      {report.incident_zone && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Location size={14} variant="Bold" color="var(--color-text-secondary)" />
-                          <span style={{ fontWeight: '500' }}>Zone : {report.incident_zone}</span>
-                        </div>
-                      )}
-
-                      {report.location_lat && report.location_lon && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Location size={14} variant="Bold" color="var(--color-text-secondary)" />
-                          <span style={{ fontWeight: '500' }}>
-                            Coordonnées : {parseFloat(report.location_lat).toFixed(4)}°, {parseFloat(report.location_lon).toFixed(4)}°
-                          </span>
-                        </div>
-                      )}
-
-                      {report.distance_meters && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--color-text-muted)' }}>Précision de localisation :</span>
-                          <span style={{ fontWeight: '500' }}>± {report.distance_meters}m de l'incident</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Report Image */}
-                    {report.photo && (
-                      <div style={{
-                        width: '100%',
-                        maxHeight: '220px',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        marginTop: '4px',
-                        border: '1px solid var(--color-border)'
-                      }}>
-                        <BlurryImage
-                          src={report.photo}
-                          alt="Preuve du rapport"
-                          onClick={() => setImageAZoomer({
-                            src: report.photo,
-                            alt: 'Preuve du rapport',
-                          })}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {nextUrl && (
-                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-link"
-                      onClick={loadMore}
-                      disabled={isLoadingMore}
-
-                    >
-                      {isLoadingMore ? (
-                        <>
-                          <span className="am-spinner" style={{ width: '12px', height: '12px', border: '2px solid var(--color-border)', borderTopColor: 'var(--color-primary)' }} />
-                          Chargement...
-                        </>
-                      ) : (
-                        'Afficher plus'
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Footer ─────────────────────────────────────── */}
-        <div className="am-offcanvas-footer">
-          <button
-            type="button"
-            className="am-btn am-btn--outline w-full"
-            onClick={handleClose}
-          >
-            Fermer
-          </button>
-        </div>
-
-        {/* La visionneuse se rend dans un portail, au-dessus de cette modale. */}
-        {imageAZoomer && (
-          <ImageViewer
-            src={imageAZoomer.src}
-            alt={imageAZoomer.alt}
-            onClose={() => setImageAZoomer(null)}
-          />
-        )}
-      </OffcanvasModal>
+      {imageAZoomer && <ImageViewer src={imageAZoomer.src} alt={imageAZoomer.alt} onClose={() => setImageAZoomer(null)} />}
+    </Dialogue>
   );
 };
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useSidebarState } from '../../hooks/useSidebarState';
 import { Header, Sidebar } from '../../components/layout';
 import { IncidentDetail } from './components/IncidentDetail/IncidentDetail';
+import { useEstTelephone } from './mobile/useEstTelephone';
 import './incident.css';
 
 export const IncidentDetailPage = () => {
@@ -10,6 +11,7 @@ export const IncidentDetailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const incidentFromState = location.state?.incident;
+  const estTelephone = useEstTelephone();
   const {
     isOpen: sidebarOpen,
     setOpen: setSidebarOpen,
@@ -28,18 +30,23 @@ export const IncidentDetailPage = () => {
 
   return (
     <div className="incident-page">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
-      />
+      {/* Sur téléphone, l'écran est poussé : ni en-tête ni barre d'onglets. */}
+      {!estTelephone && (
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          isCollapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
+      )}
 
       <div className={`incident-page-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          sidebarCollapsed={sidebarCollapsed}
-        />
+        {!estTelephone && (
+          <Header
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            sidebarCollapsed={sidebarCollapsed}
+          />
+        )}
 
         <div className="incident-workspace">
           {/* On rend le composant détail existant. Il gère déjà useSWR pour charger ses données. */}

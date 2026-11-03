@@ -49,6 +49,14 @@ export function useDiscussion(incidentId) {
   const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
   const messagesContainerRef = useRef(null);
 
+  // Défile la liste des messages, et elle seule. scrollIntoView remontait aussi
+  // les ancêtres défilables : depuis que la page entière défile, chaque nouveau
+  // message faisait sauter la page vers le bas de la discussion.
+  const defilerEnBas = () => {
+    const liste = messagesContainerRef.current;
+    if (liste) liste.scrollTo({ top: liste.scrollHeight, behavior: 'smooth' });
+  };
+
   // Référence pour éviter les stale closures dans les effets
   const allMessagesRef = useRef([]);
   // Drapeau: true quand on ajoute des messages anciens en haut (ne pas scroller en bas)
@@ -93,7 +101,7 @@ export function useDiscussion(incidentId) {
 
       // Scroller vers le bas après le chargement initial
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        defilerEnBas();
       }, 100);
     } else {
       // Mise à jour WebSocket : ajouter seulement les nouveaux messages
@@ -108,7 +116,7 @@ export function useDiscussion(incidentId) {
         });
 
         setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          defilerEnBas();
         }, 100);
       }
     }
@@ -199,7 +207,7 @@ export function useDiscussion(incidentId) {
       isPrependingRef.current = false;
       return;
     }
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    defilerEnBas();
   }, [messages?.length]);
 
   const handleFileSelect = (e) => {
@@ -375,7 +383,7 @@ export function useDiscussion(incidentId) {
       }
 
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        defilerEnBas();
       }, 100);
     } catch (err) {
       logger.error('[sendMessage] Erreur envoi message:', err);

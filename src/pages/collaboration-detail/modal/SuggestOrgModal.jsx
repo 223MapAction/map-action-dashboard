@@ -1,21 +1,26 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import useSWRInfinite from 'swr/infinite';
 import debounce from 'lodash.debounce';
+import { TickCircle, Danger } from 'iconsax-react';
 import { useCollaborationDetail } from '../context/collaborationDetailContexte';
-import {
-  CloseCircle,
-  Crown1,
-  SearchNormal1,
-  Buildings2,
-  Add,
-  People,
-  Edit2,
-  TickCircle
-} from 'iconsax-react';
 import { getOtherOrganisationsService } from '../service/collab_detail_service';
-
-import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
+import { Dialogue } from '../../../components/molecules/Dialogue';
 import { AVATAR_COULEUR_DEFAUT } from '../../../utils/couleursAvatar';
+import { IcoInviter, IcoCroix, IcoInfo, IcoLoupe } from './icones';
+
+const PAGE = 10;
+
+const initiales = (org) => (org.acronym || org.name || 'OR').substring(0, 2).toUpperCase();
+const couleur = (org) => org.primary_color || AVATAR_COULEUR_DEFAUT;
+
+const Avatar = ({ org }) => (
+  <span className="so-av" style={{ backgroundColor: couleur(org) }} aria-hidden="true">{initiales(org)}</span>
+);
+
+/**
+ * Inviter (leader) ou suggérer (contributeur) des organisations partenaires.
+ * Le leader invite directement ; un contributeur propose, le leader tranche.
+ */
 export const SuggestOrgModal = () => {
   const {
     collaboration,
@@ -32,414 +37,253 @@ export const SuggestOrgModal = () => {
     suggestSubmitting,
     handleSuggestSubmit,
     ROLE_OPTIONS,
-    AVAILABLE_ORGS
   } = useCollaborationDetail();
 
-  const bodyRef = useRef(null);
-  const searchWrapperRef = useRef(null);
-  const pageSize = 10;
+  const zoneRef = useRef(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [listeOuverte, setListeOuverte] = useState(false);
+  // Les explications manquantes ne s'affichent en erreur qu'après une tentative
+  // d'envoi : signaler un champ vide qu'on n'a pas encore eu le temps de remplir
+  // est une réprimande, pas une aide.
+  const [tentative, setTentative] = useState(false);
 
-  // Debounce de la recherche : ne fait QUE mettre à jour la valeur débouncée.
-  // Le reset de pagination est géré par useSWRInfinite (voir setSize plus bas).
-  const debouncedSetSearch = useMemo(
-    () => debounce((value) => {
-      setDebouncedSearch(value);
-    }, 300),
-    []
-  );
-
+  const debouncedSetSearch = useMemo(() => debounce((v) => setDebouncedSearch(v), 300), []);
   useEffect(() => {
     debouncedSetSearch(suggestSearch);
-    return () => {
-      debouncedSetSearch.cancel();
-    };
+    return () => debouncedSetSearch.cancel();
   }, [suggestSearch, debouncedSetSearch]);
 
-  // --- Récupération paginée + recherche via useSWRInfinite ---
-  // getKey retourne la clé de chaque page. Elle inclut `debouncedSearch`,
-  // donc un changement de recherche invalide automatiquement toutes les pages.
-  const getKey = useCallback(
-    (pageIndex, previousPageData) => {
-      // Modale fermée : aucune requête. Le `return null` du rendu n'empêche pas
-      // les hooks de tourner, la liste se chargeait donc en pure perte.
-      if (!showSuggestModal) return null;
-      // On a atteint la fin : plus de page suivante.
-      if (previousPageData && !previousPageData.next) return null;
-      // Sinon on demande la page suivante (pageIndex commence à 0).
-      return ['other-organisations', debouncedSearch, pageIndex + 1];
-    },
-    [showSuggestModal, debouncedSearch]
-  );
+  // Modale fermée : aucune requête. Le `return null` du rendu n'empêche pas
+  // les hooks de tourner, la liste se chargeait donc en pure perte.
+  const getKey = useCallback((index, precedente) => {
+    if (!showSuggestModal) return null;
+    if (precedente && !precedente.next) return null;
+    return ['other-organisations', debouncedSearch, index + 1];
+  }, [showSuggestModal, debouncedSearch]);
 
-  const fetcher = useCallback(([, search, pageNumber]) => {
-    const params = { page: pageNumber, page_size: pageSize };
-    if (search.trim()) {
-      params.search = search.trim();
-    }
+  const fetcher = useCallback(([, recherche, page]) => {
+    const params = { page, page_size: PAGE };
+    if (recherche.trim()) params.search = recherche.trim();
     return getOtherOrganisationsService(params);
   }, []);
 
-  const {
-    data: pages,
-    error: orgsError,
-    size,
-    setSize,
-    isLoading: orgsLoading,
-    isValidating
-  } = useSWRInfinite(getKey, fetcher, {
+  const { data: pages, error, size, setSize, isLoading, isValidating } = useSWRInfinite(getKey, fetcher, {
     revalidateOnFocus: false,
-    revalidateFirstPage: false, // évite de re-fetch la page 1 à chaque "charger plus"
-    keepPreviousData: true
+    revalidateFirstPage: false,
+    keepPreviousData: true,
   });
 
-  // Réinitialise la pagination à la page 1 dès qu'une nouvelle recherche démarre.
-  useEffect(() => {
-    setSize(1);
-  }, [debouncedSearch, setSize]);
+  useEffect(() => { setSize(1); }, [debouncedSearch, setSize]);
 
-  // Aplatit toutes les pages en une seule liste, en dédupliquant par id (sécurité).
   const organisations = useMemo(() => {
-    if (!pages) return [];
-    const seen = new Set();
-    const flat = [];
-    for (const pg of pages) {
-      for (const org of pg?.results ?? []) {
-        if (!seen.has(org.id)) {
-          seen.add(org.id);
-          flat.push(org);
-        }
-      }
-    }
-    return flat;
+    const vus = new Set();
+    return (pages || []).flatMap((p) => p?.results ?? []).filter((o) => !vus.has(o.id) && vus.add(o.id));
   }, [pages]);
 
-  const lastPage = pages?.[pages.length - 1];
-  const hasMore = Boolean(lastPage?.next);
-  const isInitialLoading = orgsLoading && !pages;
-  const isLoadingMore =
-    orgsLoading || (size > 0 && pages && typeof pages[size - 1] === 'undefined');
+  const encore = Boolean(pages?.[pages.length - 1]?.next);
+  const chargementInitial = isLoading && !pages;
+  const chargementSuite = isLoading || (size > 0 && pages && typeof pages[size - 1] === 'undefined');
 
-  const loadMore = useCallback(() => {
-    if (hasMore && !isValidating) {
-      setSize((prev) => prev + 1);
-    }
-  }, [hasMore, isValidating, setSize]);
-
+  // Fermer la liste au clic hors de la zone de recherche (pas au blur : sinon
+  // « Afficher plus », qui prend le focus, refermait la liste).
   useEffect(() => {
-    if (suggestAlert?.message && bodyRef.current) {
-      bodyRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [suggestAlert?.message]);
+    if (!listeOuverte) return undefined;
+    const dehors = (e) => { if (zoneRef.current && !zoneRef.current.contains(e.target)) setListeOuverte(false); };
+    document.addEventListener('mousedown', dehors);
+    return () => document.removeEventListener('mousedown', dehors);
+  }, [listeOuverte]);
 
-  const getOrgInitials = (org) => {
-    if (org.acronym) return org.acronym.substring(0, 2).toUpperCase();
-    return org.name ? org.name.substring(0, 2).toUpperCase() : 'OR';
-  };
-
-  const getOrgColor = (org) => {
-    return org.primary_color || AVATAR_COULEUR_DEFAUT;
-  };
-
-  // Sélection d'une organisation : on l'ajoute, on vide la recherche
-  // et on referme la liste déroulante.
-  const handleSelectOrg = (org) => {
-    toggleSuggestedOrg(org);
-    setSuggestSearch('');
-    setShowDropdown(false);
-  };
-
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  // Ferme la liste UNIQUEMENT lors d'un clic réellement en dehors du bloc
-  // recherche. On n'utilise plus onBlur sur l'input : sinon un clic sur
-  // "Afficher plus" (qui fait perdre le focus à l'input) refermait la liste.
-  useEffect(() => {
-    if (!showDropdown) return;
-    const handlePointerDown = (event) => {
-      if (searchWrapperRef.current && !searchWrapperRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
+  // Les organisations qui agissent déjà sur ce signalement.
+  const dejaLa = useMemo(() => {
+    const acting = collaboration?.incidentDetails?.acting_organisations || [];
+    return {
+      ids: new Set(acting.map((o) => String(o.id ?? o.organisation_id ?? '')).filter(Boolean)),
+      noms: new Set(acting.map((o) => (o.name || '').toLowerCase()).filter(Boolean)),
     };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [showDropdown]);
+  }, [collaboration]);
+  const estDejaLa = (org) => dejaLa.ids.has(String(org.id)) || dejaLa.noms.has((org.name || '').toLowerCase());
 
   if (!showSuggestModal) return null;
 
-  const selectableOrgs = organisations.filter(
-    (o) => !suggestedOrgs.find((s) => s.id === o.id)
-  );
+  const estLeader = collaboration?.role === 'leader' || collaboration?.userRole === 'leader';
+  const choisies = new Set(suggestedOrgs.map((o) => o.id));
+  const resultats = organisations.filter((o) => !choisies.has(o.id));
+  const manquantes = suggestedOrgs.filter((o) => !(o.comment || '').trim());
+  const nb = suggestedOrgs.length;
+
+  const choisir = (org) => {
+    toggleSuggestedOrg(org);
+    setSuggestSearch('');
+    setListeOuverte(false);
+    // Le focus va au champ d'explication de l'organisation qu'on vient d'ajouter.
+    setTimeout(() => document.getElementById(`motif-${org.id}`)?.focus(), 30);
+  };
+
+  const envoyer = () => {
+    if (manquantes.length) {
+      setTentative(true);
+      document.getElementById(`motif-${manquantes[0].id}`)?.focus();
+      return;
+    }
+    handleSuggestSubmit();
+  };
+
+  const verbe = estLeader ? 'Envoyer' : 'Suggérer';
+  const libelleEnvoi = nb > 1 ? `${verbe} ${nb} ${estLeader ? 'invitations' : 'organisations'}` : `${verbe} ${estLeader ? "l'invitation" : "l'organisation"}`;
 
   return (
-    <OffcanvasModal
+    <Dialogue
       onClose={closeSuggestModal}
-      isClosing={Boolean(suggestModalClosing)}
-      title={collaboration?.role == "leader" ? "Inviter des organisations" : "Suggérer des organisations"}
-      subtitle={collaboration?.title}
-      ariaLabel={collaboration?.role == "leader" ? "Inviter des organisations" : "Suggérer des organisations"}
-      closeVariant="plain"
-    >
-
-        <div className="am-offcanvas-body" ref={bodyRef}>
-          {/* Alerte de retour */}
-          {suggestAlert && (
-            <div className={`am-alert am-alert--${suggestAlert.type === 'success' ? 'success' : 'danger'}`} role="alert" style={{ marginBottom: 'var(--spacing-4)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {suggestAlert.type === 'success' ? (
-                <TickCircle size={18} variant="Bold" color="var(--color-success)" style={{ flexShrink: 0 }} />
-              ) : (
-                <CloseCircle size={18} variant="Bold" color="var(--color-danger)" style={{ flexShrink: 0 }} />
-              )}
-              <span className="am-alert__message" style={{ margin: 0 }}>{suggestAlert.message}</span>
-            </div>
-          )}
-          {/* Bandeau d'info */}
-          <div className="suggest-info-banner">
-            <Crown1 size={18} variant="Bold" color="var(--color-warning-text)" />
-            <span>
-              En tant que <strong>{collaboration.role == "leader" ? "Leader" : "Contributeur"}</strong>, vous pouvez
-              {collaboration?.role == "leader" ? "inviter des organisations" : "suggérer des organisations"}
-
-              et leur attribuer un rôle.
+      enFermeture={Boolean(suggestModalClosing)}
+      verrouille={suggestSubmitting}
+      taille="lg"
+      titre={estLeader ? 'Inviter des organisations' : 'Suggérer des organisations'}
+      sousTitre={estLeader
+        ? "Vous êtes leader : l'invitation part directement à l'organisation."
+        : 'Vos suggestions sont transmises au leader, qui décide de les inviter.'}
+      icone={<IcoInviter />}
+      pied={(
+        <>
+          {tentative && manquantes.length > 0 ? (
+            <span className="dg-pied-info is-ko" role="status">
+              <IcoInfo />
+              Il manque {manquantes.length} explication{manquantes.length > 1 ? 's' : ''}
             </span>
-          </div>
+          ) : (
+            <span className="dg-pied-info">{nb ? `${nb} organisation${nb > 1 ? 's' : ''} sélectionnée${nb > 1 ? 's' : ''}` : 'Recherchez une organisation pour commencer'}</span>
+          )}
+          <button type="button" className="dg-btn dg-btn-g" onClick={closeSuggestModal} disabled={suggestSubmitting}>Annuler</button>
+          <button type="button" className="dg-btn dg-btn-p" onClick={envoyer} disabled={nb === 0 || suggestSubmitting}>
+            {suggestSubmitting ? <><span className="dg-spin" aria-hidden="true" />Envoi…</> : libelleEnvoi}
+          </button>
+        </>
+      )}
+    >
+      {suggestAlert && (
+        <div
+          className={`dg-alerte ${suggestAlert.type === 'success' ? 'dg-alerte-ok' : suggestAlert.type === 'warning' ? 'dg-alerte-warn' : 'dg-alerte-ko'}`}
+          role={suggestAlert.type === 'success' ? 'status' : 'alert'}
+        >
+          {suggestAlert.type === 'success' ? <TickCircle size={18} variant="Bold" color="currentColor" /> : <Danger size={18} variant="Bold" color="currentColor" />}
+          <span>{suggestAlert.message}</span>
+        </div>
+      )}
 
-          {/* Recherche */}
-          <div className="suggest-section">
-            <label className="suggest-section-label">
-              Rechercher une organisation
-            </label>
-            <div className="suggest-search-wrapper" ref={searchWrapperRef}>
-              <div className="suggest-search">
-                <SearchNormal1 size={16} variant="Linear" color="var(--color-text-secondary)" />
-                <input
-                  type="text"
-                  className="suggest-search-input"
-                  placeholder="Tapez le nom d'une organisation..."
-                  value={suggestSearch}
-                  onChange={(e) => { setSuggestSearch(e.target.value); setShowDropdown(true); }}
-                  onFocus={() => setShowDropdown(true)}
-                />
-                {suggestSearch && (
+      <div className="so-recherche" ref={zoneRef}>
+        <label className="so-champ">
+          <IcoLoupe />
+          <input
+            data-autofocus
+            type="search"
+            placeholder="Nom ou sigle de l'organisation"
+            aria-label="Rechercher une organisation"
+            aria-expanded={listeOuverte}
+            aria-controls="so-resultats"
+            value={suggestSearch}
+            onChange={(e) => { setSuggestSearch(e.target.value); setListeOuverte(true); }}
+            onFocus={() => setListeOuverte(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                zoneRef.current?.querySelector('.so-option:not([aria-disabled="true"])')?.focus();
+              }
+            }}
+          />
+          {suggestSearch && (
+            <button type="button" className="dg-ico" onClick={() => setSuggestSearch('')} aria-label="Effacer la recherche">
+              <IcoCroix taille={15} />
+            </button>
+          )}
+        </label>
+
+        {listeOuverte && (
+          <div id="so-resultats" className="so-resultats" role="listbox" aria-label="Organisations trouvées">
+            {chargementInitial ? (
+              <p className="so-vide"><span className="dg-spin" aria-hidden="true" />Recherche…</p>
+            ) : error ? (
+              <p className="so-vide is-ko">La liste n'a pas pu être chargée. Réessayez dans un instant.</p>
+            ) : resultats.length === 0 ? (
+              <p className="so-vide">{suggestSearch ? `Aucune organisation pour « ${suggestSearch} »` : 'Aucune autre organisation disponible'}</p>
+            ) : (
+              resultats.map((org) => {
+                const present = estDejaLa(org);
+                return (
                   <button
+                    key={org.id}
                     type="button"
-                    className="suggest-search-clear"
-                    onClick={() => { setSuggestSearch(''); setShowDropdown(false); }}
+                    role="option"
+                    aria-selected="false"
+                    aria-disabled={present}
+                    className="so-option"
+                    onClick={() => !present && choisir(org)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') { e.preventDefault(); e.currentTarget.nextElementSibling?.focus(); }
+                      if (e.key === 'ArrowUp') { e.preventDefault(); (e.currentTarget.previousElementSibling || zoneRef.current?.querySelector('input'))?.focus(); }
+                    }}
                   >
-                    <CloseCircle size={16} variant="Linear" color="var(--color-text-secondary)" />
+                    <Avatar org={org} />
+                    <span className="so-nom">{org.name}</span>
+                    {present ? <span className="so-tag">Déjà dans la collaboration</span> : <span className="so-ajout">Ajouter</span>}
                   </button>
-                )}
-              </div>
+                );
+              })
+            )}
+            {encore && !chargementInitial && !error && (
+              <button type="button" className="so-plus" onClick={() => !isValidating && setSize((s) => s + 1)} disabled={chargementSuite}>
+                {chargementSuite ? <><span className="dg-spin" aria-hidden="true" />Chargement…</> : "Afficher plus d'organisations"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
-              {/* Résultats déroulants */}
-              {showDropdown && (
-                <div
-                  className="suggest-search-results"
-                  style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-                >
-                  {/* Zone SCROLLABLE : seule la liste défile ici */}
-                  <div
-                    className="suggest-search-results-scroll"
-                    style={{ overflowY: 'auto', maxHeight: '300px' }}
-                  >
-                    {isInitialLoading ? (
-                      <div className="suggest-search-empty">
-                        <span>Chargement...</span>
-                      </div>
-                    ) : orgsError ? (
-                      <div className="suggest-search-empty">
-                        <Buildings2 size={20} variant="Linear" color="var(--color-danger-text)" />
-                        <span>Erreur de chargement</span>
-                      </div>
-                    ) : selectableOrgs.length === 0 ? (
-                      <div className="suggest-search-empty">
-                        <Buildings2 size={20} variant="Linear" color="var(--color-text-muted)" />
-                        <span>Aucune organisation disponible</span>
-                      </div>
-                    ) : (
-                      selectableOrgs.map(org => (
-                        <button
-                          type="button"
-                          key={org.id}
-                          className="suggest-search-result"
-                          onClick={() => handleSelectOrg(org)}
-                        >
-                          <div
-                            className="suggest-org-avatar"
-                            style={{ backgroundColor: getOrgColor(org) }}
-                          >
-                            {getOrgInitials(org)}
-                          </div>
-                          <span className="suggest-org-name">{org.name}</span>
-                         </button>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Bouton "Afficher plus" FIXE en bas (hors de la zone scrollable) */}
-                  {hasMore && !isInitialLoading && !orgsError && (
-                    <div
-                      className="suggest-search-results-footer"
-                      style={{
-                        flexShrink: 0,
-                        borderTop: '1px solid rgba(var(--rgb-ombre), 0.06)',
-                        background: 'var(--color-surface)'
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="btn btn-link"
-                        onClick={loadMore}
-                        disabled={isLoadingMore}
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          padding: '10px',
-                          margin: 0
-                        }}
-                        onMouseEnter={(e) => !isLoadingMore && (e.currentTarget.style.backgroundColor = 'rgba(var(--rgb-primary), 0.08)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                      >
-                        {isLoadingMore ? (
-                          <>
-                            <span className="am-spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
-                            Chargement...
-                          </>
-                        ) : (
-                          'Afficher plus'
-                        )}
+      {nb > 0 && (
+        <section className="so-choix" aria-label={estLeader ? 'À inviter' : 'À suggérer'}>
+          <div className="so-choix-tete">
+            <b>{estLeader ? 'À inviter' : 'À suggérer'}</b>
+            <span>{nb} organisation{nb > 1 ? 's' : ''}</span>
+          </div>
+          {suggestedOrgs.map((org) => {
+            const role = ROLE_OPTIONS.find((r) => r.id === org.role) || ROLE_OPTIONS[0];
+            const enErreur = tentative && !(org.comment || '').trim();
+            return (
+              <div key={org.id} className={`so-carte ${enErreur ? 'is-ko' : ''}`}>
+                <div className="so-carte-tete">
+                  <Avatar org={org} />
+                  <b>{org.name}</b>
+                  <div className="dg-segment" role="radiogroup" aria-label={`Rôle de ${org.name}`}>
+                    {ROLE_OPTIONS.map((r) => (
+                      <button key={r.id} type="button" role="radio" aria-checked={org.role === r.id} onClick={() => updateSuggestedRole(org.id, r.id)}>
+                        {r.label}
                       </button>
-                    </div>
-                  )}
+                    ))}
+                  </div>
+                  <button type="button" className="dg-ico" onClick={() => toggleSuggestedOrg(org)} aria-label={`Retirer ${org.name}`}>
+                    <IcoCroix taille={15} />
+                  </button>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Organisations sélectionnées */}
-          <div className="suggest-section">
-            <label className="suggest-section-label">
-              <People size={16} variant="Bold" color="var(--color-primary-text)" />
-              Sélectionnées ({suggestedOrgs.length})
-            </label>
-
-            {suggestedOrgs.length === 0 ? (
-              <div className="suggest-empty">
-                <People size={28} variant="Linear" color="var(--color-text-muted)" />
-                <p>Aucune organisation sélectionnée pour le moment.</p>
+                {role?.description && <p className="so-role">{role.label} : {role.description.charAt(0).toLowerCase() + role.description.slice(1)}.</p>}
+                <label className="dg-champ" htmlFor={`motif-${org.id}`}>
+                  Pourquoi cette organisation ?
+                  <textarea
+                    id={`motif-${org.id}`}
+                    className="dg-textarea"
+                    rows={2}
+                    value={org.comment || ''}
+                    onChange={(e) => updateSuggestedComment(org.id, e.target.value)}
+                    aria-invalid={enErreur}
+                    aria-describedby={`aide-${org.id}`}
+                  />
+                  <span id={`aide-${org.id}`} className={enErreur ? 'dg-erreur' : 'so-aide'}>
+                    {enErreur ? 'Expliquez en une phrase pourquoi vous la sollicitez.' : `Visible par ${org.name}${estLeader ? ' dans son invitation' : ' et par le leader'}.`}
+                  </span>
+                </label>
               </div>
-            ) : (
-              <div className="suggest-roles-list">
-                {suggestedOrgs.map(org => {
-                  const currentRole = ROLE_OPTIONS.find(r => r.id === org.role);
-                  return (
-                    <div key={org.id} className="suggest-role-row">
-                      <div className="suggest-role-row-header">
-                        <div className="suggest-role-org">
-                          <div
-                            className="suggest-org-avatar"
-                            style={{ backgroundColor: getOrgColor(org) }}
-                          >
-                            {getOrgInitials(org)}
-                          </div>
-                          <span className="suggest-org-name">{org.name}</span>
-                        </div>
-                        <button
-                          type="button"
-                          className="suggest-remove-btn"
-                          onClick={() => toggleSuggestedOrg(org)}
-                          title="Retirer"
-                        >
-                          <CloseCircle size={18} variant="Linear" color="var(--color-danger-text)" />
-                        </button>
-                      </div>
-
-                      <div className="suggest-role-attribution">
-                        <span className="suggest-role-attribution-label">Rôle :</span>
-                        <div className="role-options">
-                          {ROLE_OPTIONS.map(role => {
-                            const RoleIcon = role.icon;
-                            const isRoleSel = org.role === role.id;
-                            return (
-                              <button
-                                type="button"
-                                key={role.id}
-                                className={`role-option ${isRoleSel ? 'is-selected' : ''}`}
-                                onClick={() => updateSuggestedRole(org.id, role.id)}
-                                style={
-                                  isRoleSel
-                                    ? { borderColor: role.color, color: role.color }
-                                    : {}
-                                }
-                              >
-                                <RoleIcon
-                                  size={12}
-                                  variant={isRoleSel ? 'Bold' : 'Linear'}
-                                  color={isRoleSel ? role.color : 'var(--color-text-secondary)'}
-                                />
-                                {role.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {currentRole && (
-                        <p className="suggest-role-desc">
-                          {currentRole.description}
-                        </p>
-                      )}
-
-                      <div className="suggest-role-comment">
-                        <label className="suggest-role-attribution-label">
-                          Commentaire *
-                        </label>
-                        <textarea
-                          className="suggest-textarea"
-                          rows={2}
-                          value={org.comment || ''}
-                          onChange={(e) => updateSuggestedComment(org.id, e.target.value)}
-                          placeholder="Pourquoi suggérez-vous cette organisation ?"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="am-offcanvas-footer">
-          <button
-            type="button"
-            className="am-btn am-btn--secondary"
-            onClick={closeSuggestModal}
-          >
-            Annuler
-          </button>
-          <button
-            type="button"
-            className="am-btn am-btn--primary"
-            onClick={handleSuggestSubmit}
-            disabled={suggestedOrgs.length === 0 || suggestSubmitting}
-          >
-            {suggestSubmitting ? (
-              <>
-                <span className="am-spinner" aria-hidden="true" />
-                Envoi en cours...
-              </>
-            ) : (
-              <>
-                Envoyer
-              </>
-            )}
-          </button>
-        </div>
-      </OffcanvasModal>
+            );
+          })}
+        </section>
+      )}
+    </Dialogue>
   );
 };
 

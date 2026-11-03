@@ -33,7 +33,7 @@
 .stats-page-header {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(var(--rgb-ombre), 0.08);
 }
@@ -65,7 +65,7 @@
   justify-content: center;
   gap: 1rem;
   padding: 3rem;
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(var(--rgb-ombre), 0.08);
 }
@@ -78,7 +78,7 @@
 .stats-error button {
   padding: 0.75rem 1.5rem;
   background: var(--color-primary);
-  color: white;
+  color: var(--color-surface);
   border: none;
   border-radius: 8px;
   font-weight: 600;

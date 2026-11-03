@@ -30,6 +30,7 @@ const DUREE_FERMETURE = 280;
  *        Utilisé pendant une soumission ou après un succès, pour empêcher de
  *        quitter au mauvais moment. Le bouton reste visible, contrairement à
  *        une suppression pure, afin de ne pas faire disparaître un repère.
+ * @param {string}    [className]    classe ajoutée au panneau (et `<classe>-fond` au fond)
  * @param {React.ReactNode} [footer]
  * @param {React.ReactNode | (({ close }) => React.ReactNode)} children
  *        Sous forme de fonction, reçoit `close` pour fermer depuis l'intérieur
@@ -48,6 +49,7 @@ export const OffcanvasModal = ({
   isClosing,
   footer,
   footerLayout = 'row',
+  className = '',
   children,
 }) => {
   const [fermetureInterne, setFermetureInterne] = useState(false);
@@ -82,11 +84,13 @@ export const OffcanvasModal = ({
     'am-offcanvas-panel',
     size === 'sm' ? 'am-offcanvas-panel--sm' : '',
     enFermeture ? 'am-offcanvas-panel--closing' : 'am-offcanvas-panel--opening',
+    className,
   ].filter(Boolean).join(' ');
 
   const classeFond = [
     'am-offcanvas-backdrop',
     enFermeture ? 'am-offcanvas-backdrop--closing' : '',
+    className ? `${className}-fond` : '',
   ].filter(Boolean).join(' ');
 
   const classeEntete = [
