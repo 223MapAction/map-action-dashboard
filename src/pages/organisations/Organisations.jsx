@@ -34,7 +34,7 @@ import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 const EMPTY_FORM = {
   name: '',
   acronym: '',
-  color: 'var(--color-primary-text)',
+  color: AVATAR_COULEUR_DEFAUT,
   sector: '',
   type: '',
   country: '',
@@ -106,6 +106,7 @@ export const Organisations = () => {
       // « direction_régionale_de_l'hydraulique_(ménaka) » a cote du pays.
       // A remplacer des qu'un vrai champ ville existe cote backend.
       city: o.subdomain || '',
+      subdomain: o.subdomain || '',
       phone: o.phone || '',
       email: o.email || '',
       website: o.website_url || '',
@@ -246,28 +247,57 @@ export const Organisations = () => {
 
   // ── Soumettre le formulaire ──────────────────────────────
   const buildPayload = (formData) => {
-    const subdomainVal = formData.name
-      ? formData.name.trim().toLowerCase().replace(/\s+/g, '_')
-      : '';
+    // Nettoyer et normaliser le sous-domaine
+    const rawName = formData.name || '';
+    const cleanSubdomain = rawName
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9_-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 50);
+
+    // En édition, préserver le sous-domaine existant
+    const subdomain = formModal.mode === 'edit' && (formModal.org?.subdomain || formModal.org?.city)
+      ? (formModal.org.subdomain || formModal.org.city)
+      : (cleanSubdomain || 'organisation');
+
+    // Valider et normaliser l'URL du site web si saisie
+    let formattedWebsite = null;
+    if (formData.website && formData.website.trim()) {
+      const site = formData.website.trim();
+      formattedWebsite = site.startsWith('http://') || site.startsWith('https://')
+        ? site
+        : `https://${site}`;
+    }
+
+    // Valider que la couleur est un code hex valide (#RRGGBB)
+    const validColor = formData.color && /^#[0-9A-Fa-f]{6}$/.test(formData.color)
+      ? formData.color
+      : AVATAR_COULEUR_DEFAUT;
 
     const payload = {
-      name: formData.name,
-      acronym: formData.acronym || null,
-      description: formData.description || null,
-      activity_sector: formData.sector || null,
-      organisation_type: formData.type || null,
-      intervention_country: formData.country || null,
+      name: formData.name.trim(),
+      acronym: formData.acronym?.trim() || null,
+      description: formData.description?.trim() || '',
+      activity_sector: formData.sector,
+      organisation_type: formData.type,
+      intervention_country: formData.country,
       partner_status: formData.status || 'active',
-      phone: formData.phone || null,
-      website_url: formData.website || null,
-      primary_color: formData.color || AVATAR_COULEUR_DEFAUT,
+      phone: formData.phone?.trim() || null,
+      website_url: formattedWebsite,
+      primary_color: validColor,
       is_premium: true,
-      members_count: 0,
-      subdomain: subdomainVal,
-      email: formData.email || null,
+      subdomain,
     };
 
-    if (formData.logo) {
+    if (formData.email?.trim()) {
+      payload.email = formData.email.trim();
+    }
+
+    if (formData.logo instanceof File || formData.logo instanceof Blob) {
       payload.logo = formData.logo;
     } else if (formData.logo_url === null) {
       payload.logo = null;
@@ -308,18 +338,47 @@ export const Organisations = () => {
           partner_status: 'status',
         };
 
+        const fieldLabels = {
+          name: 'Nom',
+          acronym: 'Acronyme',
+          sector: "Secteur d'activité",
+          type: "Type d'organisation",
+          country: 'Pays',
+          website: 'Site web',
+          phone: 'Téléphone',
+          email: 'Email',
+          description: 'Description',
+          status: 'Statut',
+          subdomain: 'Sous-domaine / Nom',
+          primary_color: 'Couleur',
+          logo: 'Logo',
+        };
+
+        const errorDetails = [];
+
         Object.keys(backendErrors).forEach((backendKey) => {
           const frontendKey = keyMapping[backendKey] || backendKey;
-          const errorMsg = Array.isArray(backendErrors[backendKey])
-            ? backendErrors[backendKey].join(' ')
-            : backendErrors[backendKey];
+          const rawErr = backendErrors[backendKey];
+          const errorMsg = Array.isArray(rawErr)
+            ? rawErr.join(' ')
+            : typeof rawErr === 'object'
+            ? JSON.stringify(rawErr)
+            : String(rawErr);
+
           mappedErrors[frontendKey] = errorMsg;
+          const label = fieldLabels[frontendKey] || frontendKey;
+          errorDetails.push(`${label} : ${errorMsg}`);
         });
 
         setFormErrors(mappedErrors);
+
+        const alertMessage = errorDetails.length > 0
+          ? `Erreur de validation : ${errorDetails.join(' — ')}`
+          : 'Veuillez corriger les erreurs de validation dans le formulaire.';
+
         setModalAlert({
           type: 'danger',
-          message: 'Veuillez corriger les erreurs de validation dans le formulaire.'
+          message: alertMessage,
         });
       } else {
         const msg = err?.response?.data?.detail

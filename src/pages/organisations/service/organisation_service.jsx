@@ -87,24 +87,41 @@ export const getOrganisationStatsService = async () => {
 export const createOrganisationService = async (data) => {
   try {
     const axios = authService.createAuthenticatedAxios();
-    const formData = new FormData();
+    const hasFile = data.logo instanceof File || data.logo instanceof Blob;
 
-    Object.keys(data).forEach((key) => {
-      if (data[key] === null) {
-        formData.append(key, '');
-      } else if (data[key] !== undefined) {
-        formData.append(key, data[key]);
-      }
-    });
+    let payload;
+    let headers = {};
+
+    if (hasFile) {
+      const formData = new FormData();
+      Object.keys(data).forEach((key) => {
+        if (key === 'logo') {
+          formData.append('logo', data.logo);
+        } else if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+          formData.append(key, data[key]);
+        }
+      });
+      payload = formData;
+      headers['Content-Type'] = 'multipart/form-data';
+    } else {
+      const cleanData = {};
+      Object.keys(data).forEach((key) => {
+        if (key === 'logo') {
+          if (data.logo === null) {
+            cleanData.logo = null;
+          }
+        } else if (data[key] !== undefined) {
+          cleanData[key] = data[key];
+        }
+      });
+      payload = cleanData;
+      headers['Content-Type'] = 'application/json';
+    }
 
     const response = await axios.post(
       `${API_URL_BASE}/MapApi/organisations/`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      payload,
+      { headers }
     );
 
     return response?.data?.results || response?.data || [];
@@ -131,30 +148,47 @@ export const deleteOrganisationService = async (id) => {
 };
 
 /**
- * creer une organisation
+ * modifier une organisation
  * @returns {Promise<Array>} Liste des organisations
  */
 export const updateOrganisationService = async (id, data) => {
   try {
     const axios = authService.createAuthenticatedAxios();
-    const formData = new FormData();
+    const hasFile = data.logo instanceof File || data.logo instanceof Blob;
 
-    Object.keys(data).forEach((key) => {
-      if (data[key] === null) {
-        formData.append(key, '');
-      } else if (data[key] !== undefined) {
-        formData.append(key, data[key]);
-      }
-    });
+    let payload;
+    let headers = {};
+
+    if (hasFile) {
+      const formData = new FormData();
+      Object.keys(data).forEach((key) => {
+        if (key === 'logo') {
+          formData.append('logo', data.logo);
+        } else if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+          formData.append(key, data[key]);
+        }
+      });
+      payload = formData;
+      headers['Content-Type'] = 'multipart/form-data';
+    } else {
+      const cleanData = {};
+      Object.keys(data).forEach((key) => {
+        if (key === 'logo') {
+          if (data.logo === null) {
+            cleanData.logo = null;
+          }
+        } else if (data[key] !== undefined) {
+          cleanData[key] = data[key];
+        }
+      });
+      payload = cleanData;
+      headers['Content-Type'] = 'application/json';
+    }
 
     const response = await axios.put(
       `${API_URL_BASE}/MapApi/organisations/${id}/`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      payload,
+      { headers }
     );
 
     return response?.data?.results || response?.data || [];

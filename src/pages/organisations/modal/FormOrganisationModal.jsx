@@ -106,6 +106,11 @@ const FormOrganisationModal = () => {
                       </button>
                     )}
                   </div>
+                  {formErrors.logo && (
+                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)', display: 'block', marginTop: '6px' }}>
+                      {formErrors.logo}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -118,10 +123,15 @@ const FormOrganisationModal = () => {
                     placeholder="Ex. Croix-Rouge Sénégalaise"
                     value={form.name}
                     onChange={(e) => setField('name', e.target.value)}
-                    style={formErrors.name ? { borderColor: 'var(--color-danger)' } : {}}
+                    style={(formErrors.name || formErrors.subdomain) ? { borderColor: 'var(--color-danger)' } : {}}
                   />
                   {formErrors.name && (
                     <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.name}</span>
+                  )}
+                  {formErrors.subdomain && (
+                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)', display: 'block', marginTop: '4px' }}>
+                      Sous-domaine : {formErrors.subdomain}
+                    </span>
                   )}
                 </div>
 
