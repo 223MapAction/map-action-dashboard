@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft2, Location, Calendar, UserAdd, Danger, MagicStar, Play, Pause,
-  VideoSquare, Microphone2, Copy, Routing2, Share, Wind, People, Drop,
+  VideoSquare, VolumeHigh, Copy, Routing2, Share, Wind, People, Drop,
   Tree, Buildings2, Gallery, InfoCircle, Crown1, Health, ArrowDown2, Profile, CloseCircle, Briefcase, Add,
 } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerTitle, ShimmerText } from 'react-shimmer-effects';
@@ -384,12 +384,12 @@ export const VueDetail = (props) => {
               <button type="button" className="vdm-rond" onClick={partager} aria-label="Partager">{iconePartage}</button>
             </div>
             <div className={`vdm-medias ${media === 'video' ? 'is-haut' : ''}`} role="tablist" aria-label="Médias">
-              <button type="button" role="tab" aria-selected={media === 'photo'} className={media === 'photo' ? 'is-on' : ''} onClick={() => setMedia('photo')}>Photo</button>
+              <button type="button" role="tab" aria-selected={media === 'photo'} aria-label="Photo" className={media === 'photo' ? 'is-on' : ''} onClick={() => setMedia('photo')}><Gallery size={16} color="currentColor" /></button>
               <button type="button" role="tab" aria-selected={media === 'video'} aria-label="Vidéo" className={media === 'video' ? 'is-on' : ''} onClick={() => setMedia('video')} disabled={!safeIncident.video}>
                 <VideoSquare size={16} color="currentColor" />
               </button>
               <button type="button" role="tab" aria-selected={media === 'audio'} aria-label="Message vocal" className={media === 'audio' ? 'is-on' : ''} onClick={() => setMedia('audio')} disabled={!audioSrc}>
-                <Microphone2 size={16} color="currentColor" />
+                <VolumeHigh size={16} color="currentColor" />
               </button>
             </div>
           </div>
@@ -511,7 +511,7 @@ export const VueDetail = (props) => {
         <div className="vd-card vd-media">
           {scene}
           <div className="vd-thumbs" role="tablist" aria-label="Médias">
-            <button type="button" role="tab" aria-selected={media === 'photo'} className={`vd-th ${media === 'photo' ? 'is-on' : ''}`} onClick={() => setMedia('photo')}>Photo</button>
+            <button type="button" role="tab" aria-selected={media === 'photo'} className={`vd-th ${media === 'photo' ? 'is-on' : ''}`} onClick={() => setMedia('photo')} aria-label="Photo" title="Voir la photo"><Gallery size={18} color="currentColor" /></button>
             <button
               type="button" role="tab" aria-selected={media === 'video'}
               className={`vd-th ${media === 'video' ? 'is-on' : ''} ${safeIncident.video ? '' : 'is-off'}`}
@@ -528,7 +528,7 @@ export const VueDetail = (props) => {
               disabled={!audioSrc}
               title={audioSrc ? 'Écouter le message vocal' : 'Aucun message vocal'}
             >
-              <Microphone2 size={18} color="currentColor" />
+              <VolumeHigh size={18} color="currentColor" />
             </button>
           </div>
           {lecteurAudio}

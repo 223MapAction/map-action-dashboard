@@ -301,8 +301,21 @@ export const VueCollaboration = ({
 
       {bandeaux}
 
-      {/* Avancement + photo */}
+      {/* Photo + avancement */}
       <section className="vd-hero vc-hero">
+        <div className="vd-card vd-media">
+          <div className="vd-stage">
+            {collaboration.image ? (
+              <button type="button" className="vd-photo vc-photo" onClick={() => onZoomImage({ src: collaboration.image, alt: collaboration.title })} aria-label="Agrandir la photo">
+                <BlurryImage src={collaboration.image} alt={collaboration.title} className="vd-photo-img" />
+                <span className="vd-zoom"><Gallery size={14} color="currentColor" />Agrandir</span>
+              </button>
+            ) : (
+              <div className="vd-photo vd-photo-vide vc-photo"><Gallery size={28} color="currentColor" /><span>Aucune photo</span></div>
+            )}
+          </div>
+        </div>
+
         <div className="vd-card vd-decide">
           <div className="vc-prog">
             <div className="vc-prog-num">
@@ -333,19 +346,6 @@ export const VueCollaboration = ({
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        <div className="vd-card vd-media">
-          <div className="vd-stage">
-            {collaboration.image ? (
-              <button type="button" className="vd-photo vc-photo" onClick={() => onZoomImage({ src: collaboration.image, alt: collaboration.title })} aria-label="Agrandir la photo">
-                <BlurryImage src={collaboration.image} alt={collaboration.title} className="vd-photo-img" />
-                <span className="vd-zoom"><Gallery size={14} color="currentColor" />Agrandir</span>
-              </button>
-            ) : (
-              <div className="vd-photo vd-photo-vide vc-photo"><Gallery size={28} color="currentColor" /><span>Aucune photo</span></div>
-            )}
           </div>
         </div>
       </section>
