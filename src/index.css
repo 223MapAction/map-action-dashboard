@@ -160,6 +160,56 @@
      volontairement, pour ne pas teinter ce qu'elles assombrissent. */
   --rgb-ombre: 0, 0, 0;
 
+  /* ── Thème Bootstrap ────────────────────────────────────────────────────────
+     Bootstrap est importé tel quel dans main.jsx : sans ces surcharges, ses
+     utilitaires (text-primary, text-secondary, text-muted, text-danger, bg-light,
+     btn-link, progress-bar, alertes, anneaux de focus…) gardent ses couleurs
+     d'origine — le bleu roi #0D6EFD à côté de notre bleu ciel. Ces variables
+     les rebranchent sur nos jetons. */
+  --bs-primary: var(--color-primary);
+  --bs-primary-rgb: var(--rgb-primary);
+  --bs-secondary: var(--color-text-secondary);
+  --bs-secondary-rgb: var(--rgb-text-secondary);
+  --bs-success: var(--color-success-text);
+  --bs-success-rgb: 23, 131, 63;      /* #17833F (--color-success-text) */
+  --bs-info: var(--color-info);
+  --bs-info-rgb: var(--rgb-primary);
+  --bs-warning: var(--color-warning);
+  --bs-warning-rgb: var(--rgb-warning);
+  --bs-danger: var(--color-danger-text);
+  --bs-danger-rgb: 226, 19, 19;       /* #E21313 (--color-danger-text) */
+  --bs-light: var(--color-background);
+  --bs-light-rgb: var(--rgb-background);
+  --bs-dark: var(--color-text-primary);
+  --bs-dark-rgb: var(--rgb-text-primary);
+  --bs-body-color: var(--color-text-primary);
+  --bs-body-color-rgb: var(--rgb-text-primary);
+  --bs-body-bg: var(--color-background);
+  --bs-secondary-color: var(--color-text-muted);
+  --bs-tertiary-color: var(--color-text-muted);
+  --bs-emphasis-color: var(--color-text-primary);
+  --bs-border-color: var(--color-border);
+  --bs-link-color: var(--color-primary-text);
+  --bs-link-color-rgb: 30, 120, 172;  /* #1E78AC (--color-primary-text) */
+  --bs-link-hover-color: var(--color-primary-dark);
+  --bs-link-hover-color-rgb: var(--rgb-primary-dark);
+  --bs-focus-ring-color: rgba(var(--rgb-primary), 0.25);
+  --bs-primary-text-emphasis: var(--color-primary-text);
+  --bs-primary-bg-subtle: var(--color-primary-surface);
+  --bs-primary-border-subtle: rgba(var(--rgb-primary), 0.35);
+  --bs-success-text-emphasis: var(--color-success-text);
+  --bs-success-bg-subtle: var(--color-success-surface);
+  --bs-success-border-subtle: rgba(var(--rgb-success), 0.35);
+  --bs-info-text-emphasis: var(--color-info-text);
+  --bs-info-bg-subtle: var(--color-primary-surface);
+  --bs-info-border-subtle: rgba(var(--rgb-primary), 0.35);
+  --bs-warning-text-emphasis: var(--color-warning-text);
+  --bs-warning-bg-subtle: var(--color-warning-surface);
+  --bs-warning-border-subtle: rgba(var(--rgb-warning), 0.35);
+  --bs-danger-text-emphasis: var(--color-danger-text);
+  --bs-danger-bg-subtle: var(--color-danger-surface);
+  --bs-danger-border-subtle: rgba(var(--rgb-danger), 0.35);
+
   --bs-btn-disabled-bg: rgba(var(--rgb-primary), 0.65) !important;
   --bs-btn-disabled-border-color: rgba(var(--rgb-primary), 0.65) !important;
 
@@ -262,6 +312,34 @@ h2,
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, opacity 0.2s ease;
   text-decoration: none;
+}
+
+
+/* Composants Bootstrap qui figent leurs couleurs au lieu de lire --bs-primary */
+.progress {
+  --bs-progress-bar-bg: var(--color-primary);
+}
+
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 0.25rem rgba(var(--rgb-primary), 0.25);
+}
+
+.form-check-input:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.list-group-item.active {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.spinner-border.text-primary,
+.spinner-grow.text-primary {
+  color: var(--color-primary) !important;
 }
 
 .btn-primary {

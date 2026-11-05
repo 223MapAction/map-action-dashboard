@@ -1,499 +1,231 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { useForm } from 'react-hook-form';
-import * as yup from 'yup';
-import { yupResolver } from '@hookform/resolvers/yup';
-import { CloseCircle, TickCircle, SearchNormal1, UserTick, Profile } from 'iconsax-react';
+import { CloseCircle, SearchNormal1 } from 'iconsax-react';
+import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useMesInterventionsModalContext } from '../mesInterventionsModalContexte';
 import { assignIncidentToAgentService, getIncidentAssignmentsService } from '../../incident/service/incident_service';
-import { getOrganisationMembersService } from '../../agents/service/members_service';
+import { getTousLesAgentsService } from '../../agents/service/members_service';
+import { getRoleConfig, roleDepuisApi } from '../../agents/roles';
 import { authService } from '../../auth/services/authService';
-
-import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
+import { Dialogue } from '../../../components/molecules/Dialogue';
+import { ChampDate } from '../../collaboration-detail/modal/ChampDate';
+import { aujourdhui, dateLongue } from '../../collaboration-detail/modal/dates';
 import { AVATAR_COLORS, AVATAR_COULEUR_DEFAUT } from '../../../utils/couleursAvatar';
 import { logger } from '../../../utils/logger';
 
-// `fetchedAgents || []` fabriquait un tableau neuf a chaque rendu tant que la
-// requete n'avait pas repondu. Les useMemo qui en dependent ne memoisaient donc
-// jamais rien. Une constante partagee garde la meme reference d'un rendu a
-// l'autre. Meme procede que dans Agents.jsx.
 const EMPTY_ARRAY = [];
-const schema = yup.object().shape({
-  agent: yup.string().required('Veuillez sélectionner un agent.'),
-  deadline: yup.string().nullable().optional()
-});
 
-const getInitials = (name = '') =>
-  name
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0]?.toUpperCase() || '')
-    .join('');
+const initiales = (nom = '') =>
+  nom.split(/\s+/).filter(Boolean).slice(0, 2).map((m) => m[0].toUpperCase()).join('') || '?';
 
-const formatDatetimeLocal = (isoString) => {
-  if (!isoString) return '';
-  try {
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return '';
-    const pad = (num) => String(num).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  } catch {
-    return '';
-  }
+const couleur = (id) => {
+  const n = [...String(id ?? '')].reduce((h, c) => h + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[n % AVATAR_COLORS.length] || AVATAR_COULEUR_DEFAUT;
 };
 
-export const MesInterventionsAssignModal = () => {
-  const {
-    assignModal,
-    assignClosing,
-    isAssigning,
-    setIsAssigning,
-    assignAlert,
-    setAssignAlert,
-    closeAssignModal,
-    mutateIncidents
-  } = useMesInterventionsModalContext();
+const IcoAssigner = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="10" cy="8" r="4" /><path d="M3 21c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6" />
+  </svg>
+);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const bodyRef = useRef(null);
+const IcoInfo = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16v.5" />
+  </svg>
+);
 
-  useEffect(() => {
-    if (assignAlert && assignAlert.message && bodyRef.current) {
-      bodyRef.current.scrollTop = 0;
-    }
-  }, [assignAlert]);
+// Message lisible à partir d'une réponse d'erreur du serveur.
+const messageServeur = (donnees) => {
+  if (!donnees) return null;
+  if (typeof donnees === 'string') return donnees;
+  const brut = donnees.non_field_errors || donnees.detail || donnees.message || donnees.error
+    || donnees.agent || donnees.deadline || Object.values(donnees)[0];
+  return Array.isArray(brut) ? brut[0] : (brut ? String(brut) : null);
+};
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-    reset,
-    setError
-  } = useForm({
-    resolver: yupResolver(schema),
-    defaultValues: {
-      agent: '',
-      deadline: ''
-    }
-  });
-
-  const selectedAgentId = watch('agent');
-  const deadline = watch('deadline');
+const FenetreAssigner = () => {
+  const { assignModal, closeAssignModal, mutateIncidents, afficherToast } = useMesInterventionsModalContext();
+  const incident = assignModal.incident;
 
   const currentUser = useMemo(() => authService.getCurrentUser(), []);
-  const userOrgId = currentUser?.organisation || currentUser?.organisation_member || sessionStorage.getItem('organisation');
-  const userOrgName = currentUser?.organisation_name || 'Mon Organisation';
+  const orgId = currentUser?.organisation || currentUser?.organisation_member || sessionStorage.getItem('organisation');
 
-  // Charger les agents de l'organisation de l'utilisateur connecté
-  const { data: fetchedAgents, isLoading: loadingAgents } = useSWR(
-    assignModal.open && userOrgId ? ['assign_agents_list', userOrgId] : null,
+  const [recherche, setRecherche] = useState('');
+  const [choisi, setChoisi] = useState('');
+  const [echeance, setEcheance] = useState('');
+  const [erreurs, setErreurs] = useState({});
+  const [alerte, setAlerte] = useState(null);
+  const [envoi, setEnvoi] = useState(false);
+  // Fermeture animée du dialogue, prise avant le verrouillage de l'envoi.
+  const fermerRef = useRef(null);
+
+  const { data: membres, isLoading: chargeMembres, error: erreurMembres } = useSWR(
+    orgId ? ['membres_assignation', orgId] : null,
     async () => {
-      if (!userOrgId) return [];
-      try {
-        const res = await getOrganisationMembersService(userOrgId);
-        const members = res.results || res || [];
-        return members.map((m) => {
-          let roleLabel = 'Membre';
-          if (m.org_role === 'org_admin') roleLabel = 'Administrateur';
-          if (m.org_role === 'field_agent') roleLabel = 'Terrain';
-          if (m.org_role === 'bureau_agent') roleLabel = 'Bureau';
-
-          const fullName = `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email;
-
-          return {
-            id: m.id,
-            firstName: m.first_name || '',
-            lastName: m.last_name || '',
-            fullName,
-            email: m.email,
-            role: roleLabel,
-            orgId: userOrgId,
-            orgName: userOrgName,
-            avatarColor: AVATAR_COLORS[Math.abs(m.id) % AVATAR_COLORS.length] || AVATAR_COULEUR_DEFAUT
-          };
-        });
-      } catch (err) {
-        logger.error(`[MesInterventionsAssignModal] Erreur chargement agents org ${userOrgId}:`, err);
-        return [];
-      }
+      const liste = await getTousLesAgentsService('', '', '', orgId);
+      return liste.map((m) => ({
+        id: m.id,
+        nom: `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email,
+        email: m.email || '',
+        role: getRoleConfig(roleDepuisApi(m.org_role)).label,
+        couleur: couleur(m.id),
+      }));
     },
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      revalidateIfStale: false
-    }
+    { revalidateOnFocus: false },
   );
 
-  const agents = fetchedAgents || EMPTY_ARRAY;
-
-  // 3. Charger les assignations existantes de cet incident
-  const { data: existingAssignments, mutate: mutateAssignments } = useSWR(
-    assignModal.open && assignModal.incident ? `incident_assignments_${assignModal.incident.id}` : null,
-    () => getIncidentAssignmentsService(assignModal.incident.id),
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      revalidateIfStale: false
-    }
+  const { data: assignations, mutate: mutateAssignations } = useSWR(
+    `incident_assignments_${incident.id}`,
+    () => getIncidentAssignmentsService(incident.id),
+    { revalidateOnFocus: false },
   );
 
-  const assignedAgentIds = useMemo(() => {
-    const list = existingAssignments || [];
-    return list.map((a) => {
-      if (a.agent && typeof a.agent === 'object') {
-        return a.agent.id;
-      }
-      return a.agent;
-    });
-  }, [existingAssignments]);
+  const dejaAssignes = useMemo(
+    () => new Set((assignations || []).map((a) => String(a.agent?.id ?? a.agent))),
+    [assignations],
+  );
 
-  const selectedAgent = useMemo(() => {
-    return agents.find((a) => String(a.id) === selectedAgentId) || null;
-  }, [selectedAgentId, agents]);
-
-  // Initialiser / Pré-sélectionner l'agent déjà assigné et sa date limite
-  React.useEffect(() => {
-    if (assignModal.open && assignModal.incident) {
-      setSearchQuery('');
-      setAssignAlert({ type: null, message: null });
-
-      const assignedId = assignModal.incident.taken_by || assignModal.incident.takenBy;
-      reset({
-        agent: assignedId ? String(assignedId) : '',
-        deadline: assignModal.incident.deadline ? formatDatetimeLocal(assignModal.incident.deadline) : ''
-      });
-    }
-  }, [assignModal.open, assignModal.incident, reset, setAssignAlert]);
-
-  const handleSelectAgent = (agent) => {
-    if (selectedAgentId === String(agent.id)) {
-      setValue('agent', '', { shouldValidate: true });
-      setValue('deadline', '');
-    } else {
-      setValue('agent', String(agent.id), { shouldValidate: true });
-    }
-  };
-
-  // Filtrer les agents selon la recherche
-  const filteredAgents = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+  const agents = membres || EMPTY_ARRAY;
+  const filtres = useMemo(() => {
+    const q = recherche.trim().toLowerCase();
     if (!q) return agents;
-    return agents.filter(
-      (a) =>
-        a.fullName.toLowerCase().includes(q) ||
-        a.email.toLowerCase().includes(q) ||
-        a.orgName.toLowerCase().includes(q)
-    );
-  }, [agents, searchQuery]);
+    return agents.filter((a) => a.nom.toLowerCase().includes(q) || a.email.toLowerCase().includes(q));
+  }, [agents, recherche]);
 
-  if (!assignModal.open || !assignModal.incident) return null;
+  const agentChoisi = agents.find((a) => String(a.id) === choisi);
 
-  const onSubmit = async (data) => {
-    setIsAssigning(true);
-    setAssignAlert({ type: null, message: null });
+  const assigner = async () => {
+    const nouvelles = {};
+    if (!choisi) nouvelles.agent = 'Choisissez un agent.';
+    setErreurs(nouvelles);
+    if (Object.keys(nouvelles).length) return;
 
-    const incident = assignModal.incident;
-    const agentObj = agents.find((a) => String(a.id) === data.agent);
-
-    const payload = {
-      deadline: data.deadline ? new Date(data.deadline).toISOString() : null,
-      status: 'pending',
-      incident: incident.id,
-      agent: data.agent
-    };
-
+    const fermer = fermerRef.current;
+    setEnvoi(true);
+    setAlerte(null);
     try {
-      await assignIncidentToAgentService(incident.id, payload);
-
-      setAssignAlert({
-        type: 'success',
-        message: `L'incident a été assigné avec succès à ${agentObj?.fullName || 'l\'agent'}.`
+      await assignIncidentToAgentService(incident.id, {
+        incident: incident.id,
+        agent: choisi,
+        status: 'pending',
+        deadline: echeance ? new Date(echeance).toISOString() : null,
       });
-
-      // Rafraîchir les données de la table
-      if (mutateIncidents) {
-        await mutateIncidents();
-      }
-      mutateAssignments();
-
-      // Fermer la modale après un délai
-      setTimeout(() => {
-        closeAssignModal();
-        setSearchQuery('');
-        reset({
-          agent: '',
-          deadline: ''
-        });
-      }, 1500);
+      afficherToast(`${agentChoisi?.nom || 'L’agent'} rejoint l’équipe`);
+      mutateAssignations();
+      mutateIncidents?.();
+      fermer?.();
     } catch (err) {
       logger.error('[MesInterventionsAssignModal] Erreur lors de l\'assignation:', err);
-
-      if (err?.response?.status === 400 && err?.response?.data) {
-        const serverErrors = err.response.data;
-
-        // Gérer les erreurs globales (ex: non_field_errors)
-        if (serverErrors.non_field_errors) {
-          const errorsList = Array.isArray(serverErrors.non_field_errors)
-            ? serverErrors.non_field_errors[0]
-            : serverErrors.non_field_errors;
-          setAssignAlert({
-            type: 'danger',
-            message: errorsList
-          });
-          return;
-        }
-
-        let hasFieldErrors = false;
-        Object.keys(serverErrors).forEach((key) => {
-          if (['deadline', 'agent', 'status', 'incident'].includes(key)) {
-            const messages = serverErrors[key];
-            const message = Array.isArray(messages) ? messages[0] : messages;
-            setError(key, { type: 'server', message });
-            hasFieldErrors = true;
-          }
-        });
-
-        if (hasFieldErrors) {
-          setAssignAlert({
-            type: 'danger',
-            message: "Veuillez corriger les erreurs de validation ci-dessous."
-          });
-          return;
-        }
+      const donnees = err?.response?.data;
+      if (err?.response?.status === 400 && donnees && typeof donnees === 'object' && (donnees.agent || donnees.deadline)) {
+        const texte = (v) => (Array.isArray(v) ? v[0] : v);
+        setErreurs({ agent: texte(donnees.agent), deadline: texte(donnees.deadline) });
+      } else {
+        setAlerte(messageServeur(donnees) || 'L’agent n’a pas pu être assigné. Réessayez dans un instant.');
       }
-
-      let msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message;
-
-      if (!msg && err?.response?.data) {
-        const data = err.response.data;
-        if (typeof data === 'object') {
-          const firstKey = Object.keys(data)[0];
-          if (firstKey) {
-            const val = data[firstKey];
-            msg = Array.isArray(val) ? val[0] : String(val);
-          }
-        }
-      }
-
-      if (!msg) {
-        msg = "Une erreur est survenue lors de l'assignation de l'incident.";
-      }
-
-      setAssignAlert({
-        type: 'danger',
-        message: msg
-      });
     } finally {
-      setIsAssigning(false);
+      setEnvoi(false);
     }
-  };
-
-  const handleOverlayClick = () => {
-    if (isAssigning || assignAlert.type === 'success') return;
-    closeAssignModal();
-    setSearchQuery('');
-    reset({
-      agent: '',
-      deadline: ''
-    });
   };
 
   return (
-    <OffcanvasModal
-      onClose={handleOverlayClick}
-      isClosing={Boolean(assignClosing)}
-      title="Assigner un agent"
-      subtitle={assignModal.incident.title || 'Sans titre'}
-      ariaLabel="Assigner un agent"
-      closeVariant="plain"
-    >
-
-        <form onSubmit={handleSubmit(onSubmit)} id="assign-mes-interventions-form" className="am-offcanvas-body" ref={bodyRef} noValidate>
-          {assignAlert && assignAlert.message && (
-            <div className={`am-alert am-alert--${assignAlert.type === 'success' ? 'success' : 'danger'}`} role="alert" style={{ marginBottom: 'var(--spacing-4)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {assignAlert.type === 'success' ? (
-                <TickCircle size={18} variant="Bold" color="var(--color-success)" style={{ flexShrink: 0 }} />
-              ) : (
-                <CloseCircle size={18} variant="Bold" color="var(--color-danger)" style={{ flexShrink: 0 }} />
-              )}
-              <span className="am-alert__message" style={{ margin: 0 }}>{assignAlert.message}</span>
-            </div>
-          )}
-
-          {/* Barre de recherche d'agent */}
-          <div className="am-field">
-            <label className="am-label" htmlFor="agent-suivi-search">
-              Rechercher un collaborateur
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <SearchNormal1
-                size={16}
-                variant="Linear"
-                color="var(--color-text-secondary)"
-                style={{ position: 'absolute', left: '12px' }}
-              />
-              <input
-                id="agent-suivi-search"
-                type="text"
-                className="am-input"
-                placeholder="Tapez le nom, email ou organisation..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ paddingLeft: '36px' }}
-              />
-            </div>
-          </div>
-
-          {/* Liste de sélection des agents */}
-          <div className="am-field">
-            <label className="am-label">
-              Sélectionner l'agent à assigner
-            </label>
-
-            {loadingAgents ? (
-              <div className="d-flex flex-column align-items-center justify-content-center p-4 border rounded bg-light">
-                <div className="spinner-border text-primary" role="status" style={{ width: '1.5rem', height: '1.5rem' }} />
-                <span className="text-muted mt-2" style={{ fontSize: 'var(--font-size-caption)' }}>Chargement des agents...</span>
-              </div>
-            ) : filteredAgents.length === 0 ? (
-              <div className="d-flex flex-column align-items-center justify-content-center p-4 border rounded bg-light text-center">
-                <Profile size={32} variant="Linear" color="var(--color-text-muted)" />
-                <span className="fw-medium mt-2" style={{ fontSize: 'var(--font-size-body-small)', color: 'var(--color-text-secondary)' }}>Aucun agent trouvé</span>
-                <span className="text-muted" style={{ fontSize: 'var(--font-size-micro)' }}>Assurez-vous que des agents sont enregistrés.</span>
-              </div>
-            ) : (
-              <div className="incidents-agents-list">
-                {Object.entries(
-                  filteredAgents.reduce((acc, curr) => {
-                    if (!acc[curr.orgName]) acc[curr.orgName] = [];
-                    acc[curr.orgName].push(curr);
-                    return acc;
-                  }, {})
-                ).map(([orgName, orgAgents]) => (
-                  <div key={orgName} className="incidents-org-group">
-                    <div className="incidents-org-name">{orgName}</div>
-                    {orgAgents.map((agent) => {
-                      const isSelected = selectedAgent?.id === agent.id;
-                      const isAlreadyAssigned = assignedAgentIds.includes(agent.id);
-                      return (
-                        <button
-                          key={agent.id}
-                          type="button"
-                          className={`incidents-agent-item ${isSelected ? 'is-selected' : ''} ${isAlreadyAssigned ? 'is-disabled' : ''}`}
-                          onClick={() => !isAlreadyAssigned && handleSelectAgent(agent)}
-                          disabled={isAlreadyAssigned}
-                        >
-                          <div
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '50%',
-                              backgroundColor: isAlreadyAssigned ? 'var(--color-text-muted)' : agent.avatarColor,
-                              color: 'white',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: '600',
-                              fontSize: 'var(--font-size-body-small)',
-                              marginRight: '12px',
-                              flexShrink: 0
-                            }}
-                          >
-                            {getInitials(agent.fullName)}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 'var(--font-size-body)', fontWeight: '600', color: isAlreadyAssigned ? 'var(--color-text-secondary)' : 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {agent.fullName}
-                              {isAlreadyAssigned && (
-                                <span style={{ marginLeft: '8px', fontSize: 'var(--font-size-micro)', padding: '2px 8px', background: 'var(--color-background)', color: 'var(--color-text-secondary)', borderRadius: '12px', border: '1px solid var(--color-border)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                  ✓ Assigné
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: 'var(--font-size-caption)', color: isAlreadyAssigned ? 'var(--color-text-muted)' : 'var(--color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {agent.role} &bull; {agent.email}
-                            </div>
-                          </div>
-                          {isAlreadyAssigned ? (
-                            <span style={{ fontSize: 'var(--font-size-micro)', color: 'var(--color-text-secondary)', fontWeight: 'bold', marginLeft: 'auto', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'var(--color-border)', padding: '4px 8px', borderRadius: '4px' }}>
-                              En service
-                            </span>
-                          ) : isSelected && (
-                            <UserTick
-                              size={18}
-                              variant="Bold"
-                              color="var(--color-primary-text)"
-                              style={{ marginLeft: '12px', flexShrink: 0 }}
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            )}
-            {errors.agent && (
-              <span className="text-danger" style={{ display: 'block', marginTop: '6px', fontSize: 'var(--font-size-caption)' }}>
-                {errors.agent.message}
+    <Dialogue
+      onClose={closeAssignModal}
+      verrouille={envoi}
+      titre="Assigner un agent"
+      sousTitre={incident.title || 'Sans titre'}
+      icone={<IcoAssigner />}
+      pied={({ close }) => (
+        <>
+          {erreurs.agent
+            ? <span className="dg-pied-info is-ko" role="status"><IcoInfo />Choisissez un agent</span>
+            : (
+              <span className="dg-pied-info">
+                {agentChoisi ? `${agentChoisi.nom}${echeance ? `, à finir avant le ${dateLongue(echeance, true).toLowerCase()}` : ''}` : ''}
               </span>
             )}
-          </div>
+          <button type="button" className="dg-btn dg-btn-g" onClick={close} disabled={envoi}>Annuler</button>
+          <button type="button" className="dg-btn dg-btn-p" onClick={assigner} disabled={envoi}>
+            {envoi ? <><span className="dg-spin" aria-hidden="true" />Assignation…</> : 'Assigner'}
+          </button>
+        </>
+      )}
+    >
+      {({ close }) => {
+        fermerRef.current = close;
+        return (
+          <div className="ma-form">
+            {alerte && (
+              <div className="dg-alerte dg-alerte-ko" role="alert">
+                <CloseCircle size={18} variant="Bold" color="currentColor" /><span>{alerte}</span>
+              </div>
+            )}
 
-          {/* Date limite / Deadline */}
-          {selectedAgent && (
-            <div className="am-field animate-fade-in" style={{ marginTop: 'var(--spacing-4)' }}>
-              <label className="am-label" htmlFor="assign-suivi-deadline">
-                Date limite (Deadline)
+            <fieldset className="dg-fieldset">
+              <legend>Agent de l’organisation</legend>
+              <label className="ma-recherche">
+                <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
+                <input type="search" data-autofocus value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Nom ou e-mail" aria-label="Rechercher un agent" disabled={envoi} />
               </label>
-              <input
-                id="assign-suivi-deadline"
-                type="date"
-                className="am-input"
-                {...register('deadline')}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--color-border)',
-                  backgroundColor: 'var(--color-background)',
-                  color: 'var(--color-text-primary)'
-                }}
-              />
-              {errors.deadline && (
-                <span className="text-danger" style={{ display: 'block', marginTop: '6px', fontSize: 'var(--font-size-caption)' }}>
-                  {errors.deadline.message}
-                </span>
-              )}
-            </div>
-          )}
-        </form>
 
-        <div className="am-offcanvas-footer">
-          <button
-            type="button"
-            className="am-btn am-btn--secondary"
-            onClick={handleOverlayClick}
-            disabled={isAssigning || assignAlert.type === 'success'}
-          >
-            Annuler
-          </button>
-          <button
-            type="submit"
-            form="assign-mes-interventions-form"
-            className="am-btn am-btn--primary"
-            disabled={!selectedAgent || !deadline || isAssigning || assignAlert.type === 'success'}
-          >
-            {isAssigning && <span className="am-spinner" aria-hidden="true" />}
-            {isAssigning ? 'Assignation...' : 'Assigner l\'agent'}
-          </button>
-        </div>
-      </OffcanvasModal>
+              <div className={`ma-liste ${erreurs.agent ? 'is-ko' : ''}`} role="radiogroup" aria-label="Agents" aria-describedby={erreurs.agent ? 'ma-agent-err' : undefined}>
+                {chargeMembres ? (
+                  [0, 1, 2].map((n) => <div key={n} className="ma-agent"><ShimmerThumbnail height={34} width={34} rounded className="m-0" /><div style={{ flex: 1 }}><ShimmerText line={2} gap={6} /></div></div>)
+                ) : erreurMembres ? (
+                  <p className="ma-vide">Les agents n’ont pas pu être chargés. Fermez puis rouvrez cette fenêtre.</p>
+                ) : filtres.length === 0 ? (
+                  <p className="ma-vide">{recherche ? 'Aucun agent ne correspond à cette recherche.' : 'Votre organisation n’a encore aucun agent.'}</p>
+                ) : filtres.map((a) => {
+                  const deja = dejaAssignes.has(String(a.id));
+                  const actif = choisi === String(a.id);
+                  return (
+                    <label key={a.id} className={`ma-agent ${actif ? 'is-on' : ''} ${deja ? 'is-deja' : ''}`}>
+                      <input
+                        type="radio"
+                        name="ma-agent"
+                        value={a.id}
+                        checked={actif}
+                        disabled={deja || envoi}
+                        onChange={() => { setChoisi(String(a.id)); setErreurs((e) => ({ ...e, agent: undefined })); }}
+                      />
+                      <span className="ma-av" style={{ backgroundColor: a.couleur }} aria-hidden="true">{initiales(a.nom)}</span>
+                      <span className="ma-nom">
+                        <b>{a.nom}</b>
+                        <span>{a.role}</span>
+                      </span>
+                      {deja && <span className="ma-note">Déjà dans l’équipe</span>}
+                    </label>
+                  );
+                })}
+              </div>
+              {erreurs.agent && <span id="ma-agent-err" className="dg-erreur"><IcoInfo />{erreurs.agent}</span>}
+            </fieldset>
+
+            <ChampDate
+              libelle="À finir avant le"
+              valeur={echeance}
+              onChange={(v) => { setEcheance(v); setErreurs((e) => ({ ...e, deadline: undefined })); }}
+              min={aujourdhui()}
+              disabled={envoi}
+              invalide={Boolean(erreurs.deadline)}
+              idErreur={erreurs.deadline ? 'ma-ech-err' : undefined}
+              avecAnnee
+            >
+              {erreurs.deadline
+                ? <span id="ma-ech-err" className="dg-erreur"><IcoInfo />{erreurs.deadline}</span>
+                : <small>Facultatif.</small>}
+            </ChampDate>
+          </div>
+        );
+      }}
+    </Dialogue>
   );
+};
+
+export const MesInterventionsAssignModal = () => {
+  const { assignModal } = useMesInterventionsModalContext();
+  return assignModal.open && assignModal.incident ? <FenetreAssigner /> : null;
 };
 
 export default MesInterventionsAssignModal;

@@ -1,39 +1,31 @@
 /**
  * Échelle de gravité — source unique côté frontend.
  *
- * ── TROIS NIVEAUX, PARCE QUE C'EST CE QUE LE SERVEUR ÉMET ───────────────────
- * `high`, `medium`, `low`. Pas un de plus : l'API en fait foi. Chaque incident
- * arrive avec un champ `severity` déjà calculé (« severity: "medium" »), et
- * l'endpoint dashboard-stats renvoie un `by_severity` agrégé sur ces trois
- * clés. Le frontend LIT cette décision, il ne la recalcule pas.
+ * ── SOURCE PRINCIPALE : global_impact_score ──────────────────────────────────
+ * Le champ `global_impact_score` (0–10), présent au niveau des détails d'un
+ * incident (ou de sa prédiction IA), est la métrique de référence pour
+ * déterminer le niveau de gravité :
  *
- * C'était pourtant ce qu'il faisait, à trois endroits et de trois façons :
+ *   De 0 à 3   → Faible  ('low')
+ *   De 4 à 6   → Moyenne ('medium') (ex. 5.36)
+ *   De 7 à 10  → Élevée  ('high')
  *
- *   MapContainer        3 niveaux, seuils >= 7 / >= 4
- *   incidentStatsHelper 3 niveaux, seuils >= 7 / >= 4      (copie de la 1re)
- *   Impact              4 niveaux, seuils >= 7 / >= 5 / >= 3
- *
- * Un même incident pouvait donc être « moyen » sur la carte et « élevé » sur
- * Impact — et les deux pouvaient contredire le `severity` du serveur. Le calcul
- * local à partir de `base_severity` ne subsiste ici que comme REPLI, pour les
- * charges utiles où `severity` est absent (certaines réponses de prédiction).
- *
- * Ajouter un palier ici ne suffirait pas à le faire exister : tant que le
- * serveur ne l'émet pas, il resterait vide partout.
+ * Ordre de priorité des sources :
+ *   1. `global_impact_score` (de la prédiction ou des détails de l'incident) ;
+ *   2. `base_severity` (repli numérique 0–10 si le score global n'est pas fourni) ;
+ *   3. `severity` texte du serveur ('high' | 'medium' | 'low') ;
+ *   4. `badges` (dernier recours pour les anciennes charges utiles).
  */
 
 /**
  * Du plus grave au moins grave. L'ORDRE FAIT PARTIE DU CONTRAT : les légendes
  * et les listes bouclent dessus, et c'est lui qui garantit qu'aucune vue ne
  * peut présenter les niveaux dans un ordre différent d'une autre.
- *
- * `min` est le seuil bas de `base_severity` (échelle 0 à 10) : un niveau est
- * retenu dès que la valeur l'atteint, en descendant.
  */
 export const NIVEAUX_GRAVITE = [
   { cle: 'high', libelle: 'Élevée', min: 7 },
   { cle: 'medium', libelle: 'Moyenne', min: 4 },
-  { cle: 'low', libelle: 'Faible', min: -Infinity }
+  { cle: 'low', libelle: 'Faible', min: 0 }
 ];
 
 export const CLES_GRAVITE = NIVEAUX_GRAVITE.map((n) => n.cle);
@@ -55,44 +47,121 @@ export const couleurGravite = (cle) => `var(--color-severity-${cle})`;
 export const couleurTexteGravite = (cle) => `var(--color-severity-${cle}-text)`;
 
 /**
- * Lit le niveau de gravité d'un incident.
- *
- * Trois sources, dans l'ordre de confiance :
- *   1. `severity`, la décision du backend — le cas normal ;
- *   2. `base_severity`, la note du modèle de prédiction, quand le serveur n'a
- *      pas tranché (page Impact) ;
- *   3. les badges, pour les charges utiles anciennes qui n'ont ni l'un ni
- *      l'autre.
+ * Extrait le score d'impact global (0 à 10) d'un incident ou de sa prédiction.
+ * Cherche récursivement dans les différentes structures renvoyées par l'API.
  *
  * @param {Object} incident
- * @param {Object} [prediction] détails de prédiction, quand l'appelant les a
- *   déjà sous la main séparément de l'incident (cas de la page Impact)
- * @returns {'high'|'medium'|'low'}
+ * @param {Object} [prediction]
+ * @returns {number|null}
  */
-export const gravite = (incident, prediction = null) => {
-  if (!incident) return CLE_PAR_DEFAUT;
+export const extraireScoreImpact = (incident, prediction = null) => {
+  if (!incident && !prediction) return null;
 
-  // La décision du serveur prime toujours.
-  if (CLES_GRAVITE.includes(incident.severity)) return incident.severity;
+  // 1. Prédiction passée en paramètre
+  const pred = Array.isArray(prediction) && prediction.length > 0 ? prediction[0] : prediction;
+  if (pred?.global_impact_score !== undefined && pred?.global_impact_score !== null && pred?.global_impact_score !== '') {
+    const val = parseFloat(pred.global_impact_score);
+    if (!Number.isNaN(val)) return val;
+  }
 
-  const note =
-    incident.base_severity ??
-    prediction?.base_severity ??
-    incident.incident_details?.prediction_details?.base_severity;
+  // 2. Chercher dans l'incident sous toutes les structures possibles
+  const cibles = [
+    incident?.global_impact_score,
+    incident?.incident_details?.prediction_details?.global_impact_score,
+    incident?.incident_details?.global_impact_score,
+    incident?.incident_details?.prediction?.global_impact_score,
+    incident?.prediction_details?.global_impact_score,
+    Array.isArray(incident?.prediction_details) ? incident.prediction_details[0]?.global_impact_score : undefined,
+    incident?.prediction?.global_impact_score,
+    Array.isArray(incident?.prediction) ? incident.prediction[0]?.global_impact_score : undefined,
+    incident?.predictions?.[0]?.global_impact_score,
+    incident?.details?.prediction_details?.global_impact_score,
+    incident?.details?.global_impact_score,
+    incident?.predictionDetails?.global_impact_score,
+    incident?.incidentDetails?.predictionDetails?.global_impact_score,
+    incident?.incident_prediction?.global_impact_score,
+    incident?.incident_predictions?.[0]?.global_impact_score,
+    incident?.aiAnalysis?.global_impact_score,
+    incident?.ai_analysis?.global_impact_score,
+  ];
 
-  if (note !== undefined && note !== null) {
-    const valeur = parseFloat(note);
-    // `parseFloat` rend NaN sur une chaîne vide ou un texte : toute comparaison
-    // serait alors fausse et on tomberait en « faible » par accident. On préfère
-    // ignorer la note et laisser les badges décider.
-    if (!Number.isNaN(valeur)) {
-      return (NIVEAUX_GRAVITE.find((n) => valeur >= n.min) ?? NIVEAUX_GRAVITE.at(-1)).cle;
+  for (const c of cibles) {
+    if (c !== undefined && c !== null && c !== '') {
+      const val = parseFloat(c);
+      if (!Number.isNaN(val)) return val;
     }
   }
 
-  const badges = (incident.badges || []).map((b) => b?.variant);
+  return null;
+};
+
+/**
+ * Convertit un score d'impact (0 à 10) en niveau de gravité :
+ *   - De 0 à 3   → 'low' (Faible)
+ *   - De 4 à 6   → 'medium' (Moyenne)
+ *   - De 7 à 10  → 'high' (Élevée)
+ *
+ * @param {number|string} score
+ * @returns {'high'|'medium'|'low'|null}
+ */
+export const scoreVersNiveau = (score) => {
+  if (score === null || score === undefined || score === '') return null;
+  const s = parseFloat(score);
+  if (Number.isNaN(s)) return null;
+  if (s >= 7) return 'high';
+  if (s >= 4) return 'medium';
+  return 'low';
+};
+
+/**
+ * Lit le niveau de gravité d'un incident.
+ *
+ * Sources dans l'ordre de priorité :
+ *   1. `global_impact_score` (0–10) :
+ *        0 à 3  → faible ('low')
+ *        4 à 6  → moyenne ('medium') (ex: 5.36)
+ *        7 à 10 → élevée ('high')
+ *   2. `severity` textuel du backend ('high' | 'medium' | 'low') si pas de global_impact_score ;
+ *   3. `base_severity` numérique (0–10) si severity textuel absent ;
+ *   4. `badges` (dernier recours).
+ *
+ * @param {Object} incident
+ * @param {Object} [prediction] détails de prédiction
+ * @returns {'high'|'medium'|'low'}
+ */
+export const gravite = (incident, prediction = null) => {
+  if (!incident && !prediction) return CLE_PAR_DEFAUT;
+
+  // 1. Priorité absolue : global_impact_score
+  const score = extraireScoreImpact(incident, prediction);
+  if (score !== null) {
+    return scoreVersNiveau(score);
+  }
+
+  // 2. Repli : champ severity texte du serveur
+  if (incident?.severity && CLES_GRAVITE.includes(incident.severity)) {
+    return incident.severity;
+  }
+
+  // 3. Repli : base_severity
+  const note =
+    incident?.base_severity ??
+    prediction?.base_severity ??
+    incident?.incident_details?.prediction_details?.base_severity ??
+    incident?.prediction_details?.base_severity;
+
+  if (note !== undefined && note !== null && note !== '') {
+    const valeur = parseFloat(note);
+    if (!Number.isNaN(valeur)) {
+      return scoreVersNiveau(valeur);
+    }
+  }
+
+  // 4. Repli : badges
+  const badges = (incident?.badges || []).map((b) => b?.variant);
   if (badges.includes('critical') || badges.includes('high') || badges.includes('expert-needed')) return 'high';
   if (badges.includes('in-progress') || badges.includes('medium')) return 'medium';
+
   return CLE_PAR_DEFAUT;
 };
 
@@ -143,6 +212,8 @@ export default {
   NIVEAUX_GRAVITE,
   CLES_GRAVITE,
   gravite,
+  extraireScoreImpact,
+  scoreVersNiveau,
   libelleGravite,
   couleurGravite,
   couleurTexteGravite,

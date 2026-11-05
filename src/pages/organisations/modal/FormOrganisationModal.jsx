@@ -1,42 +1,54 @@
-import React, { useEffect, useRef } from 'react';
-import { CloseCircle, TickCircle } from 'iconsax-react';
+import React from 'react';
+import { CloseCircle, ArrowDown2, TickCircle } from 'iconsax-react';
 import { useOrganisationsContext } from '../context/OrganisationsContext';
 import { SECTORS, TYPES, COUNTRIES } from '../data/organisations';
-import { BlurryImage } from '../../../components/atoms/BlurryImage';
+import { Dialogue } from '../../../components/molecules/Dialogue';
+import { PastilleOrganisation } from '../PastilleOrganisation';
+import { COULEURS_ORGANISATION } from '../libelles';
 
-import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
+const IcoBatiment = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 10h.01M15 10h.01" />
+  </svg>
+);
+
+const IcoInfo = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16v.5" />
+  </svg>
+);
+
+const Erreur = ({ id, children }) => (children ? <span id={id} className="dg-erreur"><IcoInfo />{children}</span> : null);
+
+/** Liste déroulante native, habillée comme un champ du dialogue. */
+const Choix = ({ id, libelle, valeur, onChange, options, erreur, disabled }) => (
+  <label className="dg-champ" htmlFor={id}>
+    {libelle}
+    <span className={`of-choix ${erreur ? 'is-ko' : ''} ${valeur ? '' : 'is-vide'}`}>
+      <select id={id} value={valeur} onChange={(e) => onChange(e.target.value)} disabled={disabled} aria-invalid={Boolean(erreur)} aria-describedby={erreur ? `${id}-err` : undefined}>
+        <option value="">Choisir</option>
+        {options.map((o) => <option key={o.en} value={o.en}>{o.fr}</option>)}
+      </select>
+      <ArrowDown2 size={14} color="currentColor" aria-hidden="true" />
+    </span>
+    <Erreur id={`${id}-err`}>{erreur}</Erreur>
+  </label>
+);
+
 const FormOrganisationModal = () => {
   const {
-    formModal,
-    formAnimating,
-    closeFormModal,
-    modalAlert,
-    form,
-    formErrors,
-    setField,
-    handlePhotoChange,
-    removePhoto,
-    isSubmitting,
-    handleSubmit,
+    formModal, closeFormModal, modalAlert, form, formErrors,
+    setField, handlePhotoChange, removePhoto, isSubmitting, handleSubmit,
   } = useOrganisationsContext();
-
-  const bodyRef = useRef(null);
-
-  useEffect(() => {
-    if (modalAlert.message && bodyRef.current) {
-      bodyRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [modalAlert.message]);
 
   if (!formModal.open) return null;
 
-
-
-  const titre = formModal.mode === 'create' ? 'Nouvelle organisation' : "Modifier l'organisation";
-  const verrouille = isSubmitting || modalAlert.type === 'success';
+  const creation = formModal.mode === 'create';
+  const nbErreurs = Object.values(formErrors).filter(Boolean).length;
+  const couleurs = COULEURS_ORGANISATION.includes(form.color) ? COULEURS_ORGANISATION : [form.color, ...COULEURS_ORGANISATION];
 
   return (
-    <OffcanvasModal
+    <Dialogue
       onClose={closeFormModal}
       isClosing={formAnimating === 'closing'}
       title={titre}
@@ -44,250 +56,113 @@ const FormOrganisationModal = () => {
       closeVariant="plain"
       closeDisabled={verrouille}
     >
-      {/* Le panneau etait lui-meme un <form>. La coquille rendant un <aside>,
-          le formulaire enveloppe desormais le corps, et le bouton d'envoi du
-          pied lui est rattache par l'attribut `form`. */}
-      <form
-        id="organisation-form"
-        onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
-        style={{ display: 'contents' }}
-      >
 
-        <div className="am-offcanvas-body" ref={bodyRef}>
-          {modalAlert.message && (
-            <div className={`am-alert am-alert--${modalAlert.type === 'success' ? 'success' : 'danger'}`}>
-              {modalAlert.type === 'success' ? (
-                <TickCircle size={18} variant="Bold" color="var(--color-success)" />
-              ) : (
-                <CloseCircle size={18} variant="Bold" color="var(--color-danger)" />
-              )}
-              <span className="am-alert__message">{modalAlert.message}</span>
-            </div>
-          )}
-
-              {/* Photo / Avatar */}
-              <div className="orgs-photo-section">
-                {/* Zone de prévisualisation cliquable */}
-                <label htmlFor="org-photo-input" className="orgs-photo-picker">
-                  {form.logo_url ? (
-                    <BlurryImage src={form.logo_url} alt="Logo organisation" className="orgs-photo-preview" />
-                  ) : (
-                    <div className="orgs-avatar orgs-avatar-lg" style={{ backgroundColor: form.color }}>
-                      {(form.acronym || '?').slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="orgs-photo-overlay">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                      <circle cx="12" cy="13" r="4" />
-                    </svg>
-                    <span>{form.logo_url ? 'Changer' : 'Ajouter une photo'}</span>
-                  </div>
-                  <input
-                    id="org-photo-input"
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={handlePhotoChange}
-                  />
+      <form id="form-organisation" className="of-form" noValidate onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+        <fieldset className="dg-fieldset">
+          <legend className="of-legende">Identité</legend>
+          <div className="of-identite">
+            <PastilleOrganisation org={{ ...form, name: form.name || '?' }} taille={64} />
+            <div className="of-logo">
+              <div className="of-logo-actions">
+                <label className="dg-btn dg-btn-g dg-btn-s">
+                  {form.logo_url ? 'Changer le logo' : 'Ajouter un logo'}
+                  <input type="file" accept="image/*" className="dg-masque" onChange={handlePhotoChange} disabled={isSubmitting} />
                 </label>
-
-                {/* Infos & actions à droite */}
-                <div className="orgs-photo-info">
-                  <p className="orgs-photo-hint">Logo de l'organisation</p>
-                  <p className="orgs-photo-sub">JPG, PNG ou SVG · max 2 Mo</p>
-                  <div className="orgs-photo-actions">
-                    <label htmlFor="org-photo-input" className="orgs-photo-btn orgs-photo-btn-upload">
-                      Choisir une photo
-                    </label>
-                    {form.logo_url && (
-                      <button type="button" className="orgs-photo-btn orgs-photo-btn-remove" onClick={removePhoto}>
-                        Supprimer
-                      </button>
-                    )}
-                  </div>
-                  {formErrors.logo && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)', display: 'block', marginTop: '6px' }}>
-                      {formErrors.logo}
-                    </span>
-                  )}
-                </div>
+                {form.logo_url && <button type="button" className="dg-btn dg-btn-texte is-ko dg-btn-s" onClick={removePhoto} disabled={isSubmitting}>Retirer</button>}
               </div>
-
-              <div className="orgs-form-grid">
-                {/* Nom */}
-                <div className="orgs-field">
-                  <label>Nom complet *</label>
-                  <input
-                    type="text"
-                    placeholder="Ex. Croix-Rouge Sénégalaise"
-                    value={form.name}
-                    onChange={(e) => setField('name', e.target.value)}
-                    style={(formErrors.name || formErrors.subdomain) ? { borderColor: 'var(--color-danger)' } : {}}
+              <small>{form.logo_url ? 'JPG, PNG ou SVG, 2 Mo au plus.' : 'Sans logo, le sigle s’affiche sur cette couleur.'}</small>
+            </div>
+            {!form.logo_url && (
+              <div className="of-couleurs" role="radiogroup" aria-label="Couleur de la pastille">
+                {couleurs.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.color === c}
+                    aria-label={`Couleur ${c}`}
+                    className={form.color === c ? 'is-on' : ''}
+                    style={{ backgroundColor: c }}
+                    onClick={() => setField('color', c)}
                   />
-                  {formErrors.name && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.name}</span>
-                  )}
-                  {formErrors.subdomain && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)', display: 'block', marginTop: '4px' }}>
-                      Sous-domaine : {formErrors.subdomain}
-                    </span>
-                  )}
-                </div>
-
-                {/* Acronyme */}
-                <div className="orgs-field">
-                  <label>Acronyme </label>
-                  <input
-                    type="text"
-                    placeholder="Ex. CRS"
-                    value={form.acronym}
-                    onChange={(e) => setField('acronym', e.target.value.toUpperCase())}
-                    maxLength={6}
-                    style={formErrors.acronym ? { borderColor: 'var(--color-danger)' } : {}}
-                  />
-                  {formErrors.acronym && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.acronym}</span>
-                  )}
-                </div>
-
-                {/* Secteur */}
-                <div className="orgs-field">
-                  <label>Secteur d'activité *</label>
-                  <select value={form.sector} onChange={(e) => setField('sector', e.target.value)} style={formErrors.sector ? { borderColor: 'var(--color-danger)' } : {}}>
-                    <option value="">Sélectionner…</option>
-                    {SECTORS.map((s) => <option key={s.en} value={s.en}>{s.fr}</option>)}
-                  </select>
-                  {formErrors.sector && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.sector}</span>
-                  )}
-                </div>
-
-                {/* Type */}
-                <div className="orgs-field">
-                  <label>Type *</label>
-                  <select value={form.type} onChange={(e) => setField('type', e.target.value)} style={formErrors.type ? { borderColor: 'var(--color-danger)' } : {}}>
-                    <option value="">Sélectionner…</option>
-                    {TYPES.map((t) => <option key={t.en} value={t.en}>{t.fr}</option>)}
-                  </select>
-                  {formErrors.type && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.type}</span>
-                  )}
-                </div>
-
-                {/* Pays */}
-                <div className="orgs-field">
-                  <label>Pays *</label>
-                  <select value={form.country} onChange={(e) => setField('country', e.target.value)} style={formErrors.country ? { borderColor: 'var(--color-danger)' } : {}}>
-                    <option value="">Sélectionner…</option>
-                    {COUNTRIES.map((c) => <option key={c.en} value={c.en}>{c.fr}</option>)}
-                  </select>
-                  {formErrors.country && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.country}</span>
-                  )}
-                </div>
-
-                {/* Email */}
-                <div className="orgs-field">
-                  <label>Email</label>
-                  <input
-                    type="email"
-                    placeholder="contact@org.ml"
-                    value={form.email}
-                    onChange={(e) => setField('email', e.target.value)}
-                    style={formErrors.email ? { borderColor: 'var(--color-danger)' } : {}}
-                  />
-                  {formErrors.email && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.email}</span>
-                  )}
-                </div>
-
-                {/* Téléphone */}
-                <div className="orgs-field">
-                  <label>Téléphone</label>
-                  <input
-                    type="tel"
-                    placeholder="+223 00 00 00 00"
-                    value={form.phone}
-                    onChange={(e) => setField('phone', e.target.value)}
-                    style={formErrors.phone ? { borderColor: 'var(--color-danger)' } : {}}
-                  />
-                  {formErrors.phone && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.phone}</span>
-                  )}
-                </div>
-
-                {/* Site web */}
-                <div className="orgs-field">
-                  <label>Site web</label>
-                  <input
-                    type="text"
-                    placeholder="https://www.organisation.org"
-                    value={form.website}
-                    onChange={(e) => setField('website', e.target.value)}
-                    style={formErrors.website ? { borderColor: 'var(--color-danger)' } : {}}
-                  />
-                  {formErrors.website && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.website}</span>
-                  )}
-                </div>
-
-                {/* Statut */}
-                <div className="orgs-field">
-                  <label>Statut</label>
-                  <select
-                    value={form.status}
-                    onChange={(e) => setField('status', e.target.value)}
-                    style={formErrors.status ? { borderColor: 'var(--color-danger)' } : {}}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                  {formErrors.status && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.status}</span>
-                  )}
-                </div>
-
-                {/* Description */}
-                <div className="orgs-field full-width">
-                  <label>Description</label>
-                  <textarea
-                    placeholder="Décrivez le mandat et les activités de cette organisation…"
-                    value={form.description}
-                    onChange={(e) => setField('description', e.target.value)}
-                    style={formErrors.description ? { borderColor: 'var(--color-danger)' } : {}}
-                  />
-                  {formErrors.description && (
-                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-danger-text)' }}>{formErrors.description}</span>
-                  )}
-                </div>
+                ))}
               </div>
-        </div>
+            )}
+          </div>
+          <div className="of-nom">
+            <label className="dg-champ" htmlFor="of-nom">
+              Nom complet
+              <input
+                id="of-nom" data-autofocus type="text" className="dg-input" value={form.name}
+                onChange={(e) => setField('name', e.target.value)} placeholder="Ex. : Croix-Rouge sénégalaise"
+                aria-invalid={Boolean(formErrors.name)} aria-describedby={formErrors.name ? 'of-nom-err' : undefined} disabled={isSubmitting}
+              />
+              <Erreur id="of-nom-err">{formErrors.name}</Erreur>
+            </label>
+            <label className="dg-champ" htmlFor="of-sigle">
+              Sigle
+              <input
+                id="of-sigle" type="text" className="dg-input" value={form.acronym} maxLength={6}
+                onChange={(e) => setField('acronym', e.target.value.toUpperCase())} placeholder="CRS"
+                aria-invalid={Boolean(formErrors.acronym)} disabled={isSubmitting}
+              />
+              <Erreur id="of-sigle-err">{formErrors.acronym}</Erreur>
+            </label>
+          </div>
+        </fieldset>
 
-        <div className="am-offcanvas-footer">
-          <button
-            type="button"
-            className="am-btn am-btn--secondary"
-            onClick={closeFormModal}
-            disabled={isSubmitting || modalAlert.type === 'success'}
-          >
-            Annuler
-          </button>
-          <button
-            type="submit"
-            form="organisation-form"
-            className="am-btn am-btn--primary"
-            disabled={isSubmitting || modalAlert.type === 'success'}
-          >
-            {isSubmitting && <span className="am-spinner" aria-hidden="true" />}
-            {isSubmitting
-              ? (formModal.mode === 'create' ? 'Création...' : 'Enregistrement...')
-              : (modalAlert.type === 'success' ? 'Succès !' : (formModal.mode === 'create' ? 'Créer l\'organisation' : 'Enregistrer les modifications'))
-            }
-          </button>
-        </div>
+        <fieldset className="dg-fieldset">
+          <legend className="of-legende">Activité</legend>
+          <div className="of-grille3">
+            <Choix id="of-secteur" libelle="Secteur" valeur={form.sector} onChange={(v) => setField('sector', v)} options={SECTORS} erreur={formErrors.sector} disabled={isSubmitting} />
+            <Choix id="of-type" libelle="Type" valeur={form.type} onChange={(v) => setField('type', v)} options={TYPES} erreur={formErrors.type} disabled={isSubmitting} />
+            <Choix id="of-pays" libelle="Pays d’intervention" valeur={form.country} onChange={(v) => setField('country', v)} options={COUNTRIES} erreur={formErrors.country} disabled={isSubmitting} />
+          </div>
+        </fieldset>
+
+        <fieldset className="dg-fieldset">
+          <legend className="of-legende">Contact <span className="dg-opt">facultatif</span></legend>
+          <div className="dg-grille2">
+            <label className="dg-champ" htmlFor="of-mail">
+              E-mail
+              <input id="of-mail" type="email" className="dg-input" value={form.email} onChange={(e) => setField('email', e.target.value)} placeholder="contact@organisation.org" aria-invalid={Boolean(formErrors.email)} aria-describedby={formErrors.email ? 'of-mail-err' : undefined} disabled={isSubmitting} />
+              <Erreur id="of-mail-err">{formErrors.email}</Erreur>
+            </label>
+            <label className="dg-champ" htmlFor="of-tel">
+              Téléphone
+              <input id="of-tel" type="tel" className="dg-input" value={form.phone} onChange={(e) => setField('phone', e.target.value)} placeholder="+221 33 000 00 00" aria-invalid={Boolean(formErrors.phone)} disabled={isSubmitting} />
+              <Erreur id="of-tel-err">{formErrors.phone}</Erreur>
+            </label>
+          </div>
+          <label className="dg-champ" htmlFor="of-site">
+            Site web
+            <input id="of-site" type="url" className="dg-input" value={form.website} onChange={(e) => setField('website', e.target.value)} placeholder="https://www.organisation.org" aria-invalid={Boolean(formErrors.website)} disabled={isSubmitting} />
+            <Erreur id="of-site-err">{formErrors.website}</Erreur>
+          </label>
+        </fieldset>
+
+        <label className="dg-champ" htmlFor="of-desc">
+          <span>Mandat et activités <span className="dg-opt">facultatif</span></span>
+          <textarea id="of-desc" className="dg-textarea" rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Ce que fait l’organisation, ses zones et ses publics." disabled={isSubmitting} />
+          <Erreur id="of-desc-err">{formErrors.description}</Erreur>
+        </label>
+
+        <label className="of-actif">
+          <span>
+            <b>Organisation active</b>
+            <small>Une organisation inactive n’apparaît plus dans les invitations.</small>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            className="of-switch"
+            checked={form.status === 'active'}
+            onChange={(e) => setField('status', e.target.checked ? 'active' : 'inactive')}
+            disabled={isSubmitting}
+          />
+        </label>
       </form>
-    </OffcanvasModal>
+    </Dialogue>
   );
 };
 

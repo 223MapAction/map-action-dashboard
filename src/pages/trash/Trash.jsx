@@ -1,124 +1,81 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
+import { SearchNormal1, ArrowDown2, Location, RotateLeft, Trash } from 'iconsax-react';
+import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useSidebarState } from '../../hooks/useSidebarState';
-import { Header, Sidebar } from '../../components/layout';
-import {
-  Trash, SearchNormal1, ArrowDown2, RotateLeft,
-  InfoCircle, CloseCircle, Grid2, HambergerMenu
-} from 'iconsax-react';
-import { ShimmerThumbnail, ShimmerTitle, ShimmerText } from 'react-shimmer-effects';
-import { getTrashIncidentsService, restoreIncidentService, deleteIncidentService } from '../incident/service/incident_service';
-import { BlurryImage } from '../../components/atoms/BlurryImage';
-import { FiltersBar } from '../../components/molecules/FiltersBar';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
-import { OffcanvasModal } from '../../components/molecules/OffcanvasModal';
-import './trash.css';
+import { Header, Sidebar } from '../../components/layout';
+import { BlurryImage } from '../../components/atoms/BlurryImage';
+import { BandeauErreur } from '../../components/molecules/BandeauErreur';
+import { Dialogue } from '../../components/molecules/Dialogue';
+import { restoreIncidentService, deleteIncidentService } from '../incident/service/incident_service';
+import { getToutLaCorbeille, lireSignalementSupprime } from './corbeille';
 import { logger } from '../../utils/logger';
+import './corbeille-liste.css';
 
-// Composant Shimmer Skeleton pour le chargement des incidents de la corbeille
-const TrashSkeleton = ({ viewMode = 'list' }) => {
-  if (viewMode === 'grid') {
-    return (
-      <div className="trash-grid">
-        {[...Array(6)].map((_, idx) => (
-          <div className="trash-card" key={idx} style={{ opacity: 0.7 }}>
-            <div className="trash-card-thumb">
-              <ShimmerThumbnail height={160} rounded />
-            </div>
-            <div className="trash-card-body" style={{ gap: '12px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <ShimmerThumbnail height={20} width={60} rounded />
-                <ShimmerThumbnail height={20} width={80} rounded />
-              </div>
-              <ShimmerTitle line={1} gap={0} width="60%" />
-              <ShimmerText line={2} gap={8} />
-              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-                <ShimmerText line={1} width={100} />
-                <ShimmerText line={1} width={100} />
-              </div>
-            </div>
-            <div className="trash-card-actions">
-              <div style={{ padding: '12px', display: 'flex', justifyContent: 'center' }}>
-                <ShimmerThumbnail height={24} width={80} rounded />
-              </div>
-              <div style={{ padding: '12px', display: 'flex', justifyContent: 'center' }}>
-                <ShimmerThumbnail height={24} width={80} rounded />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+const EMPTY_ARRAY = [];
+const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 
+const IcoCorbeille = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" />
+  </svg>
+);
+
+/** Case « Tout » : cochée, vide, ou à moitié quand une partie est choisie. */
+const CaseTout = ({ etat, onChange, children }) => {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = etat === 'partiel'; }, [etat]);
   return (
-    <div className="trash-list" style={{ gap: '12px' }}>
-      {[...Array(5)].map((_, idx) => (
-        <div className="trash-row" key={idx} style={{ opacity: 0.7, padding: '16px' }}>
-          <div style={{ width: '16px' }} />
-          <div className="trash-row-thumb">
-            <ShimmerThumbnail height={54} width={72} rounded />
-          </div>
-          <div className="trash-row-main" style={{ gap: '8px' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <ShimmerThumbnail height={16} width={50} rounded />
-              <ShimmerThumbnail height={16} width={70} rounded />
-            </div>
-            <ShimmerTitle line={1} gap={0} width="40%" />
-            <ShimmerText line={1} width="80%" />
-          </div>
-          <div className="trash-row-meta" style={{ gap: '6px', alignItems: 'flex-end' }}>
-            <ShimmerText line={1} width={80} />
-            <ShimmerText line={1} width={100} />
-            <ShimmerText line={1} width={120} />
-          </div>
-          <div style={{ width: '120px', display: 'flex', gap: '8px', paddingLeft: '16px', borderLeft: '1px solid var(--color-border)' }}>
-            <ShimmerThumbnail height={32} width={50} rounded />
-            <ShimmerThumbnail height={32} width={50} rounded />
-          </div>
-        </div>
-      ))}
-    </div>
+    <label className="cb-tout">
+      <input ref={ref} type="checkbox" checked={etat === 'tout'} onChange={onChange} aria-label="Tout sélectionner" />
+      {children}
+    </label>
   );
 };
 
-// Fonction d'adaptation des données de l'incident pour la corbeille
-const adaptTrashIncidentData = (incident) => {
-  if (!incident) return null;
+/** Confirmation de suppression définitive, pour un ou plusieurs signalements. */
+const FenetreSuppression = ({ signalements, onFermer, onConfirmer }) => {
+  const [envoi, setEnvoi] = useState(false);
+  const un = signalements.length === 1;
 
-  const getBadgeFromEtat = (etat) => {
-    const badges = {
-      'declared': { label: 'DÉCLARÉ', variant: 'declared' },
-      'taken_into_account': { label: 'PRIS EN COMPTE', variant: 'taken' },
-      'resolved': { label: 'RÉSOLU', variant: 'resolved' }
-    };
-    return badges[etat] || { label: 'EN COURS', variant: 'in-progress' };
+  const confirmer = async (close) => {
+    setEnvoi(true);
+    await onConfirmer();
+    setEnvoi(false);
+    close();
   };
 
-  const badge = getBadgeFromEtat(incident.etat);
-
-  // Calcul du nombre de jours restants avant suppression définitive (30 jours max)
-  const createdDate = new Date(incident.created_at || Date.now());
-  const now = new Date();
-  const diffTime = Math.abs(now - createdDate);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const expiresIn = Math.max(1, 30 - diffDays);
-
-  return {
-    ...incident,
-    title: incident.title || 'Sans titre',
-    description: incident.description || 'Aucune description disponible',
-    // Pas de photo de remplacement : BlurryImage affiche son propre etat
-    // « aucune photo ». Une image de banque d'images faisait croire a une
-    // vraie photo du signalement, en plus d'appeler un CDN externe.
-    image: incident.photo || '',
-    type: incident.zone || 'Non spécifié',
-    location: incident.zone || 'Localisation non spécifiée',
-    deletedAt: incident.created_at ? new Date(incident.created_at).toLocaleDateString('fr-FR') : 'Non spécifiée',
-    badgeLabel: badge.label,
-    badgeVariant: badge.variant,
-    expiresIn: expiresIn
-  };
+  return (
+    <Dialogue
+      onClose={onFermer}
+      role="alertdialog"
+      taille="sm"
+      ton="danger"
+      pile
+      verrouille={envoi}
+      titre={un ? `Supprimer définitivement « ${signalements[0].titre} » ?` : `Supprimer définitivement ${pluriel(signalements.length, 'signalement')} ?`}
+      icone={<IcoCorbeille />}
+      pied={({ close }) => (
+        <>
+          <span className="dg-espace" />
+          <button type="button" className="dg-btn dg-btn-g" onClick={close} disabled={envoi}>Garder dans la corbeille</button>
+          <button type="button" className="dg-btn dg-btn-ko" onClick={() => confirmer(close)} disabled={envoi}>
+            {envoi ? <><span className="dg-spin" aria-hidden="true" />Suppression…</> : 'Supprimer définitivement'}
+          </button>
+        </>
+      )}
+    >
+      <p className="cb-texte">
+        {un ? 'Il disparaîtra' : 'Ils disparaîtront'} définitivement de Map Action. Cette action ne peut pas être annulée.
+      </p>
+      {!un && (
+        <ul className="cb-a-supprimer">
+          {signalements.map((s) => <li key={s.id}>{s.titre}</li>)}
+        </ul>
+      )}
+    </Dialogue>
+  );
 };
 
 export const TrashPage = () => {
@@ -129,265 +86,114 @@ export const TrashPage = () => {
     setCollapsed: setSidebarCollapsed,
   } = useSidebarState();
 
-  // Utiliser useSWR pour charger les incidents supprimés
-  const { data: incidentsData, error: incidentsError, isLoading, mutate } = useSWR(
-    'trash-incidents',
-    getTrashIncidentsService,
-    {
-      revalidateOnFocus: false
+  const { data, error, isLoading, mutate } = useSWR('trash-incidents', getToutLaCorbeille, { revalidateOnFocus: false, keepPreviousData: true });
+  const signalements = useMemo(() => (data ? data.map(lireSignalementSupprime) : EMPTY_ARRAY), [data]);
+
+  const { saisie, setSaisie, recherche, reinitialiser } = useRechercheDebouncee();
+  const [zone, setZone] = useState('');
+  const [choisis, setChoisis] = useState(() => new Set());
+  const [aSupprimer, setASupprimer] = useState(null);
+  const [toast, setToast] = useState(null);
+  const afficherToast = (texte) => setToast({ texte, n: Date.now() });
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767.98px)');
+    const maj = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', maj);
+    return () => mq.removeEventListener('change', maj);
+  }, []);
+
+  // L'en-tête de la page reste collé sous celui de l'application.
+  const repereRef = useRef(null);
+  const [colle, setColle] = useState(false);
+  const surDefilement = (e) => {
+    const repere = repereRef.current;
+    if (repere) setColle(e.currentTarget.scrollTop > repere.offsetTop - 60);
+  };
+
+  const zones = useMemo(() => [...new Set(signalements.map((s) => s.zone).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr')), [signalements]);
+
+  const affiches = useMemo(() => {
+    const q = recherche.trim().toLowerCase();
+    return signalements.filter((s) => (!zone || s.zone === zone)
+      && (!q || s.titre.toLowerCase().includes(q) || s.lieu.toLowerCase().includes(q)));
+  }, [signalements, recherche, zone]);
+
+  // Une sélection ne garde que des signalements encore dans la corbeille.
+  const selection = signalements.filter((s) => choisis.has(s.id));
+  const nbChoisis = selection.length;
+  const toutAffiche = affiches.length > 0 && affiches.every((s) => choisis.has(s.id));
+  const etatTout = toutAffiche ? 'tout' : (nbChoisis > 0 ? 'partiel' : 'rien');
+
+  const basculer = (id) => setChoisis((prev) => {
+    const s = new Set(prev);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    return s;
+  });
+  const basculerTout = () => setChoisis(toutAffiche ? new Set() : new Set(affiches.map((s) => s.id)));
+  const toutDeselectionner = () => setChoisis(new Set());
+
+  /**
+   * Applique une action à plusieurs signalements. Les échecs ne sont pas
+   * masqués : ils restent sélectionnés et la confirmation les compte.
+   */
+  const appliquer = async (liste, action, verbe) => {
+    const resultats = await Promise.allSettled(liste.map((s) => action(s.id)));
+    const echecs = liste.filter((_, i) => resultats[i].status === 'rejected');
+    resultats.forEach((r) => { if (r.status === 'rejected') logger.error(`[Corbeille] ${verbe} impossible :`, r.reason); });
+    const reussis = liste.length - echecs.length;
+    setChoisis(new Set(echecs.map((s) => s.id)));
+    await mutate();
+    return { reussis, echecs };
+  };
+
+  const restaurer = async (liste) => {
+    const { reussis, echecs } = await appliquer(liste, restoreIncidentService, 'Restauration');
+    if (echecs.length === 0) {
+      afficherToast(liste.length === 1 ? `« ${liste[0].titre} » est restauré` : `${pluriel(reussis, 'signalement')} ${reussis > 1 ? 'restaurés' : 'restauré'}`);
+    } else if (reussis === 0) {
+      afficherToast(liste.length === 1 ? `« ${liste[0].titre} » n’a pas pu être restauré` : 'Aucun signalement n’a pu être restauré');
+    } else {
+      afficherToast(`${pluriel(reussis, 'signalement')} ${reussis > 1 ? 'restaurés' : 'restauré'}, ${echecs.length} n’${echecs.length > 1 ? 'ont' : 'a'} pas pu l’être`);
     }
+  };
+
+  const supprimer = async (liste) => {
+    const { reussis, echecs } = await appliquer(liste, deleteIncidentService, 'Suppression');
+    if (echecs.length === 0) {
+      afficherToast(`${pluriel(reussis, 'signalement')} ${reussis > 1 ? 'supprimés' : 'supprimé'} définitivement`);
+    } else if (reussis === 0) {
+      afficherToast(liste.length === 1 ? 'Le signalement n’a pas pu être supprimé' : 'Aucun signalement n’a pu être supprimé');
+    } else {
+      afficherToast(`${pluriel(reussis, 'signalement')} ${reussis > 1 ? 'supprimés' : 'supprimé'}, ${echecs.length} n’${echecs.length > 1 ? 'ont' : 'a'} pas pu l’être`);
+    }
+  };
+
+  const chargementInitial = isLoading && !data;
+  const filtreActif = Boolean(recherche || zone);
+
+  const barreSelection = (
+    <div className="cb-selection" role="region" aria-label="Actions sur la sélection">
+      <div className="cb-selection-compte">
+        {isMobile
+          ? <b>{nbChoisis} {nbChoisis > 1 ? 'sélectionnés' : 'sélectionné'} sur {signalements.length}</b>
+          : <CaseTout etat={etatTout} onChange={basculerTout}>{nbChoisis} {nbChoisis > 1 ? 'sélectionnés' : 'sélectionné'} sur {signalements.length}</CaseTout>}
+        <button type="button" className="dg-btn dg-btn-texte dg-btn-s" onClick={toutDeselectionner}>Tout désélectionner</button>
+      </div>
+      <div className="cb-selection-actions">
+        <button type="button" className="dg-btn dg-btn-p" onClick={() => restaurer(selection)}>
+          <RotateLeft size={16} color="currentColor" aria-hidden="true" />Restaurer
+        </button>
+        <button type="button" className="dg-btn dg-btn-ko" onClick={() => setASupprimer(selection)}>
+          <Trash size={16} color="currentColor" aria-hidden="true" />{isMobile ? 'Supprimer' : 'Supprimer définitivement'}
+        </button>
+      </div>
+    </div>
   );
 
-  const incidents = useMemo(() => {
-    const rawList = incidentsData
-      ? Array.isArray(incidentsData)
-        ? incidentsData
-        : Array.isArray(incidentsData.results)
-          ? incidentsData.results
-          : []
-      : [];
-    return rawList.map(adaptTrashIncidentData);
-  }, [incidentsData]);
-
-  const {
-    saisie: searchInput,
-    setSaisie: setSearchInput,
-    recherche: search,
-    reinitialiser: reinitialiserRecherche,
-  } = useRechercheDebouncee();
-  const [typeFilter, setTypeFilter] = useState('');
-  const [toast, setToast] = useState(null);
-  const [confirmId, setConfirmId] = useState(null);
-  const [confirmClosing, setConfirmClosing] = useState(false);
-  const [selected, setSelected] = useState(new Set());
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
-
-  const types = useMemo(() => [...new Set(incidents.map((i) => i.type).filter(Boolean))], [incidents]);
-
-  const filtered = useMemo(() => {
-    return incidents.filter((i) => {
-      const matchSearch =
-        !search ||
-        i.title?.toLowerCase().includes(search.toLowerCase()) ||
-        i.location?.toLowerCase().includes(search.toLowerCase());
-      const matchType = !typeFilter || i.type === typeFilter;
-      return matchSearch && matchType;
-    });
-  }, [incidents, search, typeFilter]);
-
-  const closeConfirmModal = () => {
-    setConfirmClosing(true);
-    setTimeout(() => {
-      setConfirmId(null);
-      setConfirmClosing(false);
-    }, 280);
-  };
-
-  // ── Restaurer un incident ──────────────────────────────
-  const handleRestore = async (id) => {
-    const item = incidents.find((i) => i.id === id);
-    try {
-      await restoreIncidentService(id);
-      await mutate();
-      setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
-      showToast(`"${item?.title}" a été restauré.`);
-    } catch (error) {
-      logger.error('Erreur lors de la restauration:', error);
-      showToast('Erreur lors de la restauration.');
-    }
-  };
-
-  // ── Supprimer définitivement ──────────────────────────
-  const handleDeletePermanent = async (id) => {
-    try {
-      if (id === 'batch') {
-        await Promise.all([...selected].map(selectedId => deleteIncidentService(selectedId)));
-        await mutate();
-        setSelected(new Set());
-        showToast('Incidents sélectionnés supprimés définitivement.');
-      } else {
-        await deleteIncidentService(id);
-        await mutate();
-        setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
-        showToast('Incident supprimé définitivement.');
-      }
-      closeConfirmModal();
-    } catch (error) {
-      logger.error('Erreur lors de la suppression:', error);
-      showToast('Erreur lors de la suppression.');
-      closeConfirmModal();
-    }
-  };
-
-  // ── Restaurer tous les sélectionnés ───────────────────
-  const handleRestoreSelected = async () => {
-    try {
-      await Promise.all([...selected].map(selectedId => restoreIncidentService(selectedId)));
-      const count = selected.size;
-      await mutate();
-      showToast(`${count} incident(s) restauré(s).`);
-      setSelected(new Set());
-    } catch (error) {
-      logger.error('Erreur lors de la restauration:', error);
-      showToast('Erreur lors de la restauration.');
-    }
-  };
-
-  // ── Toast ─────────────────────────────────────────────
-  const showToast = (message) => {
-    setToast({ message, id: Date.now() });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  // ── Sélection ─────────────────────────────────────────
-  const toggleSelect = (id) => {
-    setSelected((prev) => {
-      const s = new Set(prev);
-      s.has(id) ? s.delete(id) : s.add(id);
-      return s;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selected.size === filtered.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map((i) => i.id)));
-    }
-  };
-
-  const allSelected = filtered.length > 0 && selected.size === filtered.length;
-
-  // ── Composant carte réutilisable ─────────────────────
-  const IncidentItem = ({ incident }) => {
-    const isChecked = selected.has(incident.id);
-    const urgent = incident.expiresIn <= 5;
-
-    if (viewMode === 'list') {
-      return (
-        <div className={`trash-row ${isChecked ? 'is-selected' : ''}`}>
-          <input
-            type="checkbox"
-            className="trash-row-checkbox"
-            checked={isChecked}
-            onChange={() => toggleSelect(incident.id)}
-          />
-
-          <div className="trash-row-thumb">
-            <BlurryImage src={incident.image} alt={incident.title} />
-          </div>
-
-          <div className="trash-row-main">
-            <div className="trash-row-top">
-              <span className={`trash-badge trash-badge-${incident.badgeVariant}`}>
-                {incident.badgeLabel}
-              </span>
-              <span className="trash-card-type">{incident.type}</span>
-            </div>
-            <h3 className="trash-row-title">{incident.title}</h3>
-            <p className="trash-row-desc">{incident.description}</p>
-          </div>
-
-          <div className="trash-row-meta">
-            <span className="trash-card-location">{incident.location}</span>
-            <span className="trash-card-date">{incident.deletedAt}</span>
-            <div className="trash-card-expiry">
-              <span
-                className="trash-expiry-dot"
-                style={{ backgroundColor: urgent ? 'var(--color-danger)' : 'var(--color-warning)' }}
-              />
-              <span style={{ color: urgent ? 'var(--color-danger)' : 'inherit' }}>
-                {incident.expiresIn}j restant{incident.expiresIn > 1 ? 's' : ''}
-              </span>
-            </div>
-          </div>
-
-          <div className="trash-row-actions">
-            <button
-              className="trash-btn-restore"
-              onClick={() => handleRestore(incident.id)}
-              title="Restaurer"
-            >
-              <RotateLeft size={15} variant="Linear" color="var(--color-primary)" />
-              Restaurer
-            </button>
-            <button
-              className="trash-btn-delete"
-              onClick={() => setConfirmId(incident.id)}
-              title="Supprimer définitivement"
-            >
-              <Trash size={15} variant="Linear" color="var(--color-danger)" />
-              Supprimer
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    // ── Vue grille ──
-    return (
-      <div className={`trash-card ${isChecked ? 'is-selected' : ''}`}>
-        <input
-          type="checkbox"
-          className="trash-card-checkbox"
-          checked={isChecked}
-          onChange={() => toggleSelect(incident.id)}
-        />
-
-        <div className="trash-card-thumb">
-          <BlurryImage src={incident.image} alt={incident.title} />
-          <div className="trash-card-overlay" aria-hidden="true" />
-        </div>
-
-        <div className="trash-card-body">
-          <div className="trash-card-meta">
-            <span className={`trash-badge trash-badge-${incident.badgeVariant}`}>
-              {incident.badgeLabel}
-            </span>
-            <span className="trash-card-type">{incident.type}</span>
-          </div>
-
-          <h3 className="trash-card-title">{incident.title}</h3>
-          <p className="trash-card-desc">{incident.description}</p>
-
-          <div className="trash-card-info-row">
-            <span className="trash-card-location">📍 {incident.location}</span>
-            <span className="trash-card-date">🗑 Supprimé le {incident.deletedAt}</span>
-          </div>
-
-          <div className="trash-card-expiry">
-            <span
-              className="trash-expiry-dot"
-              style={{ backgroundColor: urgent ? 'var(--color-danger)' : 'var(--color-warning)' }}
-            />
-            Expire dans <strong>{incident.expiresIn} jour{incident.expiresIn > 1 ? 's' : ''}</strong>
-          </div>
-        </div>
-
-        <div className="trash-card-actions">
-          <button
-            className="trash-btn-restore"
-            onClick={() => handleRestore(incident.id)}
-            title="Restaurer cet signalement"
-          >
-            <RotateLeft size={16} variant="Linear" color="var(--color-primary)" />
-            Restaurer
-          </button>
-          <button
-            className="trash-btn-delete"
-            onClick={() => setConfirmId(incident.id)}
-            title="Supprimer définitivement"
-          >
-            <Trash size={15} variant="Linear" color="var(--color-danger)" />
-            Supprimer
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="trash-page">
+    <div className="cb-layout">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -395,210 +201,107 @@ export const TrashPage = () => {
         onCollapsedChange={setSidebarCollapsed}
       />
 
-      <div className={`trash-page-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          sidebarCollapsed={sidebarCollapsed}
-        />
+      <div className={`cb-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
 
-        <main className="trash-content">
+        <main className={`cb ${isMobile && nbChoisis > 0 ? 'avec-barre' : ''}`} onScroll={surDefilement}>
+          <BandeauErreur erreur={error} onReessayer={mutate} message="Impossible de charger la corbeille. La liste affichée peut ne plus être à jour." />
 
-          {/* ── État de chargement ── */}
-          {isLoading && (
-            <TrashSkeleton viewMode={viewMode} />
-          )}
+          <div ref={repereRef} aria-hidden="true" className="cb-repere" />
+          <div className={`cb-entete ${colle ? 'is-colle' : ''}`}>
+            <div className="cb-tete">
+              <h1>Corbeille</h1>
+              <p>Les signalements supprimés. Restaurez-les ou supprimez-les définitivement.</p>
+            </div>
 
-          {/* ── État d'erreur ── */}
-          {incidentsError && (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-danger-text)' }}>
-              <p>Erreur lors du chargement des signalements supprimés.</p>
-              <button
-                onClick={() => mutate()}
-                style={{ marginTop: '12px', padding: '8px 16px', cursor: 'pointer' }}
-              >
-                Réessayer
+            {/* Sur ordinateur, une sélection transforme la ligne d'outils en
+                barre d'actions ; sur téléphone, cette barre se pose en bas. */}
+            {!isMobile && nbChoisis > 0 ? barreSelection : (
+              <div className="cb-outils">
+                <CaseTout etat={etatTout} onChange={basculerTout}>{!isMobile && 'Tout'}</CaseTout>
+                <label className="cb-recherche">
+                  <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
+                  <input type="search" value={saisie} onChange={(e) => setSaisie(e.target.value)} placeholder="Titre ou lieu" aria-label="Rechercher dans la corbeille" />
+                </label>
+                {!isMobile && zones.length > 0 && (
+                  <label className={`cb-filtre ${zone ? 'is-on' : ''}`}>
+                    <span aria-hidden="true">Zone : {zone || 'toutes'}</span>
+                    <ArrowDown2 size={14} color="currentColor" aria-hidden="true" />
+                    <select value={zone} onChange={(e) => setZone(e.target.value)} aria-label="Filtrer par zone">
+                      <option value="">Zone : toutes</option>
+                      {zones.map((z) => <option key={z} value={z}>{z}</option>)}
+                    </select>
+                  </label>
+                )}
+                {!isMobile && !chargementInitial && (
+                  <span className="cb-annonce" role="status">
+                    {filtreActif ? `${pluriel(affiches.length, 'résultat')} sur ${signalements.length}` : `${pluriel(signalements.length, 'signalement')} dans la corbeille`}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {chargementInitial ? (
+            <ul className="cb-liste" aria-busy="true">
+              {[0, 1, 2, 3].map((n) => <li key={n} className="cb-ligne"><ShimmerThumbnail height={66} width={88} rounded className="m-0" /><div style={{ flex: 1 }}><ShimmerText line={3} gap={8} /></div></li>)}
+            </ul>
+          ) : signalements.length === 0 && !error ? (
+            <div className="cb-vide">
+              <span className="cb-vide-ic"><Trash size={22} color="currentColor" /></span>
+              <b>La corbeille est vide</b>
+            </div>
+          ) : affiches.length === 0 && filtreActif ? (
+            <div className="cb-vide">
+              <b>Aucun signalement ne correspond</b>
+              {recherche && <p>Rien ne correspond à « {recherche} ».</p>}
+              <button type="button" className="dg-btn dg-btn-g" onClick={() => { reinitialiser(); setZone(''); }}>
+                {recherche ? 'Effacer la recherche' : 'Afficher toutes les zones'}
               </button>
             </div>
-          )}
-
-          {/* ── Contenu principal ── */}
-          {!isLoading && !incidentsError && (
-            <>
-              {/* ── Header de page ── */}
-              <div className="trash-header">
-                <div className="trash-header-left">
-
-                  <div>
-                    <h1 className="trash-title">Corbeille</h1>
-                    <p className="trash-subtitle">
-                      Les incidents supprimés sont conservés pendant <strong>30 jours</strong> avant d'être définitivement effacés.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="trash-header-right">
-                  {selected.size > 0 && (
-                    <div className="trash-batch-actions" style={{ display: 'flex', gap: 'var(--spacing-2)' }}>
-                      <button className="trash-btn-restore-all" onClick={handleRestoreSelected}>
-                        <RotateLeft size={16} variant="Linear" color="var(--color-surface)" />
-                        Restaurer ({selected.size})
+          ) : (
+            <ul className="cb-liste">
+              {affiches.map((s) => {
+                const coche = choisis.has(s.id);
+                return (
+                  <li key={s.id} className={`cb-ligne ${coche ? 'is-on' : ''}`}>
+                    <input type="checkbox" className="cb-case" checked={coche} onChange={() => basculer(s.id)} aria-label={`Sélectionner « ${s.titre} »`} />
+                    {!isMobile && <span className="cb-photo">{s.photo ? <BlurryImage src={s.photo} alt="" /> : null}</span>}
+                    <div className="cb-texte-ligne">
+                      <div className="cb-meta">
+                        {s.etat && <span className={`cb-etat ${s.etat.classe}`}><i aria-hidden="true" />{s.etat.libelle}</span>}
+                        <span className="cb-lieu"><Location size={12} color="currentColor" aria-hidden="true" />{s.lieu}</span>
+                        {s.signaleLe && <span className="cb-date">· Signalé le {s.signaleLe}</span>}
+                      </div>
+                      <b className="cb-titre">{s.titre}</b>
+                      {s.description && <span className="cb-desc">{s.description}</span>}
+                    </div>
+                    <div className="cb-actions">
+                      <button type="button" className="cb-restaurer" onClick={() => restaurer([s])}>
+                        <RotateLeft size={15} color="currentColor" aria-hidden="true" />Restaurer
                       </button>
-                      <button className="trash-btn-delete-all" onClick={() => setConfirmId('batch')} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--spacing-2)', padding: 'var(--spacing-3) var(--spacing-5)', backgroundColor: 'var(--color-danger)', color: 'var(--color-surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-semibold)', fontFamily: 'var(--font-family)', cursor: 'pointer', transition: 'background-color 0.2s ease, transform 0.1s ease', whiteSpace: 'nowrap' }}>
-                        <Trash size={16} variant="Linear" color="var(--color-surface)" />
-                        Supprimer ({selected.size})
+                      <button type="button" className="cb-supprimer" onClick={() => setASupprimer([s])} aria-label={`Supprimer définitivement « ${s.titre} »`}>
+                        <Trash size={16} color="currentColor" aria-hidden="true" />
                       </button>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Bannière info ── */}
-              <div className="trash-info-banner">
-                <InfoCircle size={16} variant="Linear" color="var(--color-primary)" />
-                <span>{incidents.length} incident(s) dans la corbeille. La suppression définitive est irréversible.</span>
-              </div>
-
-              {/* ── Filtres — fixe au defilement : voir .trash-filtres-fixes. ── */}
-              <div className="trash-filtres-fixes">
-              <FiltersBar
-                recherche={searchInput}
-                onRecherche={setSearchInput}
-                placeholder="Rechercher un signalement, un lieu…"
-                selects={[{
-                  id: 'type',
-                  valeur: typeFilter,
-                  onChange: setTypeFilter,
-                  ariaLabel: 'Filtrer par type',
-                  tousLabel: 'Tous les types',
-                  options: types.map((t) => ({ value: t, label: t })),
-                }]}
-                onEffacer={() => { reinitialiserRecherche(); setTypeFilter(''); }}
-                resultats={filtered.length}
-                nomResultat="signalement"
-              >
-                <label className="trash-select-all">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleSelectAll}
-                  />
-                  <span>Tout sélectionner</span>
-                </label>
-
-                {/* Toggle vue intégré sur la même ligne */}
-                <div className="trash-view-toggle" role="group" aria-label="Changer de vue" style={{ marginLeft: 'auto' }}>
-                  <button
-                    className={`trash-view-btn ${viewMode === 'list' ? 'active' : ''}`}
-                    onClick={() => setViewMode('list')}
-                    title="Vue liste"
-                    aria-pressed={viewMode === 'list'}
-                  >
-                    <HambergerMenu
-                      size={18}
-                      variant={viewMode === 'list' ? 'Bold' : 'Linear'}
-                      color={viewMode === 'list' ? 'var(--color-primary)' : 'var(--color-text-muted)'}
-                    />
-                  </button>
-                  <button
-                    className={`trash-view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                    onClick={() => setViewMode('grid')}
-                    title="Vue grille"
-                    aria-pressed={viewMode === 'grid'}
-                  >
-                    <Grid2
-                      size={18}
-                      variant={viewMode === 'grid' ? 'Bold' : 'Linear'}
-                      color={viewMode === 'grid' ? 'var(--color-primary)' : 'var(--color-text-muted)'}
-                    />
-                  </button>
-                </div>
-
-              </FiltersBar>
-              </div>
-
-              {/* ── Contenu ── */}
-              {filtered.length === 0 ? (
-                <div className="trash-empty">
-                  <div className="trash-empty-icon">
-                    <Trash size={48} variant="Linear" color="var(--color-border)" />
-                  </div>
-                  <p className="trash-empty-title">La corbeille est vide</p>
-                  <p className="trash-empty-sub">Aucun signalement supprimé ne correspond à vos critères.</p>
-                </div>
-              ) : viewMode === 'grid' ? (
-                <div className="trash-grid">
-                  {filtered.map((incident) => (
-                    <IncidentItem key={incident.id} incident={incident} />
-                  ))}
-                </div>
-              ) : (
-                <div className="trash-list">
-                  {filtered.map((incident) => (
-                    <IncidentItem key={incident.id} incident={incident} />
-                  ))}
-                </div>
-              )}
-            </>
+                  </li>
+                );
+              })}
+            </ul>
           )}
 
+          {isMobile && nbChoisis > 0 && <div className="cb-selection-bas">{barreSelection}</div>}
         </main>
       </div>
 
-      {/* ── Modal confirmation ── */}
-      {confirmId && (
-        <OffcanvasModal
-          onClose={closeConfirmModal}
-          isClosing={Boolean(confirmClosing)}
-          title="Suppression définitive"
-          ariaLabel="Supprimer définitivement"
-          role="alertdialog"
-          tone="danger"
-          size="sm"
-          closeVariant="plain"
-          footerLayout="col"
-          footer={
-            <>
-              <button
-                type="button"
-                className="am-btn am-btn--danger"
-                onClick={() => handleDeletePermanent(confirmId)}
-              >
-                Supprimer définitivement
-              </button>
-              <button
-                type="button"
-                className="am-btn am-btn--outline"
-                onClick={closeConfirmModal}
-              >
-                Annuler
-              </button>
-            </>
-          }
-        >
-          <div className="am-offcanvas-body am-offcanvas-body--centered">
-            <div className="am-delete-icon-wrap" aria-hidden="true">
-              <Trash size={32} variant="Bold" color="var(--color-danger)" />
-            </div>
-
-            <p className="am-delete-title">Confirmer la suppression</p>
-            <p className="am-delete-text">
-              Cette action est <strong>irréversible</strong>.<br />
-              {confirmId === 'batch'
-                ? `Vous êtes sur le point de supprimer définitivement ${selected.size} incident(s) sélectionnés.`
-                : "Vous êtes sur le point de supprimer définitivement cet incident."
-              } Ils ne pourront pas être récupérés.
-            </p>
-          </div>
-        </OffcanvasModal>
+      {aSupprimer && (
+        <FenetreSuppression
+          signalements={aSupprimer}
+          onFermer={() => setASupprimer(null)}
+          onConfirmer={() => supprimer(aSupprimer)}
+        />
       )}
-
-      {/* ── Toast ── */}
-      {toast && (
-        <div className="trash-toast">
-          <RotateLeft size={16} variant="Linear" color="var(--color-surface)" />
-          {toast.message}
-        </div>
-      )}
+      {toast && <div key={toast.n} className="cb-toast" role="status">{toast.texte}</div>}
     </div>
   );
 };

@@ -1,570 +1,315 @@
-import React, { useEffect, useRef } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import React, { useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Eye, EyeSlash, Magicpen, Copy, TickCircle, CloseCircle } from 'iconsax-react';
-import { ROLES } from '../data/agents';
+import { CloseCircle, ArrowDown2, Lock1 } from 'iconsax-react';
+import { ROLES, roleVersApi } from '../roles';
 import { useAgentsContext } from './AgentsModalContext';
-import {
-  createAgentSchema,
-  editAgentSchema,
-  generatePasswordForRole,
-} from './agentSchemas';
+import { createAgentSchema, editAgentSchema } from './agentSchemas';
 import {
   createOrganisationAgentService,
   updateOrganisationMemberService,
   addOrganisationStaffMemberService,
 } from '../service/members_service';
 import { authService } from '../../auth/services/authService';
+import { Dialogue } from '../../../components/molecules/Dialogue';
 
-import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
-import { AVATAR_COLORS, AVATAR_COULEUR_DEFAUT } from '../../../utils/couleursAvatar';
-const formatPhoneForInput = (phone) => {
+const PREFIXE = '+223';
+
+const sansPrefixe = (phone) => {
   if (!phone) return '';
-  return phone.startsWith('+223') ? phone.slice(4) : phone;
+  const net = String(phone).replace(/\s/g, '');
+  return net.startsWith(PREFIXE) ? net.slice(PREFIXE.length) : net;
 };
 
-// ── Composant ────────────────────────────────────────────────────
-export const AgentFormModal = () => {
+const IcoAgent = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="10" cy="8" r="4" /><path d="M3 21c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6" />
+  </svg>
+);
+
+const IcoInfo = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16v.5" />
+  </svg>
+);
+
+const Erreur = ({ id, children }) => (children ? <span id={id} className="dg-erreur"><IcoInfo />{children}</span> : null);
+
+// Correspondance des champs renvoyés par le serveur vers ceux du formulaire.
+const CHAMPS_SERVEUR = {
+  first_name: 'firstName',
+  last_name: 'lastName',
+  email: 'email',
+  phone: 'phone',
+  address: 'address',
+  org_role: 'role',
+  organisation: 'organisationId',
+};
+
+/**
+ * La fenêtre n'est montée qu'à l'ouverture : les valeurs initiales du
+ * formulaire sont donc toujours celles de l'agent ouvert, sans
+ * resynchronisation à la main.
+ */
+const FenetreAgent = () => {
   const currentUser = authService.getCurrentUser();
-  const isSuperAdmin = currentUser?.web_role === 'super_admin';
+  const estSuperAdmin = currentUser?.web_role === 'super_admin';
+  const { formModal, closeFormModal, mutateAgents, afficherToast, organisationsList } = useAgentsContext();
+  const creation = formModal.mode === 'create';
+  const agent = formModal.agent;
 
   const rawOrg = currentUser?.organisation;
-  const userOrgName = isSuperAdmin
-    ? (currentUser?.organisation_name || (rawOrg && typeof rawOrg === 'object' ? rawOrg.name : 'Mon Organisation'))
-    : (currentUser?.organisation_name || 'Mon Organisation');
+  const nomOrgUtilisateur = currentUser?.organisation_name
+    || (rawOrg && typeof rawOrg === 'object' ? rawOrg.name : '')
+    || 'Mon organisation';
+  const idOrgUtilisateur = currentUser?.organisation_member
+    || (rawOrg && typeof rawOrg === 'object' ? rawOrg.id : rawOrg)
+    || sessionStorage.getItem('organisation')
+    || '';
 
-  const {
-    formModal,
+  // Le super-administrateur choisit l'organisation à la création ; ailleurs
+  // elle est imposée : la sienne, ou celle de l'agent modifié.
+  const choixOrganisation = estSuperAdmin && creation;
+  const nomOrgAffiche = creation
+    ? nomOrgUtilisateur
+    : (organisationsList.find((o) => String(o.id) === String(agent?.organisationId))?.name || agent?.organisationName || '—');
 
-    setShowPassword,
-    modalAlert,
-    setModalAlert,
-    formAnimating,
-    isSubmitting,
-    setIsSubmitting,
-    closeFormModal,
-    mutateAgents,
-    organisationsList,
-  } = useAgentsContext();
-
-  // Trouver l'organisation correspondante dans la liste globale pour extraire son ID exact
-  const matchedOrg = isSuperAdmin
-    ? (organisationsList || []).find(
-        (o) => o.name?.trim().toLowerCase() === userOrgName?.trim().toLowerCase()
-      )
-    : null;
-
-  const userOrgId = isSuperAdmin
-    ? (matchedOrg
-        ? matchedOrg.id
-        : (rawOrg && typeof rawOrg === 'object' ? rawOrg.id : (rawOrg || sessionStorage.getItem('organisation') || '')))
-    : (currentUser?.organisation_member || currentUser?.organisation || sessionStorage.getItem('organisation') || '');
-
-  const isCreate = formModal.mode === 'create';
-  const schema = isCreate ? createAgentSchema : editAgentSchema;
-
-  const bodyRef = useRef(null);
-
-  // Auto-scroll vers l'alerte quand elle s'affiche
-  useEffect(() => {
-    if (modalAlert.message && bodyRef.current) {
-      bodyRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [modalAlert.message]);
-
-  // ── react-hook-form ──────────────────────────────────────────
   const {
     register,
     handleSubmit,
     watch,
-    setValue,
     setError,
-    reset,
     formState: { errors },
   } = useForm({
-    resolver: yupResolver(schema),
-    defaultValues: isCreate
+    resolver: yupResolver(creation ? createAgentSchema : editAgentSchema),
+    defaultValues: creation
       ? {
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        address: '',
-        password: '',
-        role: '',
-        organisationId: userOrgId || '',
+        firstName: '', lastName: '', email: '', phone: '', address: '',
+        role: 'terrain',
+        organisationId: estSuperAdmin ? '' : String(idOrgUtilisateur || ''),
         status: 'active',
-        avatarColor: AVATAR_COULEUR_DEFAUT,
       }
       : {
-        firstName: formModal.agent?.firstName || '',
-        lastName: formModal.agent?.lastName || '',
-        email: formModal.agent?.email || '',
-        phone: formatPhoneForInput(formModal.agent?.phone),
-        address: formModal.agent?.address || '',
-        password: '',
-        role: formModal.agent?.role || '',
-        organisationId: formModal.agent?.organisationId || '',
-        status: formModal.agent?.status || 'active',
-        avatarColor: formModal.agent?.avatarColor || AVATAR_COULEUR_DEFAUT,
+        firstName: agent?.firstName || '',
+        lastName: agent?.lastName || '',
+        email: agent?.email || '',
+        phone: sansPrefixe(agent?.phone),
+        address: agent?.address || '',
+        role: agent?.role || 'terrain',
+        organisationId: String(agent?.organisationId || ''),
+        status: agent?.status || 'active',
       },
   });
 
-  // Sync valeurs initiales quand le mode change ou que le modal s'ouvre/ferme
-  useEffect(() => {
-    if (!formModal.open) {
-      reset({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        address: '',
-        password: '',
-        role: '',
-        organisationId: userOrgId || '',
-        status: 'active',
-        avatarColor: AVATAR_COULEUR_DEFAUT,
-      });
-      setShowPassword(false);
-      return;
-    }
+  const [envoi, setEnvoi] = useState(false);
+  const [alerte, setAlerte] = useState(null);
+  // Fermeture animée du dialogue, reçue au rendu de son contenu.
+  const fermerRef = useRef(null);
 
-    if (isCreate) {
-      reset({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        address: '',
-        password: '',
-        role: '',
-        organisationId: userOrgId || '',
-        status: 'active',
-        avatarColor: AVATAR_COULEUR_DEFAUT,
-      });
-      setShowPassword(false);
-    } else if (formModal.agent) {
-      reset({
-        firstName: formModal.agent.firstName || '',
-        lastName: formModal.agent.lastName || '',
-        email: formModal.agent.email || '',
-        phone: formatPhoneForInput(formModal.agent.phone),
-        address: formModal.agent.address || '',
-        password: '',
-        role: formModal.agent.role || '',
-        organisationId: formModal.agent.organisationId || '',
-        status: formModal.agent.status || 'active',
-        avatarColor: formModal.agent.avatarColor || AVATAR_COULEUR_DEFAUT,
-      });
-      setShowPassword(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formModal.open, formModal.mode, formModal.agent?.id, isCreate, userOrgId]);
+  const roleChoisi = watch('role');
+  const statutChoisi = watch('status');
+  // Un agent de bureau ne peut pas créer ni nommer un administrateur.
+  const rolesProposes = ROLES.filter((r) => !(currentUser?.web_role === 'bureau_agent' && r.id === 'admin'));
+  const nbErreurs = Object.keys(errors).length;
 
-  // Valeurs observées
-  const watchedRole = watch('role', '');
-
-
-  // En mode création : auto-générer quand le rôle change
-  useEffect(() => {
-    if (isCreate && watchedRole) {
-      const pwd = generatePasswordForRole(watchedRole);
-      setValue('password', pwd, { shouldValidate: false });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedRole, isCreate]);
-
-  if (!formModal.open) return null;
-
-  // ── Soumission ───────────────────────────────────────
-  const onSubmit = async (data) => {
-    setIsSubmitting(true);
-    setModalAlert({ type: null, message: null });
-
+  const enregistrer = async (data) => {
+    // Pris avant le verrouillage : le dialogue refuse de se fermer tant
+    // qu'il est verrouillé, et la version suivante de `close` le serait.
+    const fermer = fermerRef.current;
+    setEnvoi(true);
+    setAlerte(null);
     try {
-      const orgRole =
-        data.role === 'admin'
-          ? 'org_admin'
-          : data.role === 'terrain'
-            ? 'field_agent'
-            : 'bureau_agent';
-
-      if (isCreate) {
+      const telephone = `${PREFIXE}${data.phone.replace(/\s/g, '')}`;
+      if (creation) {
         const payload = {
           first_name: data.firstName,
           last_name: data.lastName,
           email: data.email,
-          phone: data.phone ? `+223${data.phone}` : '',
+          phone: telephone,
           address: data.address || '',
-          // password: data.password,
-          org_role: orgRole,
+          org_role: roleVersApi(data.role),
         };
-
-
         if (data.role === 'terrain') {
           await createOrganisationAgentService(data.organisationId, payload);
         } else {
           await addOrganisationStaffMemberService(data.organisationId, payload);
         }
-
-        setModalAlert({ type: 'success', message: 'Agent créé avec succès !' });
+        afficherToast(`${data.firstName} ${data.lastName} a rejoint l’équipe`);
       } else {
-        const payload = {
-          org_role: orgRole,
+        await updateOrganisationMemberService(data.organisationId, agent.id, {
+          org_role: roleVersApi(data.role),
           first_name: data.firstName,
           last_name: data.lastName,
-          phone: data.phone ? `+223${data.phone}` : '',
+          phone: telephone,
           address: data.address || '',
           status: data.status || 'active',
-        };
-        // Inclure le mot de passe seulement s'il a été saisi
-        if (data.password) payload.password = data.password;
-        await updateOrganisationMemberService(
-          data.organisationId,
-          formModal.agent.id,
-          payload
-        );
-        setModalAlert({ type: 'success', message: 'Agent mis à jour avec succès !' });
+        });
+        afficherToast('Modifications enregistrées');
       }
-
       mutateAgents();
-      setTimeout(() => closeFormModal(), 2000);
+      fermer?.();
     } catch (err) {
-      const backendData = err?.response?.data;
-      
-      if (err?.response?.status === 400 && backendData && typeof backendData === 'object') {
-        // Si le backend renvoie { error: "..." }
-        if (backendData.error) {
-          const errorMsg = backendData.error;
-          const lowerMsg = errorMsg.toLowerCase();
-          
-          if (lowerMsg.includes('téléphone') || lowerMsg.includes('telephone') || lowerMsg.includes('numéro') || lowerMsg.includes('numero')) {
-            setError('phone', { type: 'server', message: errorMsg });
-            setModalAlert({
-              type: 'danger',
-              message: 'Erreur sur le numéro de téléphone.'
-            });
-          } else if (lowerMsg.includes('email') || lowerMsg.includes('mail') || lowerMsg.includes('adresse')) {
-            setError('email', { type: 'server', message: errorMsg });
-            setModalAlert({
-              type: 'danger',
-              message: "Erreur sur l'adresse email."
-            });
-          } else {
-            setModalAlert({
-              type: 'danger',
-              message: errorMsg
-            });
-          }
+      const donnees = err?.response?.data;
+      if (err?.response?.status === 400 && donnees && typeof donnees === 'object') {
+        if (donnees.error) {
+          // Le serveur renvoie parfois une phrase unique : on la rattache au
+          // champ qu'elle nomme quand c'est reconnaissable.
+          const texte = String(donnees.error);
+          const bas = texte.toLowerCase();
+          if (/t[ée]l[ée]phone|num[ée]ro/.test(bas)) setError('phone', { type: 'server', message: texte });
+          else if (/mail|adresse/.test(bas)) setError('email', { type: 'server', message: texte });
+          else setAlerte(texte);
         } else {
-          // Dictionnaire de champs standard
-          const keyMapping = {
-            first_name: 'firstName',
-            last_name: 'lastName',
-            email: 'email',
-            phone: 'phone',
-            address: 'address',
-            org_role: 'role',
-            password: 'password',
-            organisation: 'organisationId',
-          };
-
-          Object.keys(backendData).forEach((backendKey) => {
-            const frontendKey = keyMapping[backendKey] || backendKey;
-            const errorMsg = Array.isArray(backendData[backendKey])
-              ? backendData[backendKey].join(' ')
-              : backendData[backendKey];
-
-            setError(frontendKey, {
-              type: 'server',
-              message: errorMsg
-            });
+          Object.entries(donnees).forEach(([cle, msg]) => {
+            setError(CHAMPS_SERVEUR[cle] || cle, { type: 'server', message: Array.isArray(msg) ? msg.join(' ') : String(msg) });
           });
-
-          setModalAlert({
-            type: 'danger',
-            message: 'Veuillez corriger les erreurs de validation dans le formulaire.'
-          });
+          setAlerte('Le serveur a refusé certains champs : corrigez-les ci-dessous.');
         }
       } else {
-        const msg =
-          err?.response?.data?.detail ||
-          err?.response?.data?.message ||
-          err?.response?.data?.error ||
-          `Erreur lors de la ${isCreate ? 'création' : 'modification'}. Veuillez réessayer.`;
-        setModalAlert({ type: 'danger', message: msg });
+        setAlerte(
+          donnees?.detail || donnees?.message || donnees?.error
+          || `L’agent n’a pas pu être ${creation ? 'créé' : 'modifié'}. Réessayez dans un instant.`,
+        );
       }
     } finally {
-      setIsSubmitting(false);
+      setEnvoi(false);
     }
   };
 
-
-
-  // ── Render ────────────────────────────────────────────
   return (
-    <OffcanvasModal
+    <Dialogue
       onClose={closeFormModal}
-      isClosing={formAnimating === 'closing'}
-      title={isCreate ? 'Nouvel agent' : "Modifier l'agent"}
-      ariaLabel={isCreate ? 'Nouvel agent' : "Modifier l'agent"}
-      closeVariant="plain"
-      closeDisabled={isSubmitting || modalAlert.type === 'success'}
+      verrouille={envoi}
+      taille="lg"
+      titre={creation ? 'Nouvel agent' : 'Modifier l’agent'}
+      sousTitre={creation ? 'Son code d’accès est créé à l’enregistrement.' : agent?.fullName}
+      icone={<IcoAgent />}
+      pied={({ close }) => (
+        <>
+          {nbErreurs > 0
+            ? <span className="dg-pied-info is-ko" role="status"><IcoInfo />{nbErreurs} champ{nbErreurs > 1 ? 's' : ''} à corriger</span>
+            : <span className="dg-espace" />}
+          <button type="button" className="dg-btn dg-btn-g" onClick={close} disabled={envoi}>Annuler</button>
+          <button type="submit" form="form-agent" className="dg-btn dg-btn-p" disabled={envoi}>
+            {envoi
+              ? <><span className="dg-spin" aria-hidden="true" />{creation ? 'Création…' : 'Enregistrement…'}</>
+              : (creation ? 'Créer l’agent' : 'Enregistrer')}
+          </button>
+        </>
+      )}
     >
+      {({ close }) => {
+        fermerRef.current = close;
+        return (
+      <>
+        {alerte && (
+          <div className="dg-alerte dg-alerte-ko" role="alert">
+            <CloseCircle size={18} variant="Bold" color="currentColor" /><span>{alerte}</span>
+          </div>
+        )}
 
-        {/* ── Body (formulaire) ────────────────────────── */}
-        <form
-          id="agent-form"
-          className="am-offcanvas-body"
-          ref={bodyRef}
-          onSubmit={handleSubmit(onSubmit)}
-          noValidate
-        >
-          {modalAlert.message && (
-            <div className={`am-alert am-alert--${modalAlert.type === 'success' ? 'success' : 'danger'}`}>
-              {modalAlert.type === 'success' ? (
-                <TickCircle size={18} variant="Bold" color="var(--color-success)" />
-              ) : (
-                <CloseCircle size={18} variant="Bold" color="var(--color-danger)" />
-              )}
-              <span className="am-alert__message">{modalAlert.message}</span>
+        <form id="form-agent" className="af-form" noValidate onSubmit={handleSubmit(enregistrer)}>
+          <fieldset className="dg-fieldset">
+            <legend>Rôle</legend>
+            <div className="af-roles">
+              {rolesProposes.map((r) => (
+                <label key={r.id} className={`af-role ${roleChoisi === r.id ? 'is-on' : ''}`}>
+                  <span className="af-role-t">
+                    <input type="radio" value={r.id} disabled={envoi} {...register('role')} />
+                    {r.id === 'admin' ? r.label : r.onglet}
+                  </span>
+                  <small>{r.description}</small>
+                </label>
+              ))}
             </div>
-          )}
+            <Erreur id="af-role-err">{errors.role?.message}</Erreur>
+          </fieldset>
 
-          {/* ── Avatar preview ───────────────────────── */}
-        {/*   <div className="am-avatar-preview">
-            <div
-              className="am-avatar-circle"
-              style={{ backgroundColor: watchedAvatarColor }}
-              aria-hidden="true"
-            >
-              {getInitials(`${watchedFirstName} ${watchedLastName}`) || (isCreate ? '?' : getInitials(`${formModal.agent?.firstName || ''} ${formModal.agent?.lastName || ''}`))}
-            </div>
-            <div className="am-avatar-colors">
-              <span className="am-avatar-colors__label">Couleur de l&apos;avatar</span>
-              <Controller
-                name="avatarColor"
-                control={control}
-                render={({ field }) => (
-                  <div className="am-avatar-colors__swatches">
-                    {AVATAR_COLORS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        className={`am-swatch ${field.value === color ? 'am-swatch--active' : ''}`}
-                        style={{ backgroundColor: color }}
-                        onClick={() => !isSubmitting && field.onChange(color)}
-                        aria-label={`Couleur ${color}`}
-                        aria-pressed={field.value === color}
-                        disabled={isSubmitting}
-                      />
-                    ))}
-                  </div>
-                )}
-              />
-            </div>
-          </div> */}
+          <div className="dg-grille2">
+            <label className="dg-champ" htmlFor="af-prenom">
+              Prénom
+              <input id="af-prenom" data-autofocus type="text" className="dg-input" autoComplete="off" placeholder="Ex. : Amadou" disabled={envoi}
+                aria-invalid={Boolean(errors.firstName)} aria-describedby={errors.firstName ? 'af-prenom-err' : undefined} {...register('firstName')} />
+              <Erreur id="af-prenom-err">{errors.firstName?.message}</Erreur>
+            </label>
+            <label className="dg-champ" htmlFor="af-nom">
+              Nom
+              <input id="af-nom" type="text" className="dg-input" autoComplete="off" placeholder="Ex. : Diallo" disabled={envoi}
+                aria-invalid={Boolean(errors.lastName)} aria-describedby={errors.lastName ? 'af-nom-err' : undefined} {...register('lastName')} />
+              <Erreur id="af-nom-err">{errors.lastName?.message}</Erreur>
+            </label>
 
-          {/* ── Champs ───────────────────────────────── */}
-          <div className="am-form-grid">
+            <label className="dg-champ" htmlFor="af-mail">
+              Adresse e-mail
+              <input id="af-mail" type="email" className="dg-input" autoComplete="off" placeholder="prenom.nom@organisation.org" disabled={envoi || !creation}
+                aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'af-mail-err' : 'af-mail-aide'} {...register('email')} />
+              {errors.email
+                ? <Erreur id="af-mail-err">{errors.email.message}</Erreur>
+                : <small id="af-mail-aide">{creation ? 'Ne pourra plus être modifiée ensuite.' : 'L’adresse e-mail ne se modifie pas.'}</small>}
+            </label>
+            <label className="dg-champ" htmlFor="af-tel">
+              Téléphone
+              <span className={`af-tel ${errors.phone ? 'is-ko' : ''}`}>
+                <span className="af-tel-prefixe" aria-hidden="true">{PREFIXE}</span>
+                <input id="af-tel" type="tel" inputMode="numeric" autoComplete="off" placeholder="76 00 00 00" disabled={envoi}
+                  aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'af-tel-err' : undefined} {...register('phone')} />
+              </span>
+              <Erreur id="af-tel-err">{errors.phone?.message}</Erreur>
+            </label>
+          </div>
 
-            {/* Prénom */}
-            <div className="am-field am-field--half">
-              <label className="am-label" htmlFor="agent-firstName">
-                Prénom <span className="am-label__required">*</span>
-              </label>
-              <input
-                id="agent-firstName"
-                type="text"
-                className={`am-input ${errors.firstName ? 'am-input--error' : ''}`}
-                placeholder="Ex. Amadou"
-                disabled={isSubmitting}
-                {...register('firstName')}
-              />
-              {errors.firstName && (
-                <span className="am-field-error">{errors.firstName.message}</span>
-              )}
-            </div>
+          <label className="dg-champ" htmlFor="af-adresse">
+            <span>Adresse <span className="dg-opt">(facultatif)</span></span>
+            <input id="af-adresse" type="text" className="dg-input" placeholder="Quartier, ville" disabled={envoi} {...register('address')} />
+          </label>
 
-            {/* Nom */}
-            <div className="am-field am-field--half">
-              <label className="am-label" htmlFor="agent-lastName">
-                Nom <span className="am-label__required">*</span>
-              </label>
-              <input
-                id="agent-lastName"
-                type="text"
-                className={`am-input ${errors.lastName ? 'am-input--error' : ''}`}
-                placeholder="Ex. Diallo"
-                disabled={isSubmitting}
-                {...register('lastName')}
-              />
-              {errors.lastName && (
-                <span className="am-field-error">{errors.lastName.message}</span>
-              )}
-            </div>
-
-            {/* Rôle */}
-            <div className="am-field am-field--half">
-              <label className="am-label" htmlFor="agent-role">
-                Rôle <span className="am-label__required">*</span>
-              </label>
-              <select
-                id="agent-role"
-                className={`am-select ${errors.role ? 'am-input--error' : ''}`}
-                disabled={isSubmitting}
-                {...register('role')}
-              >
-                <option value="">Sélectionner un rôle…</option>
-                {ROLES.filter((r) => {
-                  // Un bureau_agent ne peut pas créer un admin
-                  if (currentUser?.web_role === 'bureau_agent' && r.id === 'admin') {
-                    return false;
-                  }
-                  return true;
-                }).map((r) => (
-                  <option key={r.id} value={r.id} title={r.description}>
-                    {r.label}{r.mobileOnly ? ' (mobile)' : ''}
-                  </option>
-                ))}
-              </select>
-              {errors.role && (
-                <span className="am-field-error">{errors.role.message}</span>
-              )}
-            </div>
-
-            {/* Organisation */}
-            <div className="am-field am-field--half">
-              <label className="am-label" htmlFor="agent-org">
+          <div className="dg-grille2">
+            {choixOrganisation ? (
+              <label className="dg-champ" htmlFor="af-org">
                 Organisation
-                {isSuperAdmin && isCreate && <span className="am-label__required"> *</span>}
+                <span className={`af-choix ${errors.organisationId ? 'is-ko' : ''}`}>
+                  <select id="af-org" disabled={envoi} aria-invalid={Boolean(errors.organisationId)} aria-describedby={errors.organisationId ? 'af-org-err' : undefined} {...register('organisationId')}>
+                    <option value="">Choisir</option>
+                    {organisationsList.map((o) => <option key={o.id} value={String(o.id)}>{o.name}</option>)}
+                  </select>
+                  <ArrowDown2 size={14} color="currentColor" aria-hidden="true" />
+                </span>
+                <Erreur id="af-org-err">{errors.organisationId?.message}</Erreur>
               </label>
-              {isSuperAdmin && isCreate ? (
-                <select
-                  id="agent-org"
-                  className={`am-input ${errors.organisationId ? 'am-input--error' : ''}`}
-                  disabled={isSubmitting}
-                  {...register('organisationId')}
-                >
-                  <option value="">Sélectionner une organisation…</option>
-                  {(organisationsList || []).map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <>
-                  <input
-                    id="agent-org"
-                    type="text"
-                    className="am-input"
-                    value={isCreate ? userOrgName : (organisationsList.find(o => String(o.id) === String(formModal.agent?.organisationId))?.name || formModal.agent?.organisationName || '')}
-                    disabled
-                    style={{ backgroundColor: 'rgba(var(--rgb-text-secondary), 0.08)', cursor: 'not-allowed' }}
-                    aria-readonly="true"
-                  />
-                  <input type="hidden" {...register('organisationId')} />
-                </>
-              )}
-              {errors.organisationId && (
-                <span className="am-field-error">{errors.organisationId.message}</span>
-              )}
+            ) : (
+              <div className="dg-champ">
+                <span id="af-org-l">Organisation</span>
+                <span className="af-verrou" aria-labelledby="af-org-l" role="textbox" aria-readonly="true">
+                  <Lock1 size={14} color="currentColor" aria-hidden="true" />{nomOrgAffiche}
+                </span>
+                <input type="hidden" {...register('organisationId')} />
+                <Erreur id="af-org-err">{errors.organisationId?.message}</Erreur>
+              </div>
+            )}
+
+            <div className="dg-champ">
+              <span id="af-statut-l">Statut</span>
+              <div className="dg-segment af-statut" role="radiogroup" aria-labelledby="af-statut-l">
+                {[{ v: 'active', l: 'Actif' }, { v: 'inactive', l: 'Inactif' }].map((s) => (
+                  <label key={s.v} className={statutChoisi === s.v ? 'is-on' : ''}>
+                    <input type="radio" value={s.v} disabled={envoi} {...register('status')} />
+                    {s.l}
+                  </label>
+                ))}
+              </div>
             </div>
-
-            {/* Email */}
-            <div className="am-field am-field--half">
-              <label className="am-label" htmlFor="agent-email">
-                Adresse e-mail
-                {isCreate && <span className="am-label__required"> *</span>}
-                {!isCreate && <span className="am-label__optional">(non modifiable)</span>}
-              </label>
-              <input
-                id="agent-email"
-                type="email"
-                className={`am-input ${errors.email ? 'am-input--error' : ''}`}
-                placeholder="agent@mapaction.org"
-                disabled={isSubmitting || !isCreate}
-                {...register('email')}
-              />
-              {errors.email && (
-                <span className="am-field-error">{errors.email.message}</span>
-              )}
-            </div>
-
-            {/* Téléphone */}
-            <div className="am-field am-field--half">
-              <label className="am-label" htmlFor="agent-phone">
-                Téléphone <span className="am-label__required">*</span>
-              </label>
-              <input
-                id="agent-phone"
-                type="tel"
-                className={`am-input ${errors.phone ? 'am-input--error' : ''}`}
-                placeholder="76000000"
-                disabled={isSubmitting}
-                {...register('phone')}
-              />
-              {errors.phone && (
-                <span className="am-field-error">{errors.phone.message}</span>
-              )}
-            </div>
-
-            {/* Adresse */}
-            <div className="am-field am-field--full">
-              <label className="am-label" htmlFor="agent-address">Adresse</label>
-              <input
-                id="agent-address"
-                type="text"
-                className="am-input"
-                placeholder="Bamako, Mali"
-                disabled={isSubmitting}
-                {...register('address')}
-              />
-            </div>
-
-
-
-            {/* Statut */}
-            <div className="am-field am-field--half">
-              <label className="am-label" htmlFor="agent-status">Statut</label>
-              <select
-                id="agent-status"
-                className="form-control"
-                disabled={isSubmitting}
-                {...register('status')}
-              >
-                <option value="active">Actif</option>
-                <option value="inactive">Inactif</option>
-              </select>
-            </div>
-
-          </div>{/* end am-form-grid */}
-
+          </div>
         </form>
-
-        {/* ── Footer ──────────────────────────────────────── */}
-        <div className="am-offcanvas-footer">
-          <button
-            type="button"
-            className="am-btn am-btn--secondary"
-            onClick={closeFormModal}
-            disabled={isSubmitting || modalAlert.type === 'success'}
-          >
-            Annuler
-          </button>
-          <button
-            type="submit"
-            form="agent-form"
-            className="am-btn am-btn--primary"
-            disabled={isSubmitting || modalAlert.type === 'success'}
-          >
-            {isSubmitting && <span className="am-spinner" aria-hidden="true" />}
-            {isCreate ? "Créer l'agent" : 'Enregistrer'}
-          </button>
-        </div>
-      </OffcanvasModal>
+      </>
+        );
+      }}
+    </Dialogue>
   );
+};
+
+export const AgentFormModal = () => {
+  const { formModal } = useAgentsContext();
+  return formModal.open ? <FenetreAgent /> : null;
 };
 
 export default AgentFormModal;

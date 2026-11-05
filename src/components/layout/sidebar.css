@@ -2,6 +2,28 @@
    SIDEBAR - NOUVEAU DESIGN
    ============================================ */
 
+/* Hauteur de la barre d'onglets mobile : contrat partagé avec les pages. */
+:root {
+  --am-tabbar-h: 0px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --am-tabbar-h: calc(50px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Les onglets remplacent le tiroir : plus de bouton pour l'ouvrir. */
+  .app-header .menu-toggle {
+    display: none;
+  }
+
+  /* Les pages ne réservent pas toutes la place de la barre. Celles qui le font
+     elles-mêmes (Signalements, carte plein écran) sont exclues. */
+  .am-tabbar ~ *:not(.incident-page-main):not(.dm-plein) {
+    padding-bottom: var(--am-tabbar-h);
+  }
+}
+
 .sidebar-overlay {
   position: fixed;
   top: 0;
@@ -27,7 +49,7 @@
   top: 0;
   bottom: 0;
   width: 240px;
-  background-color: var(--color-background);
+  background-color: var(--color-surface);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -443,4 +465,125 @@
     width: 40px;
     height: 40px;
   }
+}
+/* === GROUPES DE NAVIGATION (Opérations / Réseau / Résultats) === */
+.sidebar-nav {
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-4);
+  gap: 2px;
+}
+
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-group-bottom {
+  margin-top: auto;
+  padding-top: var(--spacing-3);
+}
+
+.sidebar-group-title {
+  margin: 14px 10px 4px;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.sidebar-item {
+  gap: 12px;
+  padding: 9px 11px;
+  min-height: 40px;
+  border-radius: 9px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-item:hover {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.sidebar-item.active {
+  background-color: var(--color-primary-surface);
+  color: var(--color-primary-text);
+}
+
+.sidebar-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.sidebar-badge {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-danger-surface);
+  color: var(--color-danger-text);
+  font-size: 11.5px;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 1024px) {
+  .app-sidebar.collapsed .sidebar-group-title,
+  .app-sidebar.collapsed .sidebar-badge {
+    display: none;
+  }
+
+  .app-sidebar.collapsed .sidebar-nav {
+    padding: var(--spacing-2);
+    gap: 2px;
+  }
+
+  .app-sidebar.collapsed .sidebar-item {
+    padding: 10px;
+    min-height: 44px;
+    border-radius: 9px;
+    border-right: none;
+  }
+
+  .app-sidebar.collapsed .sidebar-item.active {
+    background-color: var(--color-primary-surface);
+  }
+}
+
+/* === LOGO (tuile + nom, comme la maquette) === */
+.sidebar-logo-maquette {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.sidebar-logo-tuile {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background-color: var(--color-primary-surface);
+}
+
+.sidebar-logo-tuile img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.sidebar-logo-texte {
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-text);
+  letter-spacing: -0.01em;
+}
+
+.app-sidebar.collapsed .sidebar-logo-texte {
+  display: none;
+}
+
+/* Icônes : la couleur suit le texte de l'élément */
+.sidebar-item .sidebar-icon svg {
+  fill: none;
 }

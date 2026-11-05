@@ -1,0 +1,439 @@
+/* ============================================================
+   PAGE AGENTS — refonte
+   Même langage que les pages Signalements et Organisations ;
+   couleurs posées en variables sur la page, index.css n'ayant pas
+   encore de jetons de survol ni de neutres.
+   ============================================================ */
+
+/* Ossature : barre latérale + colonne principale, chacune défile seule. */
+.agents-layout { display: flex; height: 100vh; height: 100dvh; overflow: hidden; background-color: var(--color-background); }
+.agents-main { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; height: 100dvh; overflow: hidden; }
+
+
+.ag {
+  --ag-primary: var(--color-primary-text);
+  --ag-primary-hover: #18689A;
+  --ag-neutral-surface: #F1F5F9;
+  --ag-neutral-text: #475569;
+  --ag-ligne: var(--color-border);
+
+  position: relative; /* référence de offsetTop pour le repère de la barre collante */
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: calc(60px + 24px) 24px 48px;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.ag > * { width: 100%; max-width: 1320px; flex-shrink: 0; }
+.ag ::selection { background: var(--color-primary-surface); }
+
+/* En-tête */
+.ag-tete { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.ag-tete h1 { margin: 0; font-size: 24px; font-weight: var(--font-weight-bold); letter-spacing: -0.015em; }
+.ag-tete p { margin: 4px 0 0; font-size: 14px; color: var(--color-text-secondary); }
+
+.ag-btn-p {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--ag-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.ag-btn-p:hover { background: var(--ag-primary-hover); }
+.ag-btn-p:active { transform: scale(0.97); }
+
+/* Statut */
+.ag-roles { display: flex; gap: 2px; border-bottom: 1px solid var(--ag-ligne); }
+
+.ag-roles button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  padding: 11px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ag-neutral-text);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.ag-roles button:hover { color: var(--color-text-primary); }
+.ag-roles button.is-on { color: var(--ag-primary); border-bottom-color: var(--ag-primary); }
+.ag-n { padding: 0 7px; border-radius: var(--radius-full); background: var(--ag-neutral-surface); font-size: 11.5px; }
+.ag-roles button.is-on .ag-n { background: var(--color-primary-surface); }
+
+.ag-roles-pastilles { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+
+.ag-roles-pastilles button {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--ag-ligne);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ag-neutral-text);
+  cursor: pointer;
+}
+
+.ag-roles-pastilles button.is-on { border-color: var(--ag-primary); background: var(--ag-primary); color: #fff; }
+
+/* Recherche et filtres */
+/* L'en-tête de la page (titre, bouton, onglets, recherche et filtres) reste
+   fixe au défilement : seul le tableau passe dessous. .ag est le conteneur
+   qui défile ; l'en-tête de l'application, fixe et haut de 60 px, le
+   recouvre : on colle donc ce bloc juste dessous. Le fond opaque masque les
+   lignes qui passent derrière.
+
+   `top` se compte depuis le bord du CONTENU du conteneur, après son padding
+   haut (60 + 24 px) : -24 px colle donc le bloc à 60 px du haut de l'écran,
+   juste sous l'en-tête de l'application. */
+.ag-entete {
+  position: sticky;
+  top: -24px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: -24px 0 0;
+  padding: 24px 0 12px;
+  background: var(--color-background);
+  transition: box-shadow 0.15s ease;
+}
+
+.ag-entete.is-colle { box-shadow: 0 10px 14px -12px rgba(15, 23, 42, 0.3); }
+.ag-repere { height: 0; margin: -16px 0 0; }
+
+.ag-outils { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.ag-recherche {
+  flex: 1 1 300px;
+  max-width: 400px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--ag-ligne);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ag-recherche:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-surface); }
+.ag-recherche input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--color-text-primary); }
+.ag .ag-recherche input:focus-visible { outline: none !important; }
+
+/* La liste native reste dessous, invisible : clavier, lecteur d'écran et
+   sélecteur du téléphone fonctionnent comme d'habitude. */
+.ag-filtre {
+  position: relative;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--ag-ligne);
+  border-radius: 10px;
+  background: var(--color-surface);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ag-filtre select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.ag-filtre.is-on { border-color: var(--ag-primary); background: var(--color-primary-surface); color: var(--ag-primary); }
+.ag-filtre:focus-within { box-shadow: 0 0 0 3px var(--color-primary-surface); }
+.ag-annonce { font-size: 13px; color: var(--color-text-muted); }
+
+/* Tableau */
+.ag-boite { border: 1px solid var(--ag-ligne); border-radius: 14px; background: var(--color-surface); }
+.ag-tableau-boite { overflow-x: auto; }
+.ag-tableau { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 13px; }
+.ag-tableau th { padding: 12px 10px; border-bottom: 1px solid var(--ag-ligne); font-size: 12px; font-weight: var(--font-weight-semibold); color: var(--color-text-muted); text-align: left; white-space: nowrap; }
+.ag-tableau th:first-child,
+.ag-tableau td:first-child { padding-left: 16px; }
+.ag-tableau th:last-child,
+.ag-tableau td:last-child { padding-right: 16px; }
+.ag-tableau td { padding: 12px 10px; border-bottom: 1px solid var(--ag-ligne); vertical-align: middle; }
+.ag-tableau tbody tr:last-child td { border-bottom: none; }
+.ag-tableau .is-num { text-align: right; font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; }
+.ag-ligne { transition: background-color 0.12s ease; }
+.ag-ligne:hover { background: var(--color-background); }
+
+.ag-doux { color: var(--ag-neutral-text); }
+
+.ag-absent { color: var(--color-text-muted); }
+
+.ag-statut {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.ag-statut i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.ag-statut.is-active { background: var(--color-success-surface); color: var(--color-success-text); }
+.ag-statut.is-inactive { background: var(--ag-neutral-surface); color: var(--ag-neutral-text); }
+
+.ag-actions { width: 48px; text-align: right; }
+.ag .table-actions-trigger { width: 32px; height: 32px; border: none; border-radius: 8px; background: transparent; color: var(--ag-neutral-text); box-shadow: none; }
+.ag .table-actions-trigger:hover,
+.ag .table-actions-trigger.is-open { background: var(--ag-neutral-surface); color: var(--color-text-primary); }
+.ag-squelette { display: flex; gap: 12px; align-items: center; }
+
+.ag-pied { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--color-text-muted); }
+.ag-pied .am-pagination { margin: 0; padding: 0; }
+.ag-pied .am-pagination-info { display: none; }
+.ag .am-pagination-controls { gap: 6px; }
+.ag .am-pagination-btn { min-width: 36px; height: 36px; border: 1px solid var(--ag-ligne); border-radius: 9px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: none; }
+.ag .am-pagination-btn:hover:not(:disabled) { border-color: var(--color-primary); color: var(--ag-primary); background: var(--color-surface); }
+.ag .am-pagination-btn.active { border-color: var(--ag-primary); background: var(--ag-primary); color: #fff; font-weight: var(--font-weight-semibold); }
+
+.ag-masque { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* État vide */
+.ag-vide { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 44px 16px; text-align: center; }
+.ag-vide b { font-size: 15px; }
+.ag-vide p { margin: 0; max-width: 380px; font-size: 13.5px; color: var(--color-text-muted); }
+.ag-vide-ic { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; background: var(--color-primary-surface); color: var(--ag-primary); }
+.ag-vide .ag-btn-p { margin-top: 6px; }
+
+/* Mobile */
+.ag-cartes { display: flex; flex-direction: column; gap: 12px; }
+.ag-carte { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--ag-ligne); border-radius: 14px; background: var(--color-surface); }
+.ag-carte-tete { display: flex; align-items: center; gap: 12px; }
+.ag-carte-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ag-carte-t b { font-size: 15px; overflow-wrap: anywhere; }
+.ag-carte-t > span { font-size: 12.5px; color: var(--color-text-muted); }
+.ag-carte-pied { display: flex; align-items: center; gap: 16px; padding-top: 10px; border-top: 1px solid var(--ag-neutral-surface); font-size: 13px; color: var(--ag-neutral-text); }
+.ag-carte-pied b { color: var(--color-text-primary); }
+.ag-carte-pied .ag-statut { margin-left: auto; padding: 2px 8px; }
+.ag-carte .table-actions-trigger { width: 44px; height: 44px; }
+
+/* Agent */
+.ag-agent { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ag-agent > div { min-width: 0; display: flex; flex-direction: column; }
+.ag-agent b { font-size: 14px; font-weight: var(--font-weight-semibold); overflow-wrap: anywhere; }
+.ag-agent > div > span { font-size: 12px; color: var(--color-text-muted); overflow-wrap: anywhere; }
+
+.ag-avatar {
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: var(--font-weight-bold);
+}
+
+.ag-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Les agents inactifs restent lisibles mais passent au second plan. */
+.ag-ligne.is-inactif > td:not(.ag-actions),
+.ag-carte.is-inactif { opacity: 0.72; }
+
+/* Rôle : vert pour le terrain, bleu pour le bureau, violet pour
+   l'administration — le rouge se lirait comme une erreur. */
+.ag-role { display: inline-block; padding: 3px 9px; border-radius: var(--radius-full); font-size: 12px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.ag-role.is-terrain { background: var(--color-success-surface); color: var(--color-success-text); }
+.ag-role.is-bureau { background: var(--color-primary-surface); color: var(--ag-primary); }
+.ag-role.is-admin { background: #EDE9FE; color: #6D28D9; }
+
+.ag-tel { color: var(--ag-primary); text-decoration: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ag-tel:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ag-date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Mobile : appel direct */
+.ag .ag-carte-pied { gap: 8px; padding-top: 0; border-top: none; }
+
+.ag-appeler {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--ag-ligne);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--ag-primary);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  flex: 1;
+  justify-content: center;
+}
+
+.ag-plus {
+  min-height: 44px;
+  border: 1px solid var(--ag-ligne);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--ag-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+
+/* Confirmation éphémère */
+.ag-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 2000;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--color-text-primary);
+  color: #fff;
+  font-size: 13.5px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+  animation: ag-toast 2.4s ease both;
+  pointer-events: none;
+}
+
+@keyframes ag-toast {
+  0% { opacity: 0; transform: translate(-50%, 12px); }
+  10%, 85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+.ag button:focus-visible,
+.ag a:focus-visible { outline: 3px solid var(--color-primary-surface) !important; outline-offset: 2px !important; }
+
+@media (max-width: 767.98px) {
+  .ag { padding: calc(60px + 12px) 16px 24px; gap: 12px; }
+  .ag-tete { align-items: center; flex-wrap: nowrap; }
+  .ag-tete h1 { font-size: 20px; }
+  .ag-tete p { display: none; }
+  .ag-tete .ag-btn-p { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 12px; }
+  .ag-recherche { flex: 1 1 100%; max-width: none; height: 46px; border-radius: 12px; }
+  .ag-recherche input { font-size: 16px; }
+  .ag-filtre { flex: 1; justify-content: center; height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag *,
+  .ag-toast { animation: none !important; transition: none !important; }
+}
+
+/* ------------------------------------------------------------
+   Fenêtre « Nouvel agent / Modifier »
+   (rendue dans un portail : hors de .ag)
+   ------------------------------------------------------------ */
+.af-form { display: flex; flex-direction: column; gap: 18px; }
+.af-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+
+.af-role {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.af-role:hover { border-color: var(--color-primary); }
+.af-role.is-on { border-color: var(--dg-primary); background: #F0F9FF; box-shadow: inset 0 0 0 1px var(--dg-primary); }
+.af-role:focus-within { box-shadow: 0 0 0 3px var(--color-primary-surface), inset 0 0 0 1px var(--dg-primary); }
+.af-role-t { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: var(--font-weight-semibold); }
+.af-role-t input { margin: 0; accent-color: var(--dg-primary); }
+.dg .af-role-t input:focus-visible { outline: none !important; }
+.af-role small { font-size: 12px; font-weight: var(--font-weight-regular); line-height: 1.45; color: var(--dg-neutral-text); }
+
+.af-tel {
+  display: flex;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.af-tel-prefixe { display: grid; place-items: center; padding: 0 10px; border-right: 1px solid var(--color-border); background: var(--color-background); font-size: 14px; font-weight: var(--font-weight-regular); color: var(--dg-neutral-text); }
+.af-tel input { flex: 1; min-width: 0; padding: 0 10px; border: none; outline: none; background: transparent; font: inherit; font-size: 14px; font-weight: var(--font-weight-regular); font-variant-numeric: tabular-nums; color: var(--color-text-primary); }
+.dg .af-tel input:focus-visible { outline: none !important; }
+.af-tel:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-surface); }
+.af-tel.is-ko { border-color: var(--dg-danger); box-shadow: 0 0 0 3px var(--color-danger-surface); }
+
+.af-choix {
+  position: relative;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.af-choix select { width: 100%; height: 100%; padding: 0 34px 0 12px; border: none; border-radius: 12px; background: transparent; appearance: none; font: inherit; font-size: 14px; font-weight: var(--font-weight-regular); color: var(--color-text-primary); cursor: pointer; }
+.af-choix > svg { position: absolute; right: 12px; pointer-events: none; color: var(--color-text-muted); }
+.af-choix:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-surface); }
+.dg .af-choix select:focus-visible { outline: none !important; }
+.af-choix.is-ko { border-color: var(--dg-danger); box-shadow: 0 0 0 3px var(--color-danger-surface); }
+
+.af-verrou { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-background); font-size: 14px; font-weight: var(--font-weight-regular); color: var(--dg-neutral-text); }
+
+.dg .af-statut { display: flex; height: 44px; box-sizing: border-box; }
+
+.af-statut label {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--dg-neutral-text);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.af-statut label.is-on { background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12); }
+.af-statut input { position: absolute; opacity: 0; pointer-events: none; }
+.af-statut label:focus-within { box-shadow: 0 0 0 3px var(--color-primary-surface); }
+
+/* Retirer */
+.ad-texte { margin: 0; font-size: 14px; line-height: 1.55; color: #3F4650; }
+.ad-code { font-family: ui-monospace, 'SF Mono', Consolas, monospace; letter-spacing: 0.06em; }
+.ad-conseil { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--color-background); font-size: 13px; line-height: 1.5; color: var(--dg-neutral-text); }
+
+@media (max-width: 640px) {
+  .af-roles { grid-template-columns: 1fr; }
+}

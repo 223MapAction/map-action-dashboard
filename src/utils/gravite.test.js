@@ -22,7 +22,55 @@ const BY_SEVERITY_API = {
   low: { count: 0, percentage: 0 }
 };
 
-describe('gravite — la decision du backend prime', () => {
+describe('gravite — prise en compte de global_impact_score', () => {
+  it('calcule la gravité à partir de global_impact_score (0 à 3 faible, 4 à 6 moyenne, 7 à 10 élevée)', () => {
+    // 5.36 demandé expressément par l'utilisateur -> moyenne
+    expect(gravite({ global_impact_score: 5.36 })).toBe('medium');
+    expect(gravite({ global_impact_score: '5.36' })).toBe('medium');
+
+    // De 0 à 3 -> faible
+    expect(gravite({ global_impact_score: 0 })).toBe('low');
+    expect(gravite({ global_impact_score: 2.5 })).toBe('low');
+    expect(gravite({ global_impact_score: 3.9 })).toBe('low');
+
+    // De 4 à 6 -> moyenne
+    expect(gravite({ global_impact_score: 4 })).toBe('medium');
+    expect(gravite({ global_impact_score: 6.9 })).toBe('medium');
+
+    // De 7 à 10 -> élevée
+    expect(gravite({ global_impact_score: 7 })).toBe('high');
+    expect(gravite({ global_impact_score: 8.4 })).toBe('high');
+    expect(gravite({ global_impact_score: 10 })).toBe('high');
+  });
+
+  it('donne priorité à global_impact_score sur le severity textuel du serveur', () => {
+    // Le serveur a dit 'low', mais le score d'impact calculé est 8.5 -> high
+    expect(gravite({ severity: 'low', global_impact_score: 8.5 })).toBe('high');
+    // Le serveur a dit 'high', mais le score d'impact est 5.36 -> medium
+    expect(gravite({ severity: 'high', global_impact_score: 5.36 })).toBe('medium');
+  });
+
+  it('extrait global_impact_score au niveau des détails de l\'incident ou de la prédiction', () => {
+    // Dans incident_details.prediction_details
+    const incAvecDetails = {
+      incident_details: {
+        prediction_details: {
+          global_impact_score: 5.36,
+        },
+      },
+    };
+    expect(gravite(incAvecDetails)).toBe('medium');
+
+    // Dans prediction_details direct
+    expect(gravite({ prediction_details: { global_impact_score: 7.2 } })).toBe('high');
+
+    // Dans l'objet prediction passé en 2e argument
+    expect(gravite({ id: 1 }, { global_impact_score: 2.1 })).toBe('low');
+    expect(gravite({ id: 1 }, [{ global_impact_score: 5.36 }])).toBe('medium');
+  });
+});
+
+describe('gravite — la decision du backend prime quand global_impact_score est absent', () => {
   it('lit le champ severity de l\'incident', () => {
     expect(gravite(INCIDENT_API)).toBe('medium');
   });

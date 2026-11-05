@@ -16,13 +16,10 @@ import {
 } from '../../../../utils/gravite';
 
 import { MapViewMapLibre } from './MapViewMapLibre';
+import { PanneauDetail } from './PanneauDetail';
 import { MapViewMapbox } from './MapViewMapbox';
-
-import {
-  ShimmerThumbnail,
-  ShimmerTitle,
-  ShimmerText,
-} from 'react-shimmer-effects';
+import { ApercuMobile } from '../../mobile/ApercuMobile';
+import { HabillageCarteMobile } from '../../mobile/HabillageCarteMobile';
 
 import { getIncidentService } from '../../../incident/service/incident_service';
 
@@ -33,8 +30,6 @@ import {
 import {
   getIncidentsFilteredService,
 } from '../../service/dashboard_service';
-
-import { BlurryImage } from '../../../../components/atoms/BlurryImage';
 
 import {
   COUNTRIES,
@@ -260,7 +255,14 @@ const getFallbackCoordinates = (
  * COMPOSANT
  * ========================================================================== */
 
-export const MapContainer = () => {
+/**
+ * `filtreExterne` et `cible` sont optionnels : sans eux, la carte se comporte
+ * exactement comme avant. Le dashboard s'en sert pour piloter la carte depuis
+ * ses indicateurs et ses widgets (statut, gravité, localité, signalement à
+ * ouvrir). `mobile` remplace les contrôles posés sur la carte par ceux de la
+ * maquette mobile, et la bulle par une feuille basse.
+ */
+export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChange, mobile = null } = {}) => {
   const navigate = useNavigate();
 
   /* --------------------------------------------------------------------------
@@ -686,6 +688,13 @@ export const MapContainer = () => {
    * Validation des incidents
    * ------------------------------------------------------------------------ */
 
+  const idsZoneCharges = useMemo(
+    () =>
+      Boolean(filtreExterne?.ids?.size) &&
+      allIncidents.some((i) => filtreExterne.ids.has(String(i.id))),
+    [filtreExterne, allIncidents]
+  );
+
   const validIncidents =
     useMemo(() => {
       return allIncidents
@@ -795,6 +804,33 @@ export const MapContainer = () => {
           }
 
           /**
+           * Filtres venus du dashboard.
+           */
+          if (
+            filtreExterne?.statut === 'taken' &&
+            !['taken_into_account', 'in_progress'].includes(incident?.etat)
+          ) {
+            return false;
+          }
+
+          if (
+            filtreExterne?.gravite &&
+            gravite(incident) !== filtreExterne.gravite
+          ) {
+            return false;
+          }
+
+          // Une localité filtre seulement si ses signalements sont déjà
+          // chargés sur la carte ; sinon on se contente de recadrer.
+          if (
+            filtreExterne?.ids?.size &&
+            idsZoneCharges &&
+            !filtreExterne.ids.has(String(incident?.id))
+          ) {
+            return false;
+          }
+
+          /**
            * Les incidents supprimés
            * ne doivent jamais apparaître.
            */
@@ -812,7 +848,26 @@ export const MapContainer = () => {
       ownershipFilter,
       statusFilter,
       currentUserId,
+      filtreExterne,
+      idsZoneCharges,
     ]);
+
+
+  /* --------------------------------------------------------------------------
+   * Pilotage par le dashboard
+   * ------------------------------------------------------------------------ */
+
+  // « Résolus » bascule la carte sur les résolus ; « Pris en compte » et la
+  // remise à zéro la ramènent sur les actifs. On ne touche à rien tant que le
+  // dashboard n'a rien demandé.
+  const statutExterne = filtreExterne?.statut ?? null;
+  const statutExternePrecedent = useRef(statutExterne);
+
+  useEffect(() => {
+    if (statutExternePrecedent.current === statutExterne) return;
+    statutExternePrecedent.current = statutExterne;
+    setStatusFilter(statutExterne === 'resolved' ? 'resolved' : 'active');
+  }, [statutExterne]);
 
 
   /* --------------------------------------------------------------------------
@@ -951,6 +1006,111 @@ export const MapContainer = () => {
 
 
   /* --------------------------------------------------------------------------
+   * Filtres de la carte remontés au dashboard (ligne de contexte)
+   * ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    onFiltresChange?.({
+      pays: COUNTRIES.find((c) => c.en === countryFilter)?.fr || null,
+      perimetre: ownershipFilter === 'mine' ? 'mes signalements' : 'tous les signalements',
+      etat: statusFilter === 'resolved' ? 'résolus' : 'actifs',
+    });
+  }, [countryFilter, ownershipFilter, statusFilter, onFiltresChange]);
+
+
+  /* --------------------------------------------------------------------------
+   * Bulle au clic sur un point
+   * ------------------------------------------------------------------------ */
+
+  const [bulle, setBulle] = useState(null);
+
+  // Bureau : la bulle est au-dessus du point. Mobile : la feuille est en bas,
+  // le point remonte donc au-dessus d'elle.
+  const estMobile = Boolean(mobile);
+  const decalageBulle = estMobile ? -120 : 120;
+
+  const ouvrirBulle = useCallback((incident) => {
+    if (!incident?.id) return;
+    setGroupeOuvert(null);
+    setBulle(incident);
+    // Décale la carte pour que la bulle (au-dessus du point) reste visible.
+    const carte = carteRef.current?.getMap?.();
+    if (carte && Number.isFinite(incident._lng) && Number.isFinite(incident._lat)) {
+      carte.easeTo({ center: [incident._lng, incident._lat], offset: [0, decalageBulle], duration: 500 });
+    }
+  }, [decalageBulle]);
+
+  const fermerBulle = useCallback(() => setBulle(null), []);
+
+  // Échap ferme la bulle
+  useEffect(() => {
+    if (!bulle) return undefined;
+    const surTouche = (e) => {
+      if (e.key === 'Escape') setBulle(null);
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [bulle]);
+
+  const ouvrirApercu = useCallback((incident) => {
+    // Sur mobile, fermer le détail rapide ramène à l'aperçu.
+    if (!estMobile) setBulle(null);
+    openModal(incident);
+  }, [openModal, estMobile]);
+
+
+  /* --------------------------------------------------------------------------
+   * Signalement ciblé par le dashboard (recherche, widget, fil d'activité)
+   * ------------------------------------------------------------------------ */
+
+  const cibleId = cible?.id ?? null;
+  const cibleJeton = cible?.n ?? null;
+
+  useEffect(() => {
+    if (!cibleId) return;
+    const incident = validIncidents.find((i) => String(i.id) === String(cibleId));
+    const carte = carteRef.current?.getMap?.();
+    if (incident && carte) {
+      carte.flyTo({
+        center: [incident._lng, incident._lat],
+        zoom: Math.max(carte.getZoom(), 10),
+        offset: [0, decalageBulle],
+        speed: 1.4,
+      });
+      setGroupeOuvert(null);
+      setBulle(incident);
+    } else {
+      // Pas encore chargé sur la carte : on ouvre directement l'aperçu.
+      if (estMobile) setBulle({ id: cibleId });
+      else openModal({ id: cibleId });
+    }
+    // Le jeton relance la même cible ; validIncidents est lu au moment du clic.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cibleId, cibleJeton, openModal, ouvrirBulle]);
+
+  // Une localité choisie dans le dashboard recadre la carte sur ses signalements.
+  // Les points viennent du dashboard : la liste légère de la carte ne porte pas
+  // la localité, et tous les signalements ne sont pas forcément chargés.
+  const pointsExternes = filtreExterne?.points ?? null;
+
+  useEffect(() => {
+    if (!pointsExternes?.length) return;
+    const carte = carteRef.current?.getMap?.();
+    if (!carte) return;
+    const lngs = pointsExternes.map((p) => p.lng);
+    const lats = pointsExternes.map((p) => p.lat);
+    const ouest = Math.min(...lngs), est = Math.max(...lngs);
+    const sud = Math.min(...lats), nord = Math.max(...lats);
+    // Points quasi confondus : un fitBounds zoomerait à l'infini.
+    if (est - ouest < 0.05 && nord - sud < 0.05) {
+      carte.flyTo({ center: [(ouest + est) / 2, (sud + nord) / 2], zoom: 10, duration: 900 });
+    } else {
+      carte.fitBounds([[ouest, sud], [est, nord]], { padding: 80, maxZoom: 10, duration: 900 });
+    }
+  }, [pointsExternes]);
+
+
+  /* --------------------------------------------------------------------------
    * Nettoyage modal
    * ------------------------------------------------------------------------ */
 
@@ -993,20 +1153,7 @@ export const MapContainer = () => {
    * Status de l'incident sélectionné
    * ------------------------------------------------------------------------ */
 
-  const statusIndex =
-    selectedIncident
-      ? Math.max(
-          0,
-          INCIDENT_STATUS_STEPS.findIndex(
-            (step) =>
-              step.id ===
-              (
-                selectedIncident.etat ||
-                'declared'
-              )
-          )
-        )
-      : 0;
+
 
 
   /* --------------------------------------------------------------------------
@@ -1063,13 +1210,19 @@ export const MapContainer = () => {
               currentUserId={currentUserId}
               getMarkerColorClass={getMarkerColorClass}
               translateEtat={translateEtat}
-              openModal={openModal}
+              openModal={ouvrirBulle}
+              bulle={estMobile ? null : bulle}
+              fermerBulle={fermerBulle}
+              onCarteClic={estMobile ? fermerBulle : undefined}
+              ouvrirApercu={ouvrirApercu}
               focusIso={COUNTRIES.find((country) => country.en === countryFilter)?.iso}
             />
           );
         })()}
 
 
+        {!estMobile && (
+        <>
         {/* ------------------------------------------------------------------
          * SWITCHER STYLE
          * ---------------------------------------------------------------- */}
@@ -1387,8 +1540,52 @@ export const MapContainer = () => {
 
           </div>
         )}
+        </>
+        )}
 
       </div>
+
+      {estMobile && (bulle ? (
+        <ApercuMobile incident={bulle} onDetail={ouvrirApercu} onFermer={fermerBulle} />
+      ) : (
+        <HabillageCarteMobile
+          nonLues={mobile.nonLues}
+          onStatistiques={mobile.onStatistiques}
+          onActivite={mobile.onActivite}
+          onNotifications={mobile.onNotifications}
+          etat={statusFilter}
+          onEtat={(valeur) => {
+            setStatusFilter(valeur);
+            // Un statut posé depuis les statistiques céderait sinon le pas au
+            // choix fait ici à son prochain changement.
+            if (statutExterne) mobile.onStatut(valeur === 'resolved' ? 'resolved' : null);
+          }}
+          proprietaire={ownershipFilter}
+          onProprietaire={setOwnershipFilter}
+          pays={countryFilter}
+          onPays={setCountryFilter}
+          paysUtilisateur={userOrgCountry}
+          nomPays={COUNTRIES.find((c) => c.en === countryFilter)?.fr || null}
+          styles={Object.values(MAP_STYLES)}
+          styleActif={activeStyle}
+          onStyle={handleStyleChange}
+          graviteActive={mobile.graviteActive}
+          onGravite={mobile.onGravite}
+          zoneActive={mobile.zoneActive}
+          onToutEffacer={() => {
+            setOwnershipFilter('all');
+            setStatusFilter('active');
+            setCountryFilter('');
+            setActiveStyle('humanitarian');
+            mobile.onEffacer();
+          }}
+          nombre={validIncidents.length}
+          aPlus={hasMorePages}
+          chargementPlus={isLoadingMore || isLoadingPage}
+          onChargerPlus={loadMoreIncidents}
+          masquerNombre={isMapLoading}
+        />
+      ))}
 
 
       {/* ======================================================================
@@ -1396,606 +1593,25 @@ export const MapContainer = () => {
        * ==================================================================== */}
 
       {selectedIncidentId && (
-        <>
-          <div
-            className={`modal fade ${
-              modalShowing &&
-              !modalClosing
-                ? 'show'
-                : ''
-            }`}
-            style={{
-              display: 'block',
-            }}
-            tabIndex="-1"
-            role="dialog"
-            onClick={
-              closeModal
-            }
-          >
-            <div
-              className="modal-dialog modal-dialog-scrollable"
-              role="document"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
-            >
-              <div className="modal-content">
-
-                {/* ----------------------------------------------------------
-                 * HEADER
-                 * -------------------------------------------------------- */}
-
-                <div className="modal-header">
-
-                  <div
-                    className="d-flex flex-column"
-                    style={{
-                      minWidth: 0,
-                      flex: 1,
-                    }}
-                  >
-                    <h5 className="modal-title fw-bold">
-
-                      {isLoadingIncident ? (
-                        <ShimmerTitle
-                          line={1}
-                          gap={10}
-                          variant="primary"
-                        />
-                      ) : (
-                        selectedIncident?.title ||
-                        'Chargement...'
-                      )}
-
-                    </h5>
-
-                    <small className="text-muted mt-1">
-
-                      {isLoadingIncident ? (
-                        <ShimmerText
-                          line={1}
-                          gap={10}
-                        />
-                      ) : (
-                        <>
-                          {
-                            selectedIncident?.zone
-                          }
-
-                          {' • '}
-
-                          {translateEtat(
-                            selectedIncident?.etat
-                          )}
-                        </>
-                      )}
-
-                    </small>
-                  </div>
-
-
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={
-                      closeModal
-                    }
-                    aria-label="Fermer"
-                  />
-
-                </div>
-
-
-                {/* ----------------------------------------------------------
-                 * BODY
-                 * -------------------------------------------------------- */}
-
-                <div className="modal-body">
-
-                  {isLoadingIncident ||
-                  !selectedIncident ? (
-                    <div>
-
-                      <ShimmerThumbnail
-                        height={240}
-                        rounded
-                      />
-
-                      <div
-                        style={{
-                          marginTop:
-                            '1rem',
-                          marginBottom:
-                            '1.5rem',
-                        }}
-                      >
-                        <ShimmerTitle
-                          line={1}
-                          gap={10}
-                          variant="secondary"
-                        />
-                      </div>
-
-                      <div
-                        style={{
-                          marginBottom:
-                            '1.5rem',
-                        }}
-                      >
-                        <ShimmerText
-                          line={3}
-                          gap={10}
-                        />
-                      </div>
-
-                      <div
-                        style={{
-                          marginBottom:
-                            '1rem',
-                        }}
-                      >
-                        <ShimmerThumbnail
-                          height={120}
-                          rounded
-                        />
-                      </div>
-
-                      <ShimmerText
-                        line={5}
-                        gap={10}
-                      />
-
-                    </div>
-                  ) : (
-                    <>
-
-                      {/* ----------------------------------------------------
-                       * PHOTO
-                       * -------------------------------------------------- */}
-
-                      {selectedIncident.photo && (
-                        <BlurryImage
-                          src={
-                            selectedIncident.photo
-                          }
-                          alt={
-                            selectedIncident.title
-                          }
-                          className="img-fluid rounded mb-3 w-100"
-                          style={{
-                            maxHeight:
-                              '300px',
-                            objectFit:
-                              'cover',
-                          }}
-                        />
-                      )}
-
-
-                      {/* ----------------------------------------------------
-                       * BADGES
-                       * -------------------------------------------------- */}
-
-                      <div className="d-flex flex-wrap gap-2 mb-3">
-
-                        <span
-                          className={`badge ${
-                            selectedIncident.etat ===
-                            'resolved'
-                              ? 'badge-status-resolved'
-                              : selectedIncident.etat ===
-                                'taken_into_account'
-                              ? 'badge-status-taken_into_account'
-                              : selectedIncident.etat ===
-                                'pending'
-                              ? 'badge-status-pending'
-                              : 'badge-status-declared'
-                          }`}
-                        >
-                          STATUT :{' '}
-
-                          {selectedIncident.etat ===
-                          'resolved'
-                            ? 'RÉSOLU'
-                            : selectedIncident.etat ===
-                              'taken_into_account'
-                            ? 'PRIS EN COMPTE'
-                            : selectedIncident.etat ===
-                              'pending'
-                            ? 'EN ATTENTE'
-                            : 'DÉCLARÉ'}
-                        </span>
-
-
-                        {selectedIncident.zone && (
-                          <span className="badge bg-info text-dark">
-                            {
-                              selectedIncident.zone
-                            }
-                          </span>
-                        )}
-
-                      </div>
-
-
-                      {/* ----------------------------------------------------
-                       * DESCRIPTION
-                       * -------------------------------------------------- */}
-
-                      {selectedIncident.description && (
-                        <p className="text-secondary mb-3">
-                          {
-                            selectedIncident.description
-                          }
-                        </p>
-                      )}
-
-
-                      {/* ----------------------------------------------------
-                       * INFORMATIONS
-                       * -------------------------------------------------- */}
-
-                      <ul className="list-group list-group-flush mb-3">
-
-                        <li className="list-group-item px-0">
-                          <strong>
-                            Créé le :
-                          </strong>{' '}
-
-                          {selectedIncident.created_at
-                            ? new Date(
-                                selectedIncident.created_at
-                              ).toLocaleDateString(
-                                'fr-FR',
-                                {
-                                  day: '2-digit',
-                                  month: 'long',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                }
-                              )
-                            : 'Non spécifié'}
-                        </li>
-
-
-                        <li className="list-group-item px-0">
-
-                          <strong>
-                            Coordonnées :
-                          </strong>{' '}
-
-                          {(() => {
-                            const {
-                              latitude,
-                              longitude,
-                              valid,
-                            } =
-                              getIncidentCoordinates(
-                                selectedIncident
-                              );
-
-                            if (!valid) {
-                              return 'Non spécifiées (Mali par défaut)';
-                            }
-
-                            return `${latitude.toFixed(
-                              4
-                            )}°N, ${longitude.toFixed(
-                              4
-                            )}°E`;
-                          })()}
-
-                        </li>
-
-                      </ul>
-
-
-                      {/* ----------------------------------------------------
-                       * STATUS STEPPER
-                       * -------------------------------------------------- */}
-
-                      <div
-                        className={`mb-4 status-stepper-${
-                          selectedIncident?.etat ||
-                          'declared'
-                        }`}
-                      >
-
-                        <h6 className="section-title mb-3">
-                          STATUT DE L'INCIDENT
-                        </h6>
-
-                        <div className="incident-modal-status-bar">
-
-                          {INCIDENT_STATUS_STEPS.map(
-                            (
-                              step,
-                              index
-                            ) => (
-                              <div
-                                key={
-                                  step.id
-                                }
-                                className={`incident-modal-status-segment ${
-                                  index <
-                                  statusIndex
-                                    ? 'is-done'
-                                    : ''
-                                } ${
-                                  index ===
-                                  statusIndex
-                                    ? 'is-current'
-                                    : ''
-                                }`}
-                              />
-                            )
-                          )}
-
-                        </div>
-
-
-                        <div className="incident-modal-status-steps">
-
-                          {INCIDENT_STATUS_STEPS.map(
-                            (
-                              step,
-                              index
-                            ) => (
-                              <div
-                                key={
-                                  step.id
-                                }
-                                className={`incident-modal-status-step ${
-                                  index <
-                                  statusIndex
-                                    ? 'is-done'
-                                    : ''
-                                } ${
-                                  index ===
-                                  statusIndex
-                                    ? 'is-current'
-                                    : ''
-                                }`}
-                              >
-                                <span className="incident-modal-status-dot" />
-
-                                <span>
-                                  {
-                                    step.label.toUpperCase()
-                                  }
-                                </span>
-                              </div>
-                            )
-                          )}
-
-                        </div>
-
-                      </div>
-
-
-                      {/* ----------------------------------------------------
-                       * AUDIO
-                       * -------------------------------------------------- */}
-
-                      {selectedIncident.audio && (
-                        <div className="mb-4">
-
-                          <h6 className="section-title mb-2">
-                            AUDIO
-                          </h6>
-
-                          <audio
-                            controls
-                            className="w-100"
-                          >
-                            <source
-                              src={
-                                selectedIncident.audio
-                              }
-                              type="audio/mpeg"
-                            />
-
-                            Votre navigateur ne supporte pas l'élément audio.
-                          </audio>
-
-                        </div>
-                      )}
-
-
-                      {/* ----------------------------------------------------
-                       * VIDEO
-                       * -------------------------------------------------- */}
-
-                      {selectedIncident.video && (
-                        <div className="mb-4">
-
-                          <h6 className="section-title mb-2">
-                            VIDÉO DE PRÉSENTATION
-                          </h6>
-
-                          <video
-                            controls
-                            className="w-100 rounded"
-                            style={{
-                              maxHeight:
-                                '400px',
-                            }}
-                          >
-                            <source
-                              src={
-                                selectedIncident.video
-                              }
-                              type="video/mp4"
-                            />
-
-                            Votre navigateur ne supporte pas la lecture de vidéos.
-                          </video>
-
-                        </div>
-                      )}
-
-
-                      {/* ----------------------------------------------------
-                       * ORGANISATIONS
-                       * -------------------------------------------------- */}
-
-                      {selectedIncident.participants?.length >
-                        0 && (
-                        <div className="mb-3">
-
-                          <h6 className="section-title mb-3">
-                            ORGANISATIONS MOBILISÉES
-                          </h6>
-
-                          <div className="d-flex flex-wrap gap-3 mb-3">
-
-                            {selectedIncident.participants.map(
-                              (
-                                participant,
-                                index
-                              ) => (
-                                <div
-                                  key={
-                                    index
-                                  }
-                                  className="d-flex align-items-center gap-2"
-                                >
-
-                                  <div
-                                    className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
-                                    style={{
-                                      backgroundColor:
-                                        participant.color,
-
-                                      width:
-                                        '40px',
-
-                                      height:
-                                        '40px',
-
-                                      fontSize:
-                                        'var(--font-size-body-small)',
-                                    }}
-                                  >
-                                    {
-                                      participant.initials
-                                    }
-                                  </div>
-
-                                  <span>
-                                    {
-                                      participant.name
-                                    }
-                                  </span>
-
-                                </div>
-                              )
-                            )}
-
-
-                            {selectedIncident.extraParticipants >
-                              0 && (
-                              <div className="d-flex align-items-center gap-2">
-
-                                <div
-                                  className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
-                                  style={{
-                                    backgroundColor:
-                                      'var(--color-text-muted)',
-
-                                    width:
-                                      '40px',
-
-                                    height:
-                                      '40px',
-
-                                    fontSize:
-                                      'var(--font-size-body-small)',
-                                  }}
-                                >
-                                  +
-                                  {
-                                    selectedIncident.extraParticipants
-                                  }
-                                </div>
-
-                                <span>
-                                  Autres organisations
-                                </span>
-
-                              </div>
-                            )}
-
-                          </div>
-                        </div>
-                      )}
-
-                    </>
-                  )}
-
-                </div>
-
-
-                {/* ----------------------------------------------------------
-                 * FOOTER
-                 * -------------------------------------------------------- */}
-
-                {!isLoadingIncident &&
-                  selectedIncident && (
-                    <div className="modal-footer">
-
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={
-                          closeModal
-                        }
-                      >
-                        Fermer
-                      </button>
-
-
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => {
-                          navigate(
-                            `/signalements/${selectedIncident.id}`,
-                            {
-                              state: {
-                                from:
-                                  '/dashboard',
-                              },
-                            }
-                          );
-                        }}
-                      >
-                        Savoir plus
-                      </button>
-
-                    </div>
-                  )}
-
-              </div>
-            </div>
-          </div>
-
-
-          {/* ----------------------------------------------------------------
-           * BACKDROP
-           * -------------------------------------------------------------- */}
-
-          <div
-            className={`modal-backdrop fade ${
-              modalShowing &&
-              !modalClosing
-                ? 'show'
-                : ''
-            }`}
-          />
-        </>
+        <PanneauDetail
+          incident={selectedIncident}
+          isLoading={isLoadingIncident}
+          ouvert={modalShowing && !modalClosing}
+          mobile={estMobile}
+          etapes={INCIDENT_STATUS_STEPS}
+          coordonnees={(() => {
+            if (!selectedIncident) return '';
+            const { latitude, longitude, valid } = getIncidentCoordinates(selectedIncident);
+            if (!valid) return 'Non spécifiées';
+            if (!estMobile) return `${latitude.toFixed(4)}°N, ${longitude.toFixed(4)}°E`;
+            const f = (n) => Math.abs(n).toFixed(4).replace('.', ',');
+            return `${f(latitude)}° ${latitude < 0 ? 'S' : 'N'}, ${f(longitude)}° ${longitude < 0 ? 'O' : 'E'}`;
+          })()}
+          onFermer={closeModal}
+          onOuvrirFiche={() =>
+            navigate(`/signalements/${selectedIncident.id}`, { state: { from: '/dashboard' } })
+          }
+        />
       )}
     </div>
   );

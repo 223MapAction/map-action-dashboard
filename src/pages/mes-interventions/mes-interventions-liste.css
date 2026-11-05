@@ -1,0 +1,451 @@
+/* ============================================================
+   PAGE MES INTERVENTIONS — refonte
+   Même langage que les pages Signalements, Organisations et
+   Agents ; couleurs posées en variables sur la page, index.css
+   n'ayant pas encore de jetons de survol ni de neutres.
+   ============================================================ */
+
+/* Ossature : barre latérale + colonne principale, chacune défile seule. */
+.mi-layout { display: flex; height: 100vh; height: 100dvh; overflow: hidden; background-color: var(--color-background); }
+.mi-main { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; height: 100dvh; overflow: hidden; }
+
+
+.mi {
+  --mi-primary: var(--color-primary-text);
+  --mi-primary-hover: #18689A;
+  --mi-neutral-surface: #F1F5F9;
+  --mi-neutral-text: #475569;
+  --mi-ligne: var(--color-border);
+
+  position: relative; /* référence de offsetTop pour le repère de la barre collante */
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: calc(60px + 24px) 24px 48px;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.mi > * { width: 100%; max-width: 1320px; flex-shrink: 0; }
+.mi ::selection { background: var(--color-primary-surface); }
+
+/* En-tête */
+.mi-tete { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.mi-tete h1 { margin: 0; font-size: 24px; font-weight: var(--font-weight-bold); letter-spacing: -0.015em; }
+.mi-tete p { margin: 4px 0 0; font-size: 14px; color: var(--color-text-secondary); }
+
+.mi-btn-p {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--mi-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.mi-btn-p:hover { background: var(--mi-primary-hover); }
+.mi-btn-p:active { transform: scale(0.97); }
+
+.mi-statuts { display: flex; gap: 2px; border-bottom: 1px solid var(--mi-ligne); }
+
+.mi-statuts button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  padding: 11px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--mi-neutral-text);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.mi-statuts button:hover { color: var(--color-text-primary); }
+.mi-statuts button.is-on { color: var(--mi-primary); border-bottom-color: var(--mi-primary); }
+.mi-n { padding: 0 7px; border-radius: var(--radius-full); background: var(--mi-neutral-surface); font-size: 11.5px; }
+.mi-statuts button.is-on .mi-n { background: var(--color-primary-surface); }
+
+.mi-statuts-pastilles { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+
+.mi-statuts-pastilles button {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--mi-ligne);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--mi-neutral-text);
+  cursor: pointer;
+}
+
+.mi-statuts-pastilles button.is-on { border-color: var(--mi-primary); background: var(--mi-primary); color: #fff; }
+
+/* Recherche et filtres */
+/* L'en-tête de la page (titre, bouton, onglets, recherche et filtres) reste
+   fixe au défilement : seul le tableau passe dessous. .mi est le conteneur
+   qui défile ; l'en-tête de l'application, fixe et haut de 60 px, le
+   recouvre : on colle donc ce bloc juste dessous. Le fond opaque masque les
+   lignes qui passent derrière.
+
+   `top` se compte depuis le bord du CONTENU du conteneur, après son padding
+   haut (60 + 24 px) : -24 px colle donc le bloc à 60 px du haut de l'écran,
+   juste sous l'en-tête de l'application. */
+.mi-entete {
+  position: sticky;
+  top: -24px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: -24px 0 0;
+  padding: 24px 0 12px;
+  background: var(--color-background);
+  transition: box-shadow 0.15s ease;
+}
+
+.mi-entete.is-colle { box-shadow: 0 10px 14px -12px rgba(15, 23, 42, 0.3); }
+.mi-repere { height: 0; margin: -16px 0 0; }
+
+.mi-outils { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.mi-recherche {
+  flex: 1 1 300px;
+  max-width: 400px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--mi-ligne);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mi-recherche:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-surface); }
+.mi-recherche input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--color-text-primary); }
+.mi .mi-recherche input:focus-visible { outline: none !important; }
+
+/* La liste native reste dessous, invisible : clavier, lecteur d'écran et
+   sélecteur du téléphone fonctionnent comme d'habitude. */
+.mi-filtre {
+  position: relative;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--mi-ligne);
+  border-radius: 10px;
+  background: var(--color-surface);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mi-filtre select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.mi-filtre.is-on { border-color: var(--mi-primary); background: var(--color-primary-surface); color: var(--mi-primary); }
+.mi-filtre:focus-within { box-shadow: 0 0 0 3px var(--color-primary-surface); }
+.mi-annonce { font-size: 13px; color: var(--color-text-muted); }
+
+/* Tableau */
+.mi-boite { border: 1px solid var(--mi-ligne); border-radius: 14px; background: var(--color-surface); }
+.mi-tableau-boite { overflow-x: auto; }
+.mi-tableau { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 13px; }
+.mi-tableau th { padding: 12px 10px; border-bottom: 1px solid var(--mi-ligne); font-size: 12px; font-weight: var(--font-weight-semibold); color: var(--color-text-muted); text-align: left; white-space: nowrap; }
+.mi-tableau th:first-child,
+.mi-tableau td:first-child { padding-left: 16px; }
+.mi-tableau th:last-child,
+.mi-tableau td:last-child { padding-right: 16px; }
+.mi-tableau td { padding: 12px 10px; border-bottom: 1px solid var(--mi-ligne); vertical-align: middle; }
+.mi-tableau tbody tr:last-child td { border-bottom: none; }
+.mi-ligne { transition: background-color 0.12s ease; }
+.mi-ligne:hover { background: var(--color-background); }
+
+.mi-doux { color: var(--mi-neutral-text); }
+
+.mi-absent { color: var(--color-text-muted); }
+
+
+.mi-actions { width: 48px; text-align: right; }
+.mi .table-actions-trigger { width: 32px; height: 32px; border: none; border-radius: 8px; background: transparent; color: var(--mi-neutral-text); box-shadow: none; }
+.mi .table-actions-trigger:hover,
+.mi .table-actions-trigger.is-open { background: var(--mi-neutral-surface); color: var(--color-text-primary); }
+.mi-squelette { display: flex; gap: 12px; align-items: center; }
+
+.mi-pied { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--color-text-muted); }
+.mi-pied .am-pagination { margin: 0; padding: 0; }
+.mi-pied .am-pagination-info { display: none; }
+.mi .am-pagination-controls { gap: 6px; }
+.mi .am-pagination-btn { min-width: 36px; height: 36px; border: 1px solid var(--mi-ligne); border-radius: 9px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: none; }
+.mi .am-pagination-btn:hover:not(:disabled) { border-color: var(--color-primary); color: var(--mi-primary); background: var(--color-surface); }
+.mi .am-pagination-btn.active { border-color: var(--mi-primary); background: var(--mi-primary); color: #fff; font-weight: var(--font-weight-semibold); }
+
+.mi-masque { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* État vide */
+.mi-vide { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 44px 16px; text-align: center; }
+.mi-vide b { font-size: 15px; }
+.mi-vide p { margin: 0; max-width: 380px; font-size: 13.5px; color: var(--color-text-muted); }
+.mi-vide-ic { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; background: var(--color-primary-surface); color: var(--mi-primary); }
+.mi-vide .mi-btn-p { margin-top: 6px; }
+
+/* Mobile */
+.mi-cartes { display: flex; flex-direction: column; gap: 12px; }
+.mi-carte { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--mi-ligne); border-radius: 14px; background: var(--color-surface); }
+.mi-carte-pied { display: flex; align-items: center; gap: 16px; padding-top: 10px; border-top: 1px solid var(--mi-neutral-surface); font-size: 13px; color: var(--mi-neutral-text); }
+.mi-carte .table-actions-trigger { width: 44px; height: 44px; }
+
+/* Ligne : la ligne entière ouvre l'intervention, le titre en est le lien. */
+.mi-ligne { cursor: pointer; }
+.mi-tableau { min-width: 1060px; }
+
+.mi-signalement { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mi-signalement > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.mi-photo {
+  width: 56px;
+  height: 44px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--mi-neutral-surface);
+}
+
+.mi-photo > *,
+.mi-carte-photo > * { width: 100% !important; height: 100% !important; }
+.mi-photo img,
+.mi-carte-photo img { object-fit: cover; }
+
+.mi-titre {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+  color: var(--color-text-primary);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.mi-titre:hover { color: var(--mi-primary); text-decoration: underline; text-underline-offset: 3px; }
+.mi-sous { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.mi-sous > svg { flex-shrink: 0; }
+.mi-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mi-absent { color: var(--color-text-muted); }
+
+/* Prise en charge */
+.mi-mode { display: inline-block; padding: 3px 9px; border-radius: var(--radius-full); font-size: 12px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.mi-mode.is-interne { background: var(--color-primary-surface); color: var(--mi-primary); }
+.mi-mode.is-collab { background: #FFEDD5; color: #9A3412; }
+
+/* État : même pastille dans la liste et dans la fenêtre Équipe (portail). */
+.mi-statut {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.mi-statut i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.mi-statut.is-declare { background: #F1F5F9; color: #475569; }
+.mi-statut.is-pris { background: var(--color-primary-surface); color: var(--color-primary-text); }
+.mi-statut.is-cours { background: #FEF3C7; color: #92400E; }
+.mi-statut.is-resolu { background: var(--color-success-surface); color: var(--color-success-text); }
+.mi-statut.is-retard { background: var(--color-danger-surface); color: #B42318; }
+
+/* Avancement */
+.mi-avancement { display: flex; flex-direction: column; gap: 3px; min-width: 150px; }
+.mi-avancement-ligne { display: flex; align-items: center; gap: 8px; }
+.mi-avancement-ligne b,
+.mi-carte-etat b { min-width: 38px; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.mi-barre { flex: 1; height: 6px; overflow: hidden; border-radius: var(--radius-full); background: var(--mi-ligne); }
+.mi-barre > span { display: block; height: 100%; border-radius: inherit; background: var(--mi-primary); transition: width 0.3s ease; }
+.mi-barre.is-cours > span { background: #D97706; }
+.mi-barre.is-resolu > span { background: var(--color-success-text); }
+.mi-barre.is-declare > span { background: #94A3B8; }
+
+.mi-fin { font-size: 11.5px; color: var(--color-text-muted); }
+.mi-fin.is-resolu { color: var(--color-success-text); }
+
+/* Équipe et rapports */
+.mi-equipe,
+.mi-rapports {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--mi-ligne);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.mi-equipe:hover,
+.mi-rapports.is-on:hover { border-color: var(--color-primary); color: var(--mi-primary); }
+.mi-rapports { font-variant-numeric: tabular-nums; color: var(--color-text-muted); }
+.mi-rapports.is-on { border-color: #BAE6FD; background: #F0F9FF; color: var(--mi-primary); }
+.mi-rapports:disabled { cursor: default; }
+.mi-equipe.is-large,
+.mi-rapports.is-large { flex: 1; height: 44px; border-radius: 10px; font-size: 13.5px; }
+
+/* Mobile */
+.mi .mi-carte { gap: 0; padding: 0; overflow: hidden; }
+.mi-carte-photo { height: 120px; background: var(--mi-neutral-surface); }
+.mi-carte-corps { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
+.mi-carte-tete { display: flex; align-items: flex-start; gap: 8px; }
+.mi-carte-tete > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mi-carte-tete .mi-titre { font-size: 15px; }
+.mi-carte-etat { display: flex; align-items: center; gap: 8px; }
+.mi .mi-carte-pied { gap: 8px; padding-top: 0; border-top: none; }
+
+
+/* Confirmation éphémère */
+.mi-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 2000;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--color-text-primary);
+  color: #fff;
+  font-size: 13.5px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+  animation: mi-toast 2.4s ease both;
+  pointer-events: none;
+}
+
+@keyframes mi-toast {
+  0% { opacity: 0; transform: translate(-50%, 12px); }
+  10%, 85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+.mi button:focus-visible,
+.mi a:focus-visible { outline: 3px solid var(--color-primary-surface) !important; outline-offset: 2px !important; }
+
+@media (max-width: 767.98px) {
+  .mi { padding: calc(60px + 12px) 16px 24px; gap: 12px; }
+  .mi-tete { align-items: center; flex-wrap: nowrap; }
+  .mi-tete h1 { font-size: 20px; }
+  .mi-tete p { display: none; }
+  .mi-tete .mi-btn-p { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 12px; }
+  .mi-recherche { flex: 1 1 100%; max-width: none; height: 46px; border-radius: 12px; }
+  .mi-recherche input { font-size: 16px; }
+  .mi-filtre { flex: 1; justify-content: center; height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mi *,
+  .mi-toast { animation: none !important; transition: none !important; }
+}
+
+/* ------------------------------------------------------------
+   Fenêtres « Équipe sur le terrain » et « Assigner un agent »
+   (rendues dans un portail : hors de .mi)
+   ------------------------------------------------------------ */
+.me-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.me-agent { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--dg-neutral-surface); }
+.me-agent:first-child { padding-top: 0; }
+.me-agent:last-child { border-bottom: none; padding-bottom: 0; }
+.me-av { width: 40px; height: 40px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 13px; font-weight: var(--font-weight-bold); }
+.me-infos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.me-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.me-ligne b { font-size: 14px; font-weight: var(--font-weight-semibold); }
+.me-ligne:first-child { gap: 8px; }
+.me-contact { font-size: 12.5px; color: var(--dg-neutral-text); overflow-wrap: anywhere; }
+.me-contact a { color: var(--dg-primary); text-decoration: none; font-variant-numeric: tabular-nums; }
+.me-contact a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.me-meta { font-size: 12.5px; color: var(--color-text-muted); }
+.me-meta b { font-size: inherit; font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+.me-meta b.is-retard { color: #B42318; }
+
+.me-vide { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 8px; text-align: center; }
+.me-vide b { font-size: 15px; }
+.me-vide p { margin: 0; font-size: 13.5px; color: var(--color-text-muted); }
+.me-vide-ic { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; background: var(--color-primary-surface); color: var(--dg-primary); }
+
+.ma-form { display: flex; flex-direction: column; gap: 16px; }
+
+.ma-recherche {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ma-recherche:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-surface); }
+.ma-recherche input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font: inherit; font-size: 14px; font-weight: var(--font-weight-regular); color: var(--color-text-primary); }
+.dg .ma-recherche input:focus-visible { outline: none !important; }
+
+.ma-liste { max-height: 300px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 12px; }
+.ma-liste.is-ko { border-color: var(--dg-danger); box-shadow: 0 0 0 3px var(--color-danger-surface); }
+
+.ma-agent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--dg-neutral-surface);
+  font-weight: var(--font-weight-regular);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.ma-agent:last-child { border-bottom: none; }
+.ma-agent:hover { background: var(--color-background); }
+.ma-agent.is-on { background: #F0F9FF; }
+.ma-agent.is-deja { opacity: 0.6; cursor: default; background: var(--color-background); }
+.ma-agent input { margin: 0; accent-color: var(--dg-primary); }
+.dg .ma-agent input:focus-visible { outline: 3px solid var(--color-primary-surface) !important; outline-offset: 2px !important; }
+.ma-av { width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 12px; font-weight: var(--font-weight-bold); }
+.ma-nom { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ma-nom b { font-size: 14px; font-weight: var(--font-weight-semibold); }
+.ma-nom span { font-size: 12px; color: var(--color-text-muted); }
+.ma-note { font-size: 12px; font-weight: var(--font-weight-semibold); color: var(--color-text-muted); white-space: nowrap; }
+.ma-vide { margin: 0; padding: 16px 12px; font-size: 13.5px; color: var(--color-text-muted); text-align: center; }

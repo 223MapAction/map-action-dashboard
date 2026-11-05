@@ -1,141 +1,130 @@
-import { useEffect, useRef, useState } from 'react';
-import { Trash, CloseCircle, TickCircle } from 'iconsax-react';
-import { deleteTaskService } from '../../incident/service/task_service';
-import { OffcanvasModal } from '../../../components/molecules/OffcanvasModal';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CloseCircle } from 'iconsax-react';
+import { Dialogue } from '../../../components/molecules/Dialogue';
 import { logger } from '../../../utils/logger';
+import { IcoCorbeille } from './icones';
+import { useEstTelephone } from '../../incident/mobile/useEstTelephone';
+import '../../incident/mobile/mobile.css';
 
+const messageErreur = (error) => {
+  const data = error?.response?.data;
+  if (typeof data === 'string') return data;
+  if (data && typeof data === 'object') {
+    return Object.entries(data)
+      .map(([champ, e]) => `${champ} : ${Array.isArray(e) ? e.join(', ') : e}`)
+      .join(' · ');
+  }
+  return "La tâche n'a pas pu être supprimée. Réessayez dans un instant.";
+};
+
+/**
+ * Confirmer la suppression d'une tâche.
+ *
+ * La suppression elle-même appartient à `onConfirm` (la page fait la mise à
+ * jour optimiste, l'appel et la notification temps réel). Cette fenêtre
+ * l'appelait aussi de son côté : chaque suppression partait deux fois, et la
+ * seconde, en échec, déclenchait un rechargement de la liste pour rien.
+ *
+ * @param {() => Promise<void>} onConfirm  rejette en cas d'échec
+ * @param {() => void} [onRemettre]  proposé quand la tâche est en échec
+ */
 export const DeleteTaskModal = ({
   isOpen,
   onClose,
   onConfirm,
   taskTitle,
-  taskId,
-  incidentId,
-  isDeleting: propIsDeleting
+  impact,
+  onRemettre,
 }) => {
-  const [shouldRender, setShouldRender] = useState(isOpen);
-  const [localIsDeleting, setLocalIsDeleting] = useState(false);
-  const isDeleting = propIsDeleting || localIsDeleting;
-  const [isClosing, setIsClosing] = useState(false);
-  const [deleteAlert, setDeleteAlert] = useState(null);
+  const estTelephone = useEstTelephone();
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState(null);
 
-  const bodyRef = useRef(null);
+  if (!isOpen) return null;
 
-  useEffect(() => {
-    if (deleteAlert?.message && bodyRef.current) {
-      bodyRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [deleteAlert?.message]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      setIsClosing(false);
-      setDeleteAlert(null);
-    } else {
-      setIsClosing(true);
-      const timer = setTimeout(() => {
-        setShouldRender(false);
-      }, 300); // aligné sur la durée de transition
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-
-  const handleClose = () => {
-    if (isDeleting) return;
-    setIsClosing(true);
-    setTimeout(() => {
-      onClose();
-    }, 250);
-  };
-
-  const handleConfirm = async () => {
-    if (!taskId) return;
-    setDeleteAlert(null);
+  const confirmer = async (close) => {
+    setErreur(null);
+    setEnCours(true);
     try {
-      setLocalIsDeleting(true);
-      await deleteTaskService(incidentId, taskId);
-      if (onConfirm) {
-        await onConfirm(taskId);
-      }
+      await onConfirm();
+      setEnCours(false);
+      close();
     } catch (error) {
-      logger.error('[DeleteTaskModal] Erreur lors de la suppression de la tâche:', error);
-      let errorMessage = 'Une erreur est survenue lors de la suppression de la tâche.';
-      if (error.response?.data) {
-        if (typeof error.response.data === 'object') {
-          errorMessage = Object.entries(error.response.data)
-            .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
-            .join(' | ');
-        } else if (typeof error.response.data === 'string') {
-          errorMessage = error.response.data;
-        }
-      }
-      setDeleteAlert({ type: 'danger', message: errorMessage });
-    } finally {
-      setLocalIsDeleting(false);
+      logger.error('[DeleteTaskModal] Suppression impossible :', error);
+      setErreur(messageErreur(error));
+      setEnCours(false);
     }
   };
 
-  if (!shouldRender) return null;
+  const fermer = () => {
+    setErreur(null);
+    onClose();
+  };
+
+  if (estTelephone) {
+    return createPortal(
+      <div className="sgm-fond sgm-alerte-fond">
+        <div className="sgm-alerte" role="alertdialog" aria-modal="true" aria-labelledby="vcm-suppr-titre">
+          <div className="sgm-alerte-corps">
+            <b id="vcm-suppr-titre">Supprimer « {taskTitle || 'Sans titre'} » ?</b>
+            <span>{impact}</span>
+            {erreur && <div className="am-alert am-alert--danger" role="alert"><span className="am-alert__message">{erreur}</span></div>}
+          </div>
+          {onRemettre && (
+            <button type="button" className="vcm-alerte-lien" onClick={() => { onRemettre(); fermer(); }} disabled={enCours}>La remettre en cours</button>
+          )}
+          <div className="sgm-alerte-boutons">
+            <button type="button" onClick={fermer} disabled={enCours}>Garder</button>
+            <button type="button" className="is-danger" onClick={() => confirmer(fermer)} disabled={enCours}>Supprimer</button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return (
-    <OffcanvasModal
-      onClose={handleClose}
-      isClosing={isClosing}
-      title="Supprimer la tâche"
+    <Dialogue
+      onClose={fermer}
       role="alertdialog"
-      tone="danger"
-      size="sm"
-      closeVariant="plain"
-      closeDisabled={isDeleting}
-      footerLayout="col"
-      footer={
+      taille="sm"
+      ton="danger"
+      pile
+      verrouille={enCours}
+      titre={`Supprimer « ${taskTitle || 'Sans titre'} » ?`}
+      icone={<IcoCorbeille />}
+      pied={({ close }) => (
         <>
-          <button
-            type="button"
-            className="am-btn am-btn--danger"
-            onClick={handleConfirm}
-            disabled={isDeleting}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-          >
-            {isDeleting && <span className="am-spinner" aria-hidden="true" />}
-            Supprimer définitivement
-          </button>
-          <button
-            type="button"
-            className="am-btn am-btn--outline"
-            onClick={handleClose}
-            disabled={isDeleting}
-          >
-            Annuler
+          <span className="dg-espace" />
+          <button type="button" className="dg-btn dg-btn-g" onClick={close} disabled={enCours}>Garder la tâche</button>
+          <button type="button" className="dg-btn dg-btn-ko" onClick={() => confirmer(close)} disabled={enCours}>
+            {enCours ? <><span className="dg-spin" aria-hidden="true" />Suppression…</> : 'Supprimer'}
           </button>
         </>
-      }
+      )}
     >
-      <div className="am-offcanvas-body am-offcanvas-body--centered" ref={bodyRef}>
-        {deleteAlert && (
-          <div className={`am-alert am-alert--${deleteAlert.type === 'success' ? 'success' : 'danger'}`} role="alert" style={{ width: '100%', marginBottom: 'var(--spacing-4)', display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left' }}>
-            {deleteAlert.type === 'success' ? (
-              <TickCircle size={18} variant="Bold" color="var(--color-success)" style={{ flexShrink: 0 }} />
-            ) : (
-              <CloseCircle size={18} variant="Bold" color="var(--color-danger)" style={{ flexShrink: 0 }} />
-            )}
-            <span className="am-alert__message" style={{ margin: 0 }}>{deleteAlert.message}</span>
-          </div>
-        )}
-
-        <div className="am-delete-icon-wrap" aria-hidden="true">
-          <Trash size={32} variant="Bold" color="var(--color-danger)" />
-        </div>
-
-        <p className="am-delete-title">Confirmer la suppression</p>
-        <p className="am-delete-text">
-          Vous êtes sur le point de supprimer la tâche :<br />
-          <strong>&quot;{taskTitle || 'Sans titre'}&quot;</strong>.
-          Cette action est <strong>irréversible</strong>.
-        </p>
-      </div>
-    </OffcanvasModal>
+      {({ close }) => (
+        <>
+          {erreur && (
+            <div className="dg-alerte dg-alerte-ko" role="alert">
+              <CloseCircle size={18} variant="Bold" color="currentColor" /><span>{erreur}</span>
+            </div>
+          )}
+          <p className="dt-texte">{impact}</p>
+          {onRemettre && (
+            <button
+              type="button"
+              className="dt-lien"
+              onClick={() => { onRemettre(); close(); }}
+              disabled={enCours}
+            >
+              La remettre en cours à la place
+            </button>
+          )}
+        </>
+      )}
+    </Dialogue>
   );
 };
 

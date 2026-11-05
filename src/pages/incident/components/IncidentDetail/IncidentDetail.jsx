@@ -47,7 +47,8 @@ import {
   Warning2,
   Ruler,
   Message,
-  Send2
+  Send2,
+  InfoCircle
 } from 'iconsax-react';
 import './incident-detail.css';
 import { IncidentDetailSkeleton } from './SqueletteDetail';
@@ -55,11 +56,12 @@ import { ROLE_OPTIONS, ORG_ROLE_OPTIONS } from './roles';
 import { useLecteurAudio } from './useLecteurAudio';
 import {
   getStatusBadge, getModeBadge, getUserRoleBadge,
-  getCollabBadgeStyle, getRoleLabel, getStatusLabel,
+  getRoleLabel, getStatusLabel,
 } from './badges';
 import './dark-dashboard.css';
 import { getOrganisationsService, formatOrganisation } from '../../../organisations/service/organisation_service';
 import { IncidentDetailContext } from './IncidentDetailContext';
+import { VueDetail } from './VueDetail';
 import { InviteOrgModal } from './modal/InviteOrgModal';
 import { NotFound } from '../../../not-found';
 import { BlurryImage } from '../../../../components/atoms/BlurryImage';
@@ -68,6 +70,7 @@ import { BlurryImage } from '../../../../components/atoms/BlurryImage';
 import { ImageViewer } from '../../../../components/molecules/ImageViewer';
 import { BadgeGravite } from '../../../../components/atoms/BadgeGravite';
 import { logger } from '../../../../utils/logger';
+import { useEstTelephone } from '../../mobile/useEstTelephone';
 const formatMessageTime = (dateStr) => {
   if (!dateStr) return '';
   try {
@@ -85,16 +88,11 @@ const INCIDENT_STATUS_STEPS = [
   { id: 'resolved', label: 'Résolu', icon: ShieldTick }
 ];
 
-// Formatte les secondes en mm:ss
-const formatTime = (seconds) => {
-  if (!seconds || isNaN(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-};
+
 
 
 export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
+  const estTelephone = useEstTelephone();
   // Voir utils/gestesCarte : sur ecran tactile, un doigt fait defiler la fiche
   // et deux doigts pilotent la carte. On passe par la reference et non par
   // `onLoad`, qui ne se declenche pas de facon fiable avec react-map-gl v8.
@@ -223,6 +221,19 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
   const [detailMapStyle, setDetailMapStyle] = useState('streets'); // 'satellite' | 'streets'
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [toast, setToast] = useState(null);
+  // Fermeture animée du panneau de chat : on joue l'animation de sortie avant
+  // de démonter.
+  const [chatClosing, setChatClosing] = useState(false);
+  const fermerChat = () => {
+    setChatClosing(true);
+    setTimeout(() => {
+      setChatOpen(false);
+      setChatClosing(false);
+    }, 220);
+  };
+  const basculerChat = () => (chatOpen ? fermerChat() : setChatOpen(true));
+  const afficherToast = (texte) => setToast({ texte, n: Date.now() });
   const chatMessagesEndRef = useRef(null);
 
   const [messages, setMessages] = useState([
@@ -374,12 +385,13 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
     mutate();
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!chatMessage.trim()) return;
+  const handleSendMessage = async (e, texteImpose) => {
+    e?.preventDefault?.();
+    const brut = typeof texteImpose === 'string' ? texteImpose : chatMessage;
+    if (!brut.trim()) return;
     if (!safeIncident?.id) return;
 
-    const userText = chatMessage.trim();
+    const userText = brut.trim();
     setChatMessage('');
     setChatError(null);
 
@@ -443,13 +455,20 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
     };
   }, [joinOpen]);
 
-  const openJoinModal = () => {
+  // `mode` vient du menu « Agir » : 'interne' (prendre en charge seul) ou
+  // 'collaboration' (lancer une collaboration en tant que leader).
+  const openJoinModal = (mode) => {
     setJoinClosing(false);
     setJoinOpen(true);
     const isInternal = safeIncident?.take_in_charge_mode === 'internal' || safeIncident?.take_in_charge_mode === 'interne';
-    if (safeIncident?.etat === 'declared' && !isInternal) {
+    if (safeIncident?.etat === 'declared' && !isInternal && mode === 'interne') {
+      setSelfRole('leader');
+      setWorkMode('interne');
+      setIsInvolvePrivate(true);
+    } else if (safeIncident?.etat === 'declared' && !isInternal) {
       setSelfRole('leader');
       setWorkMode('collaboration');
+      setIsInvolvePrivate(false);
     } else {
       setSelfRole('contributeur');
       setWorkMode('collaboration');
@@ -625,9 +644,30 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           role: 'leader'
         });
         if (result.status == "success") {
-          // L'incident reste public (l'utilisateur le gère simplement en interne avec ses équipes)
+          // En collaboration, les organisations choisies dans la même fenêtre
+          // reçoivent leur invitation juste après la prise en charge.
+          let invitations = 0;
+          if (workMode !== 'interne' && invitedOrgs.length > 0) {
+            for (const org of invitedOrgs) {
+              try {
+                await suggestCollaborationPartnerService(safeIncident.id, {
+                  incident: safeIncident.id,
+                  suggested_organisation: org.id,
+                  suggested_role: org.role === 'observateur' ? 'observer' : 'contributor',
+                  justification: org.comment || motif || `Invitation à rejoindre l'incident en tant que ${org.role}`,
+                });
+                invitations += 1;
+              } catch (err) {
+                logger.error('Erreur envoi invitation après prise en charge:', err);
+              }
+            }
+          }
           setAlertType('success');
-          setAlertMessage('Vous êtes maintenant le leader de cet incident !');
+          setAlertMessage(
+            invitations > 0
+              ? `Vous êtes maintenant le leader de cet incident. ${invitations} invitation${invitations > 1 ? 's envoyées' : ' envoyée'}.`
+              : 'Vous êtes maintenant le leader de cet incident !'
+          );
 
           // Rafraîchir les données avec useSWR
           await mutate();
@@ -851,1143 +891,131 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
   return (
     <IncidentDetailContext.Provider value={contextValue}>
       <section className="project-detail" style={{ backgroundColor: 'var(--color-background)', minHeight: '100vh', padding: '0' }}>
-        {/* Header */}
-        <div className="detail-header" style={{ backgroundColor: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
-          <div className="d-flex gap-2 mb-2" style={{ marginTop: "60px" }}>
-            <button
-              type="button"
-              className="detail-back-btn"
-              onClick={onBack}
-              aria-label="Retour à la liste"
-              style={{ display: 'flex', backgroundColor: 'var(--color-background)', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)' }}
-            >
-              <ArrowLeft2 size={20} variant="Linear" color="var(--color-text-primary)" />
-            </button>
-            <h2 className="detail-title" style={{ color: 'var(--color-text-primary)' }}>{safeIncident.title}</h2>
+        <VueDetail
+          safeIncident={safeIncident}
+          pred={pred}
+          isLoadingPrediction={isLoadingPrediction}
+          predictionError={predictionError}
+          etapes={INCIDENT_STATUS_STEPS}
+          currentStatus={currentStatus}
+          modeBadge={modeBadge}
+          userRoleBadge={userRoleBadge}
+          collabRequest={collabRequest}
+          getRoleLabel={getRoleLabel}
+          getStatusLabel={getStatusLabel}
+          showInvolvementButton={showInvolvementButton}
+          hasPendingRequest={hasPendingRequest}
+          hasAcceptedRole={hasAcceptedRole}
+          openJoinModal={openJoinModal}
+          onBack={onBack}
+          takingOrg={takingOrg}
+          audioRef={audioRef}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          togglePlay={togglePlay}
+          onAudioTimeUpdate={onAudioTimeUpdate}
+          onAudioLoaded={onAudioLoaded}
+          onAudioEnded={onAudioEnded}
+          seekAudio={seekAudio}
+          seekAudioClavier={seekAudioClavier}
+          carteDetailRef={carteDetailRef}
+          detailMapStyle={detailMapStyle}
+          setDetailMapStyle={setDetailMapStyle}
+          ouvrirImage={() => setIsImageModalOpen(true)}
+          onToast={afficherToast}
+        />
+        {toast && <div key={toast.n} className="vd-toast" role="status">{toast.texte}</div>}
 
-          </div>
-          <div className="detail-title-block   gap-2 mt-0 d-flex flex-wrap justify-content-between w-100" >
-            <div className="d-flex gap-2 flex-wrap">
-
-              {/* Badge statut */}
-              <span className="detail-status-badge-custom" style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '4px 12px',
-                borderRadius: '20px',
-                fontSize: 'var(--font-size-caption)',
-                fontWeight: '600',
-                backgroundColor: currentStatus.bg,
-                color: currentStatus.color,
-                border: `1px solid ${currentStatus.border}`,
-                whiteSpace: 'nowrap'
-              }}>
-                {currentStatus.icon}
-                {currentStatus.label}
-              </span>
-
-              {/* Badge mode d'implication (Interne/Collaboratif) */}
-              {modeBadge && (
-                <span className="detail-mode-badge-custom" style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  fontSize: 'var(--font-size-caption)',
-                  fontWeight: '600',
-                  backgroundColor: modeBadge.bg,
-                  color: modeBadge.color,
-                  border: `1px solid ${modeBadge.border}`,
-                  whiteSpace: 'nowrap',
-                  marginLeft: '8px'
-                }}>
-                  {modeBadge.icon}
-                  {modeBadge.label}
-                </span>
-              )}
-
-              {/* Badge de rôle utilisateur (Observateur / Contributeur / Leader) */}
-              {userRoleBadge && (
-                <span className="detail-user-role-badge-custom" style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  fontSize: 'var(--font-size-caption)',
-                  fontWeight: '600',
-                  backgroundColor: userRoleBadge.bg,
-                  color: userRoleBadge.color,
-                  border: `1px solid ${userRoleBadge.border}`,
-                  whiteSpace: 'nowrap',
-                  marginLeft: '8px'
-                }}>
-                  {userRoleBadge.icon}
-                  {userRoleBadge.label}
-                </span>
-              )}
-
-              {/* Badge de gravité */}
-              {safeIncident.severity && (
-                <BadgeGravite
-                  incident={safeIncident}
-                  variante="plein"
-                  className="detail-severity-badge-custom"
-                />
-              )}
-
-              {/* Badge de demande de collaboration envoyée */}
-              {collabRequest && (
-                <span className="detail-collab-request-badge-custom" style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  fontSize: 'var(--font-size-caption)',
-                  fontWeight: '600',
-                  backgroundColor: getCollabBadgeStyle(collabRequest.status).bg,
-                  color: getCollabBadgeStyle(collabRequest.status).color,
-                  border: `1px solid ${getCollabBadgeStyle(collabRequest.status).border}`,
-                  whiteSpace: 'nowrap',
-                  marginLeft: '8px'
-                }}>
-                  <span style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    backgroundColor: 'currentColor',
-                    marginRight: '6px'
-                  }}></span>
-                  Demande {getRoleLabel(collabRequest.role)} : {getStatusLabel(collabRequest.status)}
-                </span>
-              )}
-            </div>
-
-            {/* Bouton Prendre en compte / Inviter - Masqué si l'incident est géré en interne par nous ou si l'utilisateur a déjà un rôle */}
-            {showInvolvementButton && (
-              <button
-                type="button"
-                className="detail-action-btn-custom"
-                onClick={openJoinModal}
-                disabled={!!hasPendingRequest}
-                style={{
-                  marginLeft: 'auto',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 16px',
-                  backgroundColor: hasPendingRequest ? 'rgba(var(--rgb-warning), 0.12)' : 'var(--color-primary)',
-                  color: hasPendingRequest ? 'var(--color-warning)' : 'var(--color-surface)',
-                  border: hasPendingRequest ? '1px solid rgba(var(--rgb-warning), 0.3)' : 'none',
-                  borderRadius: '8px',
-                  fontSize: 'var(--font-size-body)',
-                  fontWeight: '600',
-                  cursor: hasPendingRequest ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={(e) => {
-                  if (!hasPendingRequest) {
-                    e.currentTarget.style.backgroundColor = 'var(--color-primary-dark)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!hasPendingRequest) {
-                    e.currentTarget.style.backgroundColor = 'var(--color-primary)';
-                  }
-                }}
-              >
-                {hasPendingRequest ? (
-                  <>
-                    <span style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: 'currentColor'
-                    }}></span>
-                    Demande en attente
-                  </>
-                ) : (
-                  <>
-                    <UserAdd size={18} variant="Bold" color="var(--color-surface)" />
-                    {safeIncident.isOwner || hasAcceptedRole
-                      ? 'Inviter des organisations'
-                      : safeIncident?.etat === 'declared'
-                        ? "Agir sur cet incident"
-                        : "Rejoindre l'action"
-                    }
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-          {/* Méta-infos */}
-          <div className="detail-meta" style={{ marginTop: '8px' }}>
-            <div className="detail-meta-item">
-              <Location size={14} variant="Bold" color="var(--color-text-muted)" />
-              <span>{safeIncident.zone || safeIncident.location}</span>
-            </div>
-            <div className="detail-meta-item">
-              <Calendar size={14} variant="Bold" color="var(--color-text-muted)" />
-              <span>Déclaré le {safeIncident.startDate}</span>
-            </div>
-
-          </div>
-        </div>
-
-        <div className="incident-dark-dashboard">
-          {/* Banner pour la collaboration sans leader */}
-          {safeIncident?.take_in_charge_mode && (safeIncident.take_in_charge_mode === 'collaborative' || safeIncident.take_in_charge_mode === 'collaboratif') && !safeIncident.taken_by && (
-            <div style={{
-              gridColumn: '1 / -1',
-              padding: '16px 20px',
-              borderRadius: '12px',
-              background: 'rgba(var(--rgb-warning), 0.08)',
-              border: '1px solid rgba(var(--rgb-warning), 0.25)',
-              color: 'var(--color-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginBottom: '20px',
-              boxShadow: '0 4px 20px rgba(var(--rgb-ombre), 0.02)'
-            }}>
-              <People size={20} variant="Bold" color="var(--color-warning)" />
-              <div style={{ fontSize: 'var(--font-size-body)', fontWeight: '500' }}>
-                <span>
-                  <strong>Signalement ouvert à la collaboration :</strong> Des organisations se mobilisent déjà pour intervenir, mais aucun leader n'est encore désigné pour coordonner les actions. Prenez le leadership ou rejoignez l'effort !
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Banner pour le travail en interne */}
-          {safeIncident?.take_in_charge_mode && (safeIncident.take_in_charge_mode === 'internal' || safeIncident.take_in_charge_mode === 'interne') && (() => {
-            if (!takingOrg) return null;
-
-            return (
-              <div style={{
-                gridColumn: '1 / -1',
-                padding: '16px 20px',
-                borderRadius: '12px',
-                background: takingOrg.isMe ? 'rgba(var(--rgb-success), 0.08)' : 'rgba(var(--rgb-primary), 0.08)',
-                border: takingOrg.isMe ? '1px solid rgba(var(--rgb-success), 0.25)' : '1px solid rgba(var(--rgb-primary), 0.25)',
-                color: 'var(--color-text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                marginBottom: '20px',
-                boxShadow: '0 4px 20px rgba(var(--rgb-ombre), 0.02)'
-              }}>
-                <Briefcase size={20} variant="Bold" color={takingOrg.isMe ? 'var(--color-success)' : 'var(--color-primary)'} />
-                <div style={{ fontSize: 'var(--font-size-body)', fontWeight: '500' }}>
-                  {takingOrg.isMe ? (
-                    <span>
-                      <strong>Signalement géré en interne :</strong> Votre organisation travaille actuellement sur cet incident en interne avec ses propres équipes.
-                    </span>
-                  ) : (
-                    <span>
-                      <strong>Signalement géré en interne :</strong> L'organisation <strong>{takingOrg.name}</strong> a pris en charge cet incident et travaille dessus en interne avec ses propres équipes.
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── Colonne gauche ── */}
-          <div className="dashboard-col-left">
-
-            {/* Photo */}
-            <div className="dark-card" style={{ marginBottom: '20px', padding: '16px' }}>
-              <div className="dark-card-title">
-                PHOTO DE L'INCIDENT
-              </div>
-              <div className="incident-image-container"
-                style={{
-                  position: 'relative',
-                  overflow: 'hidden', borderRadius: '8px',
-                  minHeight: '180px',
-                  backgroundColor: 'var(--color-border)'
-                }}>
-                {safeIncident.image ? (
-                  <BlurryImage
-                    src={safeIncident.image}
-                    alt="Signalement"
-                    className="incident-actual-image clickable"
-                    onClick={() => setIsImageModalOpen(true)}
-                  />
-                ) : (
-                  <div className="image-placeholder">
-                    <p>Aucune photo disponible</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Audio */}
-            {safeIncident.aiAnalysis?.audio && (() => {
-              const progressPercent = duration ? (currentTime / duration) * 100 : 0;
-              return (
-                <div className="dark-card" style={{ marginBottom: '20px', padding: '16px' }}>
-                  <div className="dark-card-title">
-                    MESSAGE VOCAL
-                  </div>
-                  <div className="detail-audio-player">
-                    <button
-                      type="button"
-                      className="detail-audio-play-btn"
-                      onClick={togglePlay}
-                      aria-label={isPlaying ? 'Pause' : 'Lire'}
-                    >
-                      {isPlaying ? (
-                        <Pause size={16} variant="Bold" color="var(--color-surface)" />
-                      ) : (
-                        <Play size={16} variant="Bold" color="var(--color-surface)" />
-                      )}
-                    </button>
-                    <div className="detail-audio-track">
-                      <div
-                        className="detail-audio-progress"
-                        onClick={seekAudio}
-                        onKeyDown={seekAudioClavier}
-                        role="slider"
-                        tabIndex={0}
-                        aria-label="Progression audio"
-                        aria-valuemin={0}
-                        aria-valuemax={Math.round(duration)}
-                        aria-valuenow={Math.round(currentTime)}
-                        aria-valuetext={`${formatTime(currentTime)} sur ${formatTime(duration)}`}
-                      >
-                        <div className="detail-audio-progress-fill" style={{ width: `${progressPercent}%` }} />
-                      </div>
-                      <div className="detail-audio-times">
-                        <span>{formatTime(currentTime)}</span>
-                        <span>{formatTime(duration)}</span>
-                      </div>
-                    </div>
-                    <audio
-                      ref={audioRef}
-                      src={safeIncident.aiAnalysis.audio}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      onTimeUpdate={onAudioTimeUpdate}
-                      onLoadedMetadata={onAudioLoaded}
-                      onEnded={onAudioEnded}
-                      preload="metadata"
-                    />
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Coordonnées GPS */}
-            <div className="dark-card" style={{ marginBottom: '20px', padding: '16px' }}>
-              <div className="dark-card-title">
-                COORDONNÉES GPS
-              </div>
-              {safeIncident.coordinates ? (
-                <>
-                  <div className="gps-inputs">
-                    <div className="dark-input-group">
-                      <label>Latitude</label>
-                      <input type="text" className="dark-input" value={safeIncident.coordinates.lat} readOnly />
-                    </div>
-                    <div className="dark-input-group">
-                      <label>Longitude</label>
-                      <input type="text" className="dark-input" value={safeIncident.coordinates.lng} readOnly />
-                    </div>
-                  </div>
-                  {/* Mini-carte détaillée */}
-                  <div className="detail-geo-map" style={{ marginTop: '12px', height: '320px', borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
-                    {(() => {
-                      const MapDetailView = IS_MAPBOX ? MapDetailViewMapbox : MapDetailViewMapLibre;
-                      return (
-                        <MapDetailView
-                          carteRef={carteDetailRef}
-                          longitude={safeIncident.coordinates.lng}
-                          latitude={safeIncident.coordinates.lat}
-                          mapStyle={detailMapStyle === 'satellite' && MAPBOX_SATELLITE_STYLE ? MAPBOX_SATELLITE_STYLE : OSM_STYLE}
-                        />
-                      );
-                    })()}
-
-                    {/* Sélecteur de style de carte */}
-                    <div style={{
-                      position: 'absolute',
-                      bottom: '12px',
-                      right: '12px',
-                      display: 'flex',
-                      gap: '4px',
-                      zIndex: 10,
-                      backgroundColor: 'rgba(var(--rgb-text-primary), 0.85)',
-                      backdropFilter: 'blur(8px)',
-                      padding: '4px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(var(--rgb-surface), 0.1)'
-                    }}>
-                      {HAS_MAPBOX_SATELLITE && (
-                        <button
-                          type="button"
-                          onClick={() => setDetailMapStyle('satellite')}
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: 'var(--font-size-micro)',
-                            fontWeight: '600',
-                            borderRadius: '4px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            backgroundColor: detailMapStyle === 'satellite' ? 'var(--color-primary)' : 'transparent',
-                            color: detailMapStyle === 'satellite' ? 'var(--color-surface)' : 'var(--color-text-muted)',
-                            transition: 'all 0.2s ease'
-                          }}
-                        >
-                          Satellite
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setDetailMapStyle('streets')}
-                        style={{
-                          padding: '4px 10px',
-                          fontSize: 'var(--font-size-micro)',
-                          fontWeight: '600',
-                          borderRadius: '4px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          backgroundColor: detailMapStyle === 'streets' ? 'var(--color-primary)' : 'transparent',
-                          color: detailMapStyle === 'streets' ? 'var(--color-surface)' : 'var(--color-text-muted)',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        Plan
-                      </button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-body)' }}>Coordonnées non disponibles</p>
-              )}
-            </div>
-
-
-
-            {/* Description */}
-            <div className="dark-card" style={{ marginBottom: '20px', padding: '16px' }}>
-              <div className="dark-card-title">
-                DESCRIPTION
-              </div>
-              <p style={{ fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)', lineHeight: '1.6', margin: 0 }}>
-                {safeIncident.description && safeIncident.description.trim()
-                  ? safeIncident.description
-                  : 'Aucune description disponible pour cet incident.'}
-              </p>
-            </div>
-
-            {/* Organisations impliquées */}
-            {((safeIncident.taken_by_organisation || safeIncident.taken_by_name || (safeIncident.acting_organisations && safeIncident.acting_organisations.length > 0)) && (
-              <div className="dark-card" style={{ marginBottom: '20px', padding: '16px' }}>
-                <div className="dark-card-title" style={{ marginBottom: '12px' }}>
-                  ORGANISATIONS IMPLIQUÉES
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {(safeIncident.taken_by_organisation || safeIncident.taken_by_name) && (
-                    <div>
-                      <span style={{ fontSize: 'var(--font-size-micro)', color: 'var(--color-text-muted)', fontWeight: '600', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                        Prise en charge par
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '4px',
-                          backgroundColor: 'rgba(var(--rgb-primary), 0.1)',
-                          color: 'var(--color-primary-text)',
-                          fontWeight: 'bold',
-                          fontSize: 'var(--font-size-caption)'
-                        }}>
-                          {(safeIncident.taken_by_organisation?.name || safeIncident.taken_by_name || 'O')[0].toUpperCase()}
-                        </span>
-                        <span style={{ fontSize: 'var(--font-size-body)', fontWeight: '500', color: 'var(--color-text-primary)' }}>
-                          {safeIncident.taken_by_organisation?.name || safeIncident.taken_by_name}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {safeIncident.acting_organisations && safeIncident.acting_organisations.length > 0 && (
-                    <div>
-                      <span style={{ fontSize: 'var(--font-size-micro)', color: 'var(--color-text-muted)', fontWeight: '600', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                        Organisations actives sur le terrain ({safeIncident.acting_organisations.length})
-                      </span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {safeIncident.acting_organisations.map((org, index) => (
-                          <div key={org.id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'rgba(var(--rgb-surface), 0.02)', borderRadius: '6px', border: '1px solid rgba(var(--rgb-surface), 0.05)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-
-
-                              <span className="body-small"  >
-                                {org.name}
-                              </span>
-                            </div>
-                            {org.relation && (
-                              <span className={`incident-badge-glow body-small `} style={{ color: "var(--color-text-secondary)" }} >
-                                {org.relation === 'leader' ? 'Leader' : org.relation === 'co-leader' ? 'Co-Leader' : 'Partenaire'}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {/* Vidéo */}
-            <div className="dark-card" style={{ padding: '16px' }}>
-              <div className="dark-card-title">
-                VIDÉO DE L'INCIDENT
-              </div>
-              {safeIncident.video ? (
-                <div style={{ position: 'relative', width: '100%', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'rgba(var(--rgb-ombre), 1)', aspectRatio: '16/9' }}>
-                  <video
-                    controls
-                    style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
-                    src={safeIncident.video}
-                  >
-                    Votre navigateur ne supporte pas la lecture vidéo.
-                  </video>
-                </div>
-              ) : (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '12px',
-                  padding: '40px 20px',
-                  backgroundColor: 'var(--color-background)',
-                  borderRadius: '8px',
-                  border: '1px dashed var(--color-border)',
-                  color: 'var(--color-text-muted)',
-                  fontSize: 'var(--font-size-body)'
-                }}>
-                  <span>Aucune vidéo disponible pour cet signalement</span>
-                </div>
-              )}
-            </div>
-
-          </div>
-
-          {/* ── Colonne droite ── */}
-          <div className="dashboard-col-right">
-            {isLoadingPrediction ? (
-              <div style={{
-                padding: 'var(--spacing-8) var(--spacing-6)',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 'var(--spacing-4)',
-                minHeight: '400px',
-                border: '1px dashed var(--color-border)',
-              }}>
-                <div className="spinner" style={{ width: '48px', height: '48px', border: '4px solid rgba(var(--rgb-primary), 0.25)', borderTopColor: 'var(--color-primary)' }} />
-                <h3 style={{ margin: 0, fontSize: 'var(--font-size-h3)', color: 'var(--color-text-primary)' }}>Chargement de la prédiction...</h3>
-                <p style={{ fontSize: 'var(--font-size-body-small)', color: 'var(--color-text-secondary)', lineHeight: '1.6', maxWidth: '320px', margin: 0 }}>
-                  Récupération de l'analyse IA en cours...
-                </p>
-              </div>
-            ) : !pred || pred?.length === 0 ?
-              (
-                <div style={{
-                  padding: 'var(--spacing-8) var(--spacing-6)',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 'var(--spacing-4)',
-                  minHeight: '400px',
-                  border: '1px dashed var(--color-border)',
-                }}>
-                  <MagicStar size={48} variant="Bold" color="var(--color-text-muted)" style={{ opacity: 0.6 }} />
-                  <h3 style={{ margin: 0, fontSize: 'var(--font-size-h3)', color: 'var(--color-text-primary)' }}>Aucune Prédiction IA</h3>
-                  <p style={{ fontSize: 'var(--font-size-body-small)', color: 'var(--color-text-secondary)', lineHeight: '1.6', maxWidth: '320px', margin: 0 }}>
-                    L'analyse prédictive, satellite et de vulnérabilité sociale n'a pas encore été générée pour cet incident.
-                  </p>
-                  {predictionError && (
-                    <div style={{
-                      fontSize: 'var(--font-size-caption)',
-                      color: 'var(--color-warning-text)',
-                      padding: 'var(--spacing-2) var(--spacing-3)',
-                      backgroundColor: 'rgba(var(--rgb-warning), 0.1)',
-                      borderRadius: 'var(--radius-sm)',
-                      marginTop: 'var(--spacing-2)'
-                    }}>
-                      {predictionError?.response?.status === 404
-                        ? 'Attente du traitement par le modèle IA...'
-                        : 'Erreur lors du chargement de la prédiction'}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* KPIs - Top 4 cards */}
-                  <div className="kpi-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-                    {/* Score d'impact global */}
-                    <div className="kpi-card" style={{ margin: 0 }}>
-                      <Danger size={32} variant="Bold" color="var(--color-warning)" />
-                      <div className="kpi-value" style={{ fontSize: 'var(--font-size-h1)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-warning-text)' }}>
-                        {pred.global_impact_score}
-                      </div>
-                      <div className="kpi-label">SCORE D'IMPACT GLOBAL</div>
-                    </div>
-                    {/* Statut stepper - SUIVI DE L'INCIDENT */}
-                    {(() => {
-                      const currentIndex = INCIDENT_STATUS_STEPS.findIndex(s => s.id === safeIncident.etat);
-                      const validIndex = currentIndex === -1 ? 0 : currentIndex;
-                      return (
-                        <div className="dark-card" style={{ marginBottom: '20px', padding: '16px' }}>
-                          <div className="dark-card-title">
-                            SUIVI DE L'INCIDENT
-                          </div>
-                          <div className="incident-status-stepper">
-                            <div className="incident-status-bar">
-                              {INCIDENT_STATUS_STEPS.map((step, idx) => (
-                                <div key={step.id} className={`incident-status-segment ${idx < validIndex ? 'is-done' : ''} ${idx === validIndex ? 'is-current' : ''}`} />
-                              ))}
-                            </div>
-                            <div className="incident-status-steps">
-                              {INCIDENT_STATUS_STEPS.map((step, idx) => (
-                                <div key={step.id} className={`incident-status-step ${idx < validIndex ? 'is-done' : ''} ${idx === validIndex ? 'is-current' : ''}`}>
-                                  <span className="incident-status-dot" />
-                                  <span className="incident-status-label">{step.label.toUpperCase()}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-
-                  {/* ANALYSE IA VISION */}
-                  <div className="dark-card" style={{ marginBottom: 'var(--spacing-5)', padding: 'var(--spacing-4)' }}>
-                    <div className="dark-card-title" style={{ marginBottom: 'var(--spacing-4)' }}>
-                      ANALYSE IA VISION
-                    </div>
-
-                    {/* Badge IA Vision Engagée */}
-                    <div style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 'var(--spacing-1)',
-                      padding: 'var(--spacing-1) var(--spacing-3)',
-                      backgroundColor: 'var(--color-background)',
-                      borderRadius: 'var(--radius-full)',
-                      border: '1px solid var(--color-success)',
-                      marginBottom: 'var(--spacing-3)'
-                    }}>
-                      <span style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-success-text)' }}>
-                        {pred.status === 'completed' ? 'IA Vision Terminée' : 'IA Vision Engagée'}
-                      </span>
-                    </div>
-
-                    {/* GÉOCIBLAGE IA (DISPLAY NAME & GEOCIBLAGE) */}
-                    <div style={{
-                      padding: 'var(--spacing-3)',
-                      backgroundColor: 'var(--color-background)',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--color-border)',
-                      marginBottom: 'var(--spacing-4)'
-                    }}>
-                      <div style={{ fontSize: 'var(--font-size-micro)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)', textTransform: 'uppercase' }}>
-                        Géolocalisation Estimée
-                      </div>
-                      <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-primary)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--spacing-1)', lineHeight: '1.4' }}>
-                        {pred.display_name}
-                      </div>
-                      <div style={{ fontSize: 'var(--font-size-body-small)', color: 'var(--color-text-secondary)' }}>
-                        Ville: <strong>{pred.city}</strong> | Région: <strong>{pred.region}</strong> | Pays: <strong>{pred.country}</strong>
-                      </div>
-                      <div style={{ fontSize: 'var(--font-size-body-small)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-1)' }}>
-                        Coords: <strong>{pred.latitude}, {pred.longitude}</strong>
-                      </div>
-                    </div>
-
-                    {/* Motif détecté */}
-                    <div style={{ marginBottom: 'var(--spacing-4)' }}>
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 'var(--spacing-1)',
-                        padding: 'var(--spacing-1) var(--spacing-2)',
-                        backgroundColor: 'var(--color-background)',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-danger)',
-                        marginBottom: 'var(--spacing-2)'
-                      }}>
-                        <span style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-danger-text)' }}>
-                          Motif ({pred.sub_category})
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 'var(--font-size-body-small)', color: 'var(--color-text-secondary)', lineHeight: '1.6', margin: 0 }}>
-                        {pred.incident_type || `${pred.macro_category} — ${pred.sub_category}`}
-                      </p>
-                    </div>
-
-                    {/* Description de l'analyse */}
-                    <p style={{ fontSize: 'var(--font-size-body-small)', color: 'var(--color-text-secondary)', lineHeight: '1.7', margin: 0 }}>
-                      {pred.analysis || pred.description}
-                    </p>
-
-                    {/* Vecteurs de propagation */}
-                    <div style={{ marginTop: 'var(--spacing-4)' }}>
-                      <div style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        VECTEURS DE PROPAGATION
-                      </div>
-                      <div style={{ display: 'flex', gap: 'var(--spacing-2)', flexWrap: 'wrap' }}>
-                        {(() => {
-                          const rawVectors = pred.spread_vectors;
-                          let vectorsArray = [];
-                          if (Array.isArray(rawVectors)) {
-                            vectorsArray = rawVectors;
-                          } else if (typeof rawVectors === 'string') {
-                            try {
-                              if (rawVectors.trim().startsWith('[')) {
-                                vectorsArray = JSON.parse(rawVectors);
-                              } else {
-                                vectorsArray = rawVectors.split(',').map(v => v.trim()).filter(Boolean);
-                              }
-                            } catch {
-                              vectorsArray = rawVectors.split(',').map(v => v.trim()).filter(Boolean);
-                            }
-                          }
-                          return vectorsArray.map((vector, idx) => (
-                            <span key={idx} style={{ padding: 'var(--spacing-1) var(--spacing-2)', backgroundColor: 'var(--color-background)', border: '1px solid var(--color-primary)', color: 'var(--color-primary-text)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)' }}>
-                              {vector}
-                            </span>
-                          ));
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Tags d'impact secondaires */}
-                    <div style={{ marginTop: 'var(--spacing-4)' }}>
-                      <div style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        TAGS D'IMPACT SECONDAIRES
-                      </div>
-                      <div style={{ display: 'flex', gap: 'var(--spacing-2)', flexWrap: 'wrap' }}>
-                        {(() => {
-                          const rawTags = pred.impact_tags;
-                          let tagsArray = [];
-                          if (Array.isArray(rawTags)) {
-                            tagsArray = rawTags;
-                          } else if (typeof rawTags === 'string') {
-                            try {
-                              if (rawTags.trim().startsWith('[')) {
-                                tagsArray = JSON.parse(rawTags);
-                              } else {
-                                tagsArray = rawTags.split(',').map(t => t.trim()).filter(Boolean);
-                              }
-                            } catch {
-                              tagsArray = rawTags.split(',').map(t => t.trim()).filter(Boolean);
-                            }
-                          }
-                          return tagsArray.map((tag, idx) => (
-                            <span key={idx} style={{ padding: 'var(--spacing-1) var(--spacing-2)', backgroundColor: 'var(--color-background)', border: '1px solid var(--color-success)', color: 'var(--color-success-text)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)' }}>
-                              {tag}
-                            </span>
-                          ));
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SATELLITE PLOTS VISUALISATION */}
-                  {(pred.ndvi_heatmap || pred.ndvi_ndwi_plot || pred.landcover_plot) && (
-                    <div className="dark-card" style={{ marginBottom: 'var(--spacing-5)', padding: 'var(--spacing-4)' }}>
-                      <div className="dark-card-title" style={{ marginBottom: 'var(--spacing-4)' }}>
-                        IMAGERIE SPECTRE & COUVERTURE SATELLITE
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 'var(--spacing-3)' }}>
-                        {pred.ndvi_heatmap && (
-                          <div style={{ textAlign: 'center' }}>
-                            <BlurryImage src={pred.ndvi_heatmap} alt="NDVI Heatmap" style={{ width: '100%', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }} />
-                            <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-1)' }}>Heatmap NDVI</div>
-                          </div>
-                        )}
-                        {pred.ndvi_ndwi_plot && (
-                          <div style={{ textAlign: 'center' }}>
-                            <BlurryImage src={pred.ndvi_ndwi_plot} alt="NDVI/NDWI Plot" style={{ width: '100%', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }} />
-                            <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-1)' }}>NDVI / NDWI Plot</div>
-                          </div>
-                        )}
-                        {pred.landcover_plot && (
-                          <div style={{ textAlign: 'center' }}>
-                            <BlurryImage src={pred.landcover_plot} alt="Landcover Plot" style={{ width: '100%', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }} />
-                            <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-1)' }}>Couverture du Sol</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 3 PILIERS D'IMPACT */}
-                  <div className="pillars-grid" style={{ marginBottom: '20px' }}>
-                    {/* Pilier Social */}
-                    <div className="dark-card" style={{ padding: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', marginBottom: 'var(--spacing-4)' }}>
-                        <span style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          Pilier Social
-                        </span>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>PERSONNES EXPOSÉES</div>
-                        <div style={{ fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-primary-text)' }}>
-                          {pred.total_population_exposed}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>FEMMES ADULTES</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.adult_women_exposed}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>HOMMES ADULTES</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.adult_men_exposed}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>ENFANTS {'(<15 ANS)'}</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.children_exposed}
-                        </div>
-                      </div>
-
-                      {/* VULNERABILITE SOCIALE */}
-                      <div style={{ marginBottom: 'var(--spacing-3)', paddingTop: 'var(--spacing-2)', borderTop: '1px solid var(--color-border)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>VULNÉRABILITÉ SOCIALE</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-1)' }}>
-                          <span style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-primary-text)' }}>{pred.social_vulnerability_score}/10</span>
-                          {pred.is_social_probabilistic && (
-                            <span style={{ fontSize: 'var(--font-size-micro)', backgroundColor: 'var(--color-background)', border: '1px solid var(--color-primary)', color: 'var(--color-primary-text)', padding: '2px 4px', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--font-weight-semibold)' }}>PROB</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>MATERNITÉS</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.maternities_count ?? pred.maternities ?? 0}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>CRÈCHES</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.nurseries_count ?? pred.nurseries ?? 0}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>CENTRES DE SANTÉ</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.health_centers ?? 0}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pilier Environnemental */}
-                    <div className="dark-card" style={{ padding: 'var(--spacing-4)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', marginBottom: 'var(--spacing-4)' }}>
-                        <span style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          Pilier Environnemental
-                        </span>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>TEMPÉRATURE</div>
-                        <div style={{ fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-success-text)' }}>
-                          {pred.topography?.temperature_celsius ?? 40.5}°C
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>PRÉCIPITATIONS</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.topography?.precipitation ?? 0} mm
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>VENT</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.topography?.wind_speed ?? 7.5} km/h
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>PENTE</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {parseFloat(pred.topography?.slope_percent ?? 3.41656).toFixed(4)}%
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>NDVI</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {parseFloat(pred.satellite?.ndvi ?? 0.176).toFixed(3)}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>NDWI</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {parseFloat(pred.satellite?.ndwi ?? -0.363).toFixed(3)}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>OCCUPATION DU SOL</div>
-                        <div style={{ fontSize: 'var(--font-size-body-small)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.satellite?.land_use || 'Urbain / Bâti'}
-                        </div>
-                      </div>
-
-                      {/* ALTITUDE */}
-                      <div>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>ALTITUDE</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.topography?.elevation ?? 0} m
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pilier Économique */}
-                    <div className="dark-card" style={{ padding: 'var(--spacing-4)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', marginBottom: 'var(--spacing-4)' }}>
-                        <span style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          Pilier Économique
-                        </span>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>ÉCOLES</div>
-                        <div style={{ fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-warning-text)' }}>
-                          {pred.schools ?? pred.social_data?.schools ?? 0}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>MARCHÉS</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.markets ?? pred.social_data?.markets ?? 0}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>SOURCES D'EAU</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.water_points ?? pred.social_data?.water_points ?? 0}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-3)' }}>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>ROUTES / PONTS</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.main_roads_bridges ?? pred.social_data?.main_roads_bridges ?? 0}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-1)' }}>BÂTIMENTS</div>
-                        <div style={{ fontSize: 'var(--font-size-body-large)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)' }}>
-                          {pred.residential_buildings ?? pred.social_data?.residential_buildings ?? 0}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ALERTE PROPAGATION */}
-                  <div style={{
-                    padding: 'var(--spacing-4)',
-                    backgroundColor: 'var(--color-background)',
-                    border: '1px solid var(--color-warning)',
-                    borderRadius: 'var(--radius-lg)',
-                    marginBottom: 'var(--spacing-5)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--spacing-3)' }}>
-                      <div>
-                        <div style={{ fontSize: 'var(--font-size-body-small)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-warning-text)', marginBottom: 'var(--spacing-2)' }}>
-                          ALERTE PROPAGATION : {pred.potential_risk?.message || `Risque de propagation secondaire par courant d'eau estimé à ≥${pred.impact_radius_meters}m.`}
-                        </div>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', lineHeight: '1.6' }}>
-                          <div style={{ marginBottom: 'var(--spacing-1)' }}>
-                            <strong style={{ color: 'var(--color-text-primary)' }}>POPULATION POTENTIELLE EXPOSÉE :</strong> {pred.potential_risk?.stats?.total_pop ?? pred.total_population_exposed} pers.
-                          </div>
-                          <div>
-                            <strong style={{ color: 'var(--color-text-primary)' }}>BÂTIMENTS DANS LA ZONE À RISQUE :</strong> {pred.potential_risk?.stats?.infrastructures ?? pred.residential_buildings} sites
-                          </div>
-                          {pred.potential_risk && (
-                            <div style={{ marginTop: 'var(--spacing-2)', paddingTop: 'var(--spacing-2)', borderTop: '1px dashed var(--color-warning)' }}>
-                              <div>Vecteur de propagation: <strong>{pred.potential_risk.vector}</strong></div>
-                              <div style={{ marginTop: '2px' }}>Distance: <strong>+{pred.potential_risk.distance}m</strong> (Rayon potentiel: <strong>{pred.potential_risk.potential_radius}m</strong>)</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* INTERVENTION RECOMMANDÉE */}
-                  <div style={{
-                    padding: 'var(--spacing-4)',
-                    backgroundColor: 'var(--color-background)',
-                    border: '1px solid var(--color-success)',
-                    borderRadius: 'var(--radius-lg)',
-                    marginBottom: 'var(--spacing-5)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--spacing-3)' }}>
-                      <div>
-                        <div style={{ fontSize: 'var(--font-size-body-small)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-success-text)', marginBottom: 'var(--spacing-2)' }}>
-                          {pred.recommendation || pred.piste_solution || `Intervention recommandée dans un rayon de ${pred.impact_radius_meters}m. Score de gravité: ${pred.global_impact_score}/10.`}
-                        </div>
-                        <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', lineHeight: '1.6', display: 'flex', gap: 'var(--spacing-4)', flexWrap: 'wrap' }}>
-                          <div>
-                            <People size={14} variant="Bold" color="var(--color-success)" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                            <strong>{pred.adult_women_exposed} femmes adultes</strong>
-                          </div>
-                          <div>
-                            <People size={14} variant="Bold" color="var(--color-success)" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                            <strong>{pred.adult_men_exposed} hommes adultes</strong>
-                          </div>
-                          <div>
-                            <People size={14} variant="Bold" color="var(--color-success)" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                            <strong>{pred.children_exposed} enfants {'(<15 ans)'}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-          </div>
-        </div>
-
-        {/* Floating Chatbot Button */}
-        <button className="floating-chatbot" onClick={() => setChatOpen(!chatOpen)} aria-label="Ouvrir l'assistant de chat">
-          {chatOpen ? <CloseCircle size={28} variant="Bold" color="var(--color-surface)" /> : <Message size={28} variant="Bold" color="var(--color-surface)" />}
+        {/* Assistant IA : bouton flottant + panneau */}
+        <button
+          type="button"
+          className={`vd-fab ${chatOpen && !chatClosing ? 'is-open' : ''}`}
+          onClick={basculerChat}
+          aria-label={chatOpen ? "Fermer l'assistant IA" : "Ouvrir l'assistant IA"}
+          aria-expanded={chatOpen && !chatClosing}
+        >
+          <span className="vd-fab-ic vd-fab-msg"><Message size={26} variant="Bold" color="currentColor" /></span>
+          <span className="vd-fab-ic vd-fab-x"><CloseCircle size={26} variant="Bold" color="currentColor" /></span>
+          {pred && !chatOpen && <span className="vd-fab-dot" aria-hidden="true" />}
         </button>
 
-        {/* Chatbot Panel */}
+        {chatOpen && estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
         {chatOpen && (
-          <div className="chatbot-panel">
-            <div className="chatbot-header">
-              <div className="chatbot-header-title">
-                Assistant IA Map Action
+          <section className={`vd-chat ${chatClosing ? 'is-closing' : ''}`} aria-label="Assistant IA Map Action">
+            <header className="vd-chat-head">
+              <span className="vd-chat-ai"><MagicStar size={18} variant="Bold" color="currentColor" /></span>
+              <div>
+                <b>Assistant IA Map Action</b>
+                <small>Répond à partir de l'analyse de ce signalement</small>
               </div>
-              <button type="button" onClick={() => setChatOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--color-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Fermer l'assistant de chat">
-                <CloseCircle size={20} variant="Linear" color='var(--color-surface)' />
+              <button type="button" className="vd-chat-x" onClick={fermerChat} aria-label="Fermer l'assistant">
+                <CloseCircle size={20} variant="Linear" color="currentColor" />
               </button>
-            </div>
+            </header>
 
             {isLoadingPrediction ? (
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'var(--color-surface)'
-              }}>
-                <span className="chatbot-btn-spinner" style={{ width: '24px', height: '24px', border: '3px solid rgba(var(--rgb-primary), 0.25)', borderTopColor: 'var(--color-primary)' }} />
+              <div className="vd-chat-state">
+                <div className="vd-chat-typing" aria-label="Chargement"><span /><span /><span /></div>
+                <p>Chargement de l'analyse…</p>
               </div>
             ) : !pred ? (
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '24px',
-                textAlign: 'center',
-                color: 'var(--color-text-secondary)',
-                backgroundColor: 'var(--color-surface)'
-              }}>
-                <Warning2 size={48} variant="Bold" color="var(--color-warning)" style={{ marginBottom: '16px' }} />
-                <h4 style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--color-text-primary)', marginBottom: '8px' }}>
-                  Chat indisponible
-                </h4>
-                <p style={{ fontSize: 'var(--font-size-body-small)', lineHeight: '1.6' }}>
-                  Le chat n'est pas disponible pour cet incident car aucune prédiction/analyse n'a encore été générée.
-                </p>
+              <div className="vd-chat-state">
+                <span className="vd-chat-state-ic"><Warning2 size={28} variant="Bold" color="currentColor" /></span>
+                <b>Assistant indisponible</b>
+                <p>L'analyse IA de ce signalement n'est pas encore prête. L'assistant s'activera dès qu'elle sera terminée.</p>
               </div>
             ) : (
               <>
-                <div className="chatbot-messages" onScroll={handleScroll}>
+                <div className="vd-chat-ctx">
+                  <InfoCircle size={15} color="currentColor" />
+                  <span>
+                    Contexte : {safeIncident.zone || 'signalement'}
+                    {pred.global_impact_score != null && ` · score ${String(pred.global_impact_score).replace('.', ',')}`}
+                    {pred.total_population_exposed != null && ` · ${pred.total_population_exposed} personnes exposées`}
+                  </span>
+                </div>
+
+                <div className="vd-chat-msgs" onScroll={handleScroll}>
                   {isLoadingMore && (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-                      <span className="chatbot-btn-spinner" style={{ width: '16px', height: '16px', borderWidth: '2px', borderTopColor: 'var(--color-primary)' }} />
-                    </div>
+                    <div className="vd-chat-more"><div className="vd-chat-typing"><span /><span /><span /></div></div>
                   )}
                   {messages.map((msg, idx) => (
-                    <div
-                      key={msg.id || idx}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                        maxWidth: '85%'
-                      }}
-                    >
-                      <div className={`chat-bubble ${msg.sender}`} style={{ maxWidth: '100%', width: 'fit-content' }}>
-                        {msg.text}
-                      </div>
-                      {msg.time && (
-                        <span style={{
-                          fontSize: 'var(--font-size-micro)',
-                          color: 'var(--color-text-secondary)',
-                          marginTop: '4px',
-                          alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                          padding: '0 4px'
-                        }}>
-                          {msg.time}
-                        </span>
-                      )}
+                    <div key={msg.id || idx} className={`vd-bub vd-bub-${msg.sender === 'user' ? 'me' : 'bot'}`}>
+                      {msg.text}
+                      {msg.time && <time>{msg.time}</time>}
                     </div>
                   ))}
                   {isTyping && (
-                    <div className="chatbot-typing">
-                      <span></span>
-                      <span></span>
-                      <span></span>
+                    <div className="vd-bub vd-bub-bot vd-bub-typing" aria-label="L'assistant écrit">
+                      <div className="vd-chat-typing"><span /><span /><span /></div>
                     </div>
                   )}
                   <div ref={chatMessagesEndRef} />
                 </div>
 
                 {chatError && (
-                  <div className="chatbot-error-message">
-                    <CloseCircle size={16} variant="Bold" color="var(--color-danger-text)" />
+                  <div className="vd-chat-err" role="alert">
+                    <CloseCircle size={16} variant="Bold" color="currentColor" />
                     <span>{chatError}</span>
                   </div>
                 )}
 
-                <form className="chatbot-input-area" onSubmit={handleSendMessage}>
+                {(estTelephone || messages.filter((m) => m.sender === 'user').length === 0) && !isTyping && (
+                  <div className="vd-chat-sugg">
+                    {['Que faire en priorité ?', 'Quels risques pour les enfants ?', 'Quels partenaires inviter ?']
+                      .filter((q) => !messages.some((m) => m.sender === 'user' && m.text === q))
+                      .map((q) => (
+                        <button key={q} type="button" onClick={(e) => handleSendMessage(e, q)}>{q}</button>
+                      ))}
+                  </div>
+                )}
+
+                <form className="vd-chat-in" onSubmit={handleSendMessage}>
                   <textarea
-                    className="chatbot-input"
-                    placeholder="Posez votre question..."
+                    placeholder="Posez votre question…"
+                    aria-label="Votre question"
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                     disabled={isTyping}
@@ -1996,20 +1024,19 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
                         e.preventDefault();
                         handleSendMessage(e);
                       }
+                      if (e.key === 'Escape') fermerChat();
                     }}
-                    rows={2}
+                    rows={1}
                   />
-                  <button type="submit" className="chatbot-send-btn" disabled={isTyping || !chatMessage.trim()}>
-                    {isTyping ? (
-                      <span className="chatbot-btn-spinner" />
-                    ) : (
-                      <Send2 size={18} variant="Bold" color='var(--color-surface)' />
-                    )}
+                  <button type="submit" disabled={isTyping || !chatMessage.trim()} aria-label="Envoyer">
+                    {isTyping ? <span className="vd-chat-spin" /> : estTelephone
+                      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+                      : <Send2 size={18} variant="Bold" color="currentColor" />}
                   </button>
                 </form>
               </>
             )}
-          </div>
+          </section>
         )}
 
         {/* Modal Rejoindre l'action / Inviter des organisations */}

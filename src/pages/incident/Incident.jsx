@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import debounce from 'lodash.debounce';
 import { useSidebarState } from '../../hooks/useSidebarState';
 import { Header, Sidebar } from '../../components/layout';
@@ -13,6 +14,7 @@ import './incident.css';
 import { useReinitialisationSurChangement } from '../../hooks/useReinitialisationSurChangement';
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { logger } from '../../utils/logger';
+import { useEstTelephone } from './mobile/useEstTelephone';
 
 
 // Fonction pour adapter les données de l'API au format attendu
@@ -96,13 +98,40 @@ export const Incident = () => {
   // États pour la pagination et recherche
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  // Tableau ou carte : préférence gardée d'une visite à l'autre.
+  const [vue, setVueEtat] = useState(() => {
+    try { return localStorage.getItem('signalements.vue') === 'carte' ? 'carte' : 'tableau'; } catch { return 'tableau'; }
+  });
+  const setVue = (v) => {
+    setVueEtat(v);
+    try { localStorage.setItem('signalements.vue', v); } catch { /* navigation privée : préférence de session */ }
+  };
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767.98px)');
+    const maj = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', maj);
+    return () => mq.removeEventListener('change', maj);
+  }, []);
+
+  // Sur téléphone, la liste s'allonge (« Afficher 20 de plus ») au lieu de
+  // paginer. Chaque lot est une page de 20 demandée À LA SUITE des précédentes :
+  // /MapApi/incident/ coûte ~140 ms par ligne, redemander 40 puis 60 lignes à
+  // chaque clic ferait payer à nouveau tout ce qui est déjà affiché.
+  // Pas de bascule Liste/Carte sur téléphone : la carte vit sur le dashboard.
+  const estTelephone = useEstTelephone();
+  const vueEffective = estTelephone ? 'tableau' : vue;
+  const listeContinue = isMobile && vueEffective === 'tableau';
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  // Debounce search input de 200ms
+  // La recherche part 400 ms après la dernière frappe : chaque requête coûte
+  // ~3 s côté serveur, et à 200 ms un mot tapé en déclenchait plusieurs.
   const debouncedSetSearch = React.useMemo(
-    () => debounce((val) => setSearch(val), 200),
+    () => debounce((val) => setSearch(val.trim().length === 1 ? '' : val), 400),
     []
   );
 
@@ -126,9 +155,14 @@ export const Incident = () => {
     // redemandait rien au serveur et le filtre ne s'appliquait qu'aux lignes
     // deja recues — soit la page courante, pendant que la pagination
     // continuait d'annoncer le total complet.
-    ['/incidents/all', page, search, statusFilter],
+    listeContinue ? null : ['/incidents/all', page, search, statusFilter],
     () => getIncidentsService(page, pageSize, search, statusFilter),
     {
+      // Changer de page laisse la page précédente affichée le temps de la réponse.
+      keepPreviousData: true,
+      // Cette route met ~3 s pour 20 lignes : revenir sur l'onglet ne la relance
+      // pas plus d'une fois par minute.
+      focusThrottleInterval: 60000,
       revalidateOnReconnect: true,
       onError: (error) => {
         logger.error('[INCIDENT] Erreur chargement incidents:', error);
@@ -137,11 +171,32 @@ export const Incident = () => {
   );
 
   // Adapter les données des incidents avec l'ID de l'utilisateur
-  const rawList = rawIncidents
-    ? Array.isArray(rawIncidents)
-      ? rawIncidents
-      : Array.isArray(rawIncidents.results)
-        ? rawIncidents.results
+  const {
+    data: lotsMobile,
+    error: erreurMobile,
+    isLoading: chargementMobile,
+    size: nbLots,
+    setSize: setNbLots,
+    mutate: mutateMobile,
+  } = useSWRInfinite(
+    (index, precedent) => {
+      if (!listeContinue) return null;
+      if (precedent && !precedent.next) return null;
+      return ['/incidents/mobile', index + 1, search, statusFilter];
+    },
+    ([, p, s, e]) => getIncidentsService(p, pageSize, s, e),
+    { revalidateFirstPage: false, focusThrottleInterval: 60000 },
+  );
+
+  const reponse = listeContinue
+    ? (lotsMobile?.length ? { count: lotsMobile[0]?.count ?? 0, results: lotsMobile.flatMap((l) => l?.results || []) } : undefined)
+    : rawIncidents;
+
+  const rawList = reponse
+    ? Array.isArray(reponse)
+      ? reponse
+      : Array.isArray(reponse.results)
+        ? reponse.results
         : []
     : [];
 
@@ -204,7 +259,7 @@ export const Incident = () => {
     setDeleteClosing,
     assignClosing,
     setAssignClosing,
-    mutateIncidents,
+    mutateIncidents: listeContinue ? mutateMobile : mutateIncidents,
     openDeleteModal,
     closeDeleteModal,
     openAssignModal,
@@ -222,21 +277,23 @@ export const Incident = () => {
         />
 
         <div className={`incident-page-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Header
-            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-            sidebarCollapsed={sidebarCollapsed}
-          />
+          {!estTelephone && (
+            <Header
+              onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+              sidebarCollapsed={sidebarCollapsed}
+            />
+          )}
 
           <div className={workspaceClass}>
             <BandeauErreur
-              erreur={erreurIncidents}
-              onReessayer={mutateIncidents}
+              erreur={listeContinue ? erreurMobile : erreurIncidents}
+              onReessayer={listeContinue ? mutateMobile : mutateIncidents}
               message="Impossible de charger les signalements. La liste affichée peut ne plus être à jour."
             />
             {/* Liste des incidents (Pleine largeur) */}
             <IncidentList
               incidents={incidents}
-              isLoading={isLoadingIncidents}
+              isLoading={listeContinue ? chargementMobile : isLoadingIncidents}
               onSelectIncident={(incident) => navigate(`/signalements/${incident.id}`, { state: { incident } })}
               search={searchInput}
               setSearch={(val) => {
@@ -248,7 +305,12 @@ export const Incident = () => {
               page={page}
               setPage={setPage}
               pageSize={pageSize}
-              count={rawIncidents?.count || 0}
+              count={reponse?.count || 0}
+              vue={vueEffective}
+              setVue={setVue}
+              isMobile={isMobile}
+              estTelephone={estTelephone}
+              onPlus={() => setNbLots(nbLots + 1)}
             />
           </div>
         </div>
