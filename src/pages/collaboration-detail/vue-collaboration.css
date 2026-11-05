@@ -570,7 +570,6 @@
 @media (max-width: 1099.98px) {
   .vc-work { grid-template-columns: 1fr; }
   .vc-hero { grid-template-columns: 1fr; }
-  .vc-hero .vd-media { order: -1; }
   .vc-photo { min-height: 200px; max-height: 240px; }
 }
 
