@@ -1,1 +1,0 @@
-import{a as e}from"./rolldown-runtime-BWaJ3C7D.js";import{N as t}from"./index-BmswzrnB.js";var n=e(t(),1);function r(e,t){let r=JSON.stringify(e),[i,a]=(0,n.useState)(r);r!==i&&(a(r),t())}export{r as t};
