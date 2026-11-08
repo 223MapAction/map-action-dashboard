@@ -34,3 +34,6 @@ CLAUDE.md
 node_modules
 
 public/.htaccess
+
+# Ancien dossier Vercel, ne doit pas revenir
+/dashboard plan b/
