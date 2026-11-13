@@ -16,7 +16,7 @@ import './filtre-periode.css';
 
 const JOURS_SEMAINE = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
-const Mois = ({ base, brouillon, survol, auj, onChoisir, onSurvol, enTete }) => {
+export const Mois = ({ base, brouillon, survol, auj, onChoisir, onSurvol, enTete }) => {
   const premier = debutMois(base);
   const nbJours = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
   const decalage = (premier.getDay() + 6) % 7;

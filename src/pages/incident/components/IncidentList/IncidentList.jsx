@@ -129,6 +129,37 @@ const BarreTelephone = ({ search, setSearch, nbFiltres, onFiltres, resume }) => 
   );
 };
 
+/**
+ * Bas de la liste sur téléphone : le lot suivant se charge quand on approche
+ * de la fin. Le bouton reste pour les navigateurs sans IntersectionObserver
+ * et pour qui préfère toucher.
+ */
+const ChargerPlus = ({ chargement, onPlus, reste }) => {
+  const repere = useRef(null);
+
+  // Pas d'observation pendant un chargement ; à la fin, l'observateur repart
+  // et redemande un lot si le bas de liste est encore en vue.
+  useEffect(() => {
+    const el = repere.current;
+    if (chargement || !el || typeof IntersectionObserver === 'undefined') return undefined;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { obs.disconnect(); onPlus?.(); }
+    }, { rootMargin: '0px 0px 400px 0px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [chargement, onPlus]);
+
+  return (
+    <div ref={repere} className="sgm-charger-plus">
+      {chargement ? (
+        <span role="status"><i className="sgm-spin" aria-hidden="true" />Chargement des {reste} suivants…</span>
+      ) : (
+        <button type="button" onClick={onPlus}>Afficher {reste} signalements de plus</button>
+      )}
+    </div>
+  );
+};
+
 const Recherche = ({ valeur, onChange, placeholder = 'Titre, description ou quartier…' }) => (
   <label className="sg-recherche">
     <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
@@ -161,6 +192,7 @@ export const IncidentList = ({
   isMobile,
   estTelephone = false,
   onPlus,
+  chargementPlus = false,
 }) => {
   const { openDeleteModal, openAssignModal } = useIncidentModalContext();
   const [feuille, setFeuille] = useState(null);
@@ -208,6 +240,11 @@ export const IncidentList = ({
       <span className="sg-vide-ic"><SearchNormal1 size={22} color="currentColor" /></span>
       <b>Aucun signalement</b>
       <p>{search ? 'Aucun résultat pour cette recherche. Essayez un autre mot ou un autre état.' : periode?.debut ? 'Aucun signalement sur cette période. Élargissez la plage ou revenez à toutes les dates.' : "Il n'y a aucun signalement dans cet état pour le moment."}</p>
+      {estTelephone && nbFiltres > 0 && (
+        <button type="button" className="sgm-vide-effacer" onClick={() => { setStatusFilter(''); setPeriode({ debut: '', fin: '' }); }}>
+          Effacer les filtres
+        </button>
+      )}
     </div>
   );
 
@@ -216,7 +253,11 @@ export const IncidentList = ({
       <div className="sg-tete">
         <div>
           <h1 id="sg-titre">Signalements</h1>
-          {vue !== 'carte' && <p>Les problèmes remontés par les citoyens et les agents de terrain.</p>}
+          {estTelephone ? (
+            <p className="sgm-total" aria-hidden="true">
+              {isLoading && lignes.length === 0 ? 'Chargement…' : `${count.toLocaleString('fr-FR')} signalement${count > 1 ? 's' : ''}${nomEtat ? ` ${nomEtat}` : ''}`}
+            </p>
+          ) : vue !== 'carte' && <p>Les problèmes remontés par les citoyens et les agents de terrain.</p>}
         </div>
         {!isMobile && !estTelephone && (
           <div className="sg-vue" role="group" aria-label="Affichage">
@@ -258,11 +299,8 @@ export const IncidentList = ({
               setSearch={setSearch}
               nbFiltres={nbFiltres}
               onFiltres={() => setFiltresOuverts(true)}
-              resume={(
+              resume={nbFiltres > 0 && (
                 <div className="sgm-resume">
-                  <span className="sgm-total">
-                    {isLoading && lignes.length === 0 ? 'Chargement…' : `${count.toLocaleString('fr-FR')} signalement${count > 1 ? 's' : ''}`}
-                  </span>
                   {statusFilter && (
                     <button type="button" className="sgm-puce" onClick={() => setStatusFilter('')} aria-label={`Retirer le filtre ${etatLibelle(statusFilter)}`}>
                       {etatLibelle(statusFilter)}<i aria-hidden="true">×</i>
@@ -289,14 +327,49 @@ export const IncidentList = ({
               setStatusFilter={setStatusFilter}
               periode={periode}
               setPeriode={setPeriode}
+              count={count}
+              chargement={isLoading}
               onFermer={() => setFiltresOuverts(false)}
             />
           )}
           <p className="sg-annonce" role="status">{annonce}</p>
           {vide ? etatVide : (
             <div className="sg-cartes">
-              {lignes.map(({ incident, niveau, titre, description, lieu, charge, quand }) => (
-                <div key={incident.id} className={estTelephone ? 'sgm-carte' : undefined}>
+              {lignes.map(({ incident, niveau, titre, description, lieu, charge, quand }) => estTelephone ? (
+                <div key={incident.id} className={`sgm-carte ${incident.thumbnail ? '' : 'is-sans-photo'}`} data-gravite={niveau}>
+                  <a href={`/signalements/${incident.id}`} className="sgm-carte-lien" onClick={(e) => { e.preventDefault(); onSelectIncident?.(incident); }}>
+                    {incident.thumbnail && (
+                      <span className="sgm-carte-photo">
+                        <BlurryImage src={incident.thumbnail} alt="" />
+                        <Gravite niveau={niveau} />
+                      </span>
+                    )}
+                    <span className="sgm-carte-corps">
+                      {!incident.thumbnail && <span className="sgm-carte-chips"><Gravite niveau={niveau} petite /></span>}
+                      <b>{titre}</b>
+                      {description && <p className="sg-desc">{description}</p>}
+                      <span className="sgm-carte-meta">{[lieu, quand].filter(Boolean).join(' · ')}</span>
+                      <span className="sgm-carte-statut">
+                        <Etat etat={incident.etat} petite />
+                        <span className={`sgm-carte-qui ${charge ? 'is-pris' : ''}`}>
+                          {charge
+                            ? <><b>{charge.nom}</b>{charge.mode ? ` · ${charge.mode.toLowerCase()}` : ''}</>
+                            : 'Personne ne l\'a encore pris en charge'}
+                        </span>
+                      </span>
+                    </span>
+                  </a>
+                  <button
+                    type="button"
+                    className="sgm-plus"
+                    aria-label="Actions sur ce signalement"
+                    onClick={() => setFeuille({ incident, titre, lieu, actions: listeActions(incident, charge) })}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
+                  </button>
+                </div>
+              ) : (
+                <div key={incident.id}>
                   <a href={`/signalements/${incident.id}`} className="sg-carte" onClick={(e) => { e.preventDefault(); onSelectIncident?.(incident); }}>
                     <span className="sg-carte-photo">
                       <Vignette incident={incident} className="sg-carte-img" />
@@ -312,20 +385,10 @@ export const IncidentList = ({
                       </span>
                     </span>
                   </a>
-                  {estTelephone && (
-                    <button
-                      type="button"
-                      className="sgm-plus"
-                      aria-label="Actions sur ce signalement"
-                      onClick={() => setFeuille({ incident, titre, lieu, actions: listeActions(incident, charge) })}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
-                    </button>
-                  )}
                 </div>
               ))}
-              {isLoading && [0, 1].map((n) => (estTelephone
-                ? <div key={n} className="sgm-squelette" aria-hidden="true"><i /><div><span /><span /></div></div>
+              {isLoading && (estTelephone ? [0, 1, 2] : [0, 1]).map((n) => (estTelephone
+                ? <div key={n} className="sgm-squelette" aria-hidden="true"><i /><div><span /><span /><span /></div></div>
                 : <div key={n} className="sg-carte"><ShimmerThumbnail height={150} className="m-0" /><div className="sg-carte-corps"><ShimmerText line={2} gap={8} /></div></div>))}
             </div>
           )}
@@ -337,11 +400,13 @@ export const IncidentList = ({
               onClose={() => setFeuille(null)}
             />
           )}
-          {!isLoading && lignes.length < count && (
+          {!isLoading && lignes.length < count && (estTelephone ? (
+            <ChargerPlus chargement={chargementPlus} onPlus={onPlus} reste={Math.min(pageSize, count - lignes.length)} />
+          ) : (
             <button type="button" className="sg-plus" onClick={onPlus}>
               Afficher {Math.min(pageSize, count - lignes.length)} signalements de plus
             </button>
-          )}
+          ))}
         </>
       ) : (
         <>

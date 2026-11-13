@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft2, Location, Calendar, UserAdd, Danger, MagicStar, Play, Pause,
   VideoSquare, VolumeHigh, Copy, Routing2, Share, Wind, People, Drop,
-  Tree, Buildings2, Gallery, InfoCircle, Crown1, Health, ArrowDown2, Profile, CloseCircle, Briefcase, Add,
+  Tree, Buildings2, Gallery, InfoCircle, Crown1, Health, ArrowDown2, Profile, CloseCircle, Briefcase, Add, Message,
 } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerTitle, ShimmerText } from 'react-shimmer-effects';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
@@ -141,6 +141,7 @@ export const VueDetail = (props) => {
     audioRef, isPlaying, setIsPlaying, currentTime, duration, togglePlay,
     onAudioTimeUpdate, onAudioLoaded, onAudioEnded, seekAudio, seekAudioClavier,
     carteDetailRef, detailMapStyle, setDetailMapStyle, ouvrirImage, onToast,
+    onOuvrirIA, iaDisponible,
   } = props;
 
   const [onglet, setOnglet] = useState('apercu');
@@ -240,6 +241,44 @@ export const VueDetail = (props) => {
   const sansPrediction = !isLoadingPrediction && !pred;
 
   const partager = () => copier(window.location.href, 'Lien du signalement copié');
+
+  // Sans photo, vidéo ni message vocal, la fiche n'ouvre pas sur une grande
+  // zone vide : la barre compacte s'affiche d'emblée.
+  const sansMedia = !safeIncident.image && !safeIncident.video && !audioSrc;
+
+  // Téléphone : état et gravité seulement en haut ; le reste va dans la carte
+  // « Prise en charge » et sur le score.
+  const pastillesTelephone = (
+    <div className="vd-chips">
+      <Pastille badge={currentStatus} />
+      {niveau && (
+        <span className="vd-chip" style={{ backgroundColor: `var(--color-severity-${niveau}-surface)`, color: couleurTexteGravite(niveau) }}>
+          <i style={{ backgroundColor: couleurGravite(niveau) }} />Gravité {libelleGravite(niveau).toLowerCase()}
+        </span>
+      )}
+    </div>
+  );
+
+  const nomPriseEnCharge = organisations[0]?.nom;
+  const priseEnCharge = (nomPriseEnCharge || modeBadge || userRoleBadge || collabRequest) && (
+    <section className="vdm-prise" aria-label="Prise en charge">
+      <div className="vdm-prise-l">
+        <span>Pris en charge par</span>
+        <b>{nomPriseEnCharge || "En attente d'une organisation"}</b>
+      </div>
+      {modeBadge && <div className="vdm-prise-l"><span>Mode</span><Pastille badge={modeBadge} /></div>}
+      {userRoleBadge && <div className="vdm-prise-l"><span>Votre rôle</span><Pastille badge={userRoleBadge} /></div>}
+      {collabRequest && (
+        <div className="vdm-prise-l">
+          <span>Votre demande</span>
+          <span className="vd-chip vd-chip-attente">
+            <i style={{ backgroundColor: 'currentColor' }} />
+            {getRoleLabel(collabRequest.role)} : {getStatusLabel(collabRequest.status)}
+          </span>
+        </div>
+      )}
+    </section>
+  );
 
   const pastilles = (
     <div className="vd-chips">
@@ -369,14 +408,15 @@ export const VueDetail = (props) => {
     <div className="vd">
       {estTelephone ? (
         <>
-          {photoPassee && (
-            <header className="vdm-compacte">
+          {(photoPassee || sansMedia) && (
+            <header className={`vdm-compacte ${sansMedia ? 'is-fixe' : ''}`}>
               <button type="button" onClick={onBack} aria-label="Retour à la liste">{iconeRetour}</button>
-              <b>{titre}</b>
+              <b>{sansMedia && !photoPassee ? 'Signalement' : titre}</b>
               <button type="button" onClick={partager} aria-label="Partager">{iconePartage}</button>
             </header>
           )}
 
+          {sansMedia ? <div className="vdm-sans-media" ref={refPhoto} aria-hidden="true" /> : (
           <div className="vdm-photo" ref={refPhoto}>
             {scene}
             <div className="vdm-rangee">
@@ -393,17 +433,21 @@ export const VueDetail = (props) => {
               </button>
             </div>
           </div>
+          )}
 
-          <div className="vdm-corps">
+          <div className={`vdm-corps ${sansMedia ? 'is-sans-media' : ''}`}>
             {lecteurAudio}
-            {pastilles}
+            {pastillesTelephone}
             <div className="vdm-titre">
               <h1>{titre}</h1>
-              <p>
-                {lieu} · signalé {dateSignalement}
-                {tempsDepuis(safeIncident.created_at) && ` · ${tempsDepuis(safeIncident.created_at)}`}
-                <br />{auteur}
-              </p>
+              <ul className="vdm-meta">
+                <li><Location size={15} color="currentColor" aria-hidden="true" />{lieu}</li>
+                <li>
+                  <Calendar size={15} color="currentColor" aria-hidden="true" />
+                  <span>Signalé {dateSignalement}{tempsDepuis(safeIncident.created_at) && ` · ${tempsDepuis(safeIncident.created_at)}`}</span>
+                </li>
+                <li><Profile size={15} color="currentColor" aria-hidden="true" />{auteur}</li>
+              </ul>
             </div>
             {bandeaux}
             {alertePropagation}
@@ -421,12 +465,22 @@ export const VueDetail = (props) => {
                 </span>
                 <span className="vdm-score-t">
                   <b>Score d'impact : {lecture.libelle}</b>
-                  <span>Suivi : {etapes[indexEtape]?.label.toLowerCase()}{etat === 'declared' ? ", en attente d'une organisation" : organisations[0]?.nom ? `, ${organisations[0].nom}` : ''}</span>
+                  {pred.status === 'completed' && (
+                    <span className="vdm-score-ia"><MagicStar size={12} variant="Bold" color="currentColor" aria-hidden="true" />Analysé par l'IA</span>
+                  )}
+                  <span className="vdm-etapes" role="img" aria-label={`Suivi : ${etapes[indexEtape]?.label.toLowerCase()}`}>
+                    {etapes.map((e, i) => (
+                      <span key={e.id} className={i <= indexEtape || etat === 'resolved' ? 'is-fait' : ''}>
+                        <i aria-hidden="true" />{e.label}
+                      </span>
+                    ))}
+                  </span>
                 </span>
               </section>
             ) : (
               <div className="vdm-score"><VidePrediction predictionError={predictionError} /></div>
             )}
+            {priseEnCharge}
           </div>
         </>
       ) : (
@@ -639,9 +693,11 @@ export const VueDetail = (props) => {
                   <div className="vd-coords">
                     <span className="vd-coord">Lat. <b>{nombre(coords.lat, 5)}</b></span>
                     <span className="vd-coord">Long. <b>{nombre(coords.lng, 5)}</b></span>
-                    <button type="button" className="vd-btn vd-btn-g vd-btn-s" onClick={() => copier(`${coords.lat}, ${coords.lng}`, 'Coordonnées copiées')}>
-                      <Copy size={14} color="currentColor" />Copier
-                    </button>
+                    {!estTelephone && (
+                      <button type="button" className="vd-btn vd-btn-g vd-btn-s" onClick={() => copier(`${coords.lat}, ${coords.lng}`, 'Coordonnées copiées')}>
+                        <Copy size={14} color="currentColor" />Copier
+                      </button>
+                    )}
                     <a className="vd-btn vd-btn-g vd-btn-s" href={`https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}`} target="_blank" rel="noreferrer">
                       <Routing2 size={14} color="currentColor" />Itinéraire
                     </a>
@@ -835,9 +891,10 @@ export const VueDetail = (props) => {
           <button type="button" className="vdm-agir" onClick={() => openJoinModal()} disabled={!!hasPendingRequest}>
             {hasPendingRequest ? 'Demande en attente' : libelleAction}
           </button>
-          {avecMenu && !hasPendingRequest && (
-            <button type="button" className="vdm-agir-plus" onClick={() => openJoinModal()} aria-label="Autres façons d'agir">
-              <ArrowDown2 size={18} color="currentColor" />
+          {onOuvrirIA && (
+            <button type="button" className="vdm-ia" onClick={onOuvrirIA} aria-label="Ouvrir l'assistant IA">
+              <Message size={24} variant="Bold" color="currentColor" />
+              {iaDisponible && <span className="vdm-ia-point" aria-hidden="true" />}
             </button>
           )}
         </div>

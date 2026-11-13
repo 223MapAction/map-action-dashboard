@@ -633,3 +633,132 @@
   .sgm-filtres-voile,
   .sgm-filtres-voile.is-sortie { animation: none; }
 }
+
+/* ============================================================
+   Refonte du 2026-11-13 : carte allégée, variante sans photo,
+   chargement continu, erreur flottante, filtres repensés.
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Total sous le titre ; la phrase d'accroche n'est pas affichée. */
+  .sg .sg-tete p.sgm-total { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: #5B6472; font-variant-numeric: tabular-nums; }
+  .sgm-resume { margin-top: -6px; }
+
+  /* Pastille du bouton Filtres : un filtre actif n'est pas une alerte. */
+  .sgm-bouton-filtres-n { background: #fff; color: var(--color-primary-text); font-size: 11px; }
+
+  /* Carte */
+  .sgm-carte-lien { display: block; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .sgm-carte-lien:active { background: #F7F8FA; }
+  .sgm-carte-lien:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; border-radius: 18px; }
+
+  .sgm-carte-photo { position: relative; display: block; height: 132px; overflow: hidden; background: #E4E7EC; }
+  .sgm-carte-photo > :not(.sg-chip) { width: 100% !important; height: 100% !important; }
+  .sgm-carte-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .sgm-carte-photo > .sg-chip { position: absolute; top: 10px; left: 10px; padding: 4px 10px; background: #fff; }
+
+  .sgm-carte-corps { display: flex; flex-direction: column; gap: 5px; padding: 12px 14px 14px; }
+  .sgm-carte-corps > b { font-size: 16px; font-weight: 600; line-height: 1.3; color: #1A1C1E; }
+  .sgm-carte-corps .sg-desc { margin: 0; font-size: 14px; line-height: 1.5; color: #3F4650; }
+  .sgm-carte-meta { font-size: 13px; color: #5B6472; }
+  .sgm-carte-chips { display: flex; gap: 6px; }
+
+  .sgm-carte-statut { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 4px; padding-top: 10px; border-top: 1px solid #EEF0F3; }
+  .sgm-carte-statut > .sg-chip { flex-shrink: 0; }
+  .sgm-carte-qui { min-width: 0; overflow: hidden; font-size: 13px; color: #5B6472; white-space: nowrap; text-overflow: ellipsis; }
+  .sgm-carte-qui b { font-weight: 600; color: var(--color-primary-text); }
+
+  /* Sans vignette : pas de zone grise ; la gravité est la pastille en tête du corps. */
+  .sgm-carte.is-sans-photo .sgm-carte-corps { padding-right: 54px; }
+  .sgm-carte.is-sans-photo .sgm-plus { top: 8px; right: 8px; background: #EEF0F3; color: #1A1C1E; -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+  /* Squelette à la taille de la carte */
+  .sgm-squelette > i { height: 132px; }
+  .sgm-squelette > div { padding: 12px 14px 14px; }
+  .sgm-squelette span:nth-child(3) { width: 45%; }
+
+  /* État vide */
+  .sgm-vide-effacer {
+    min-height: 44px;
+    margin-top: 10px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 12px;
+    background: var(--color-primary-surface);
+    color: var(--color-primary-text);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  /* Bas de liste : chargement continu */
+  .sgm-charger-plus { min-height: 52px; display: grid; place-items: center; }
+  .sgm-charger-plus > span { display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; color: #5B6472; }
+  .sgm-charger-plus button { min-height: 44px; padding: 0 16px; border: none; border-radius: 12px; background: transparent; color: var(--color-primary-text); font: inherit; font-size: 15px; font-weight: 600; }
+  .sgm-spin { width: 16px; height: 16px; border: 2px solid #E4E7EC; border-top-color: var(--color-primary-text); border-radius: 50%; animation: sgm-tourne 0.9s linear infinite; }
+
+  /* Erreur de chargement : alerte qui descend du haut de l'écran. */
+  .incident-workspace > .sgm-erreur {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 12px;
+    right: 12px;
+    z-index: 1050;
+    animation: sgm-descend-haut 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .sgm-erreur > .bandeau-erreur { flex-wrap: wrap; margin: 0; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18); }
+  .sgm-erreur .bandeau-erreur-texte { flex: 1; min-width: 0; }
+  .sgm-erreur .bandeau-erreur-action { width: 100%; min-height: 44px; justify-content: center; }
+
+  /* Assigner un agent : la ligne choisie se teinte. */
+  .sgm-agent:has(input:checked) { background: var(--color-primary-surface); }
+}
+
+@keyframes sgm-tourne { to { transform: rotate(360deg); } }
+@keyframes sgm-descend-haut { from { opacity: 0; transform: translateY(-120%); } }
+
+/* Feuille Filtres : état en grille, calendrier déplié dans la feuille. */
+.sgm-filtres:focus { outline: none; }
+
+.sgm-segs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+.sgm-segs button {
+  min-height: 46px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: #fff;
+  color: #1A1C1E;
+  font: inherit;
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sgm-segs button[aria-checked='true'] { background: #1A1C1E; color: #fff; font-weight: 600; }
+.sgm-segs button:focus-visible,
+.sgm-choix button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+
+.sgm-coche { flex-shrink: 0; color: var(--color-primary-text); }
+.sgm-perso-val { flex-shrink: 0; font-size: 14px; font-weight: 600; color: var(--color-primary-text); }
+
+.sgm-calendrier {
+  --sg-primary: var(--color-primary-text);
+  --sg-neutral-surface: #F1F5F9;
+  --fp-plage: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+  --fp-apercu: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  padding: 6px 10px 12px;
+  border-top: 1px solid #F1F3F6;
+}
+
+.sgm-calendrier .fp-mois-tete { height: 44px; padding: 0 2px; }
+.sgm-calendrier .fp-mois-tete b { font-size: 15px; }
+.sgm-calendrier .fp-nav { width: 44px; height: 44px; color: var(--color-primary-text); }
+.sgm-calendrier .fp-grille { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.sgm-calendrier .fp-jour,
+.sgm-calendrier .fp-vide { height: 42px; }
+.sgm-consigne { margin: 8px 4px 0; font-size: 13px; color: #5B6472; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .incident-workspace > .sgm-erreur { animation: none; }
+  .sgm-spin { animation-duration: 2.4s; }
+}
