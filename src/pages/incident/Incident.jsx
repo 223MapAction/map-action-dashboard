@@ -127,6 +127,10 @@ export const Incident = () => {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  // Plage de dates (YYYY-MM-DD). Vide par défaut : tous les signalements.
+  const [periode, setPeriode] = useState({ debut: '', fin: '' });
+  const periodeActive = periode.debut && periode.fin && periode.debut <= periode.fin ? periode : null;
+  const clePeriode = periodeActive ? `${periodeActive.debut}_${periodeActive.fin}` : '';
 
   // La recherche part 400 ms après la dernière frappe : chaque requête coûte
   // ~3 s côté serveur, et à 200 ms un mot tapé en déclenchait plusieurs.
@@ -142,7 +146,7 @@ export const Incident = () => {
   }, [debouncedSetSearch]);
 
   // Retour a la premiere page des qu'un filtre change.
-  useReinitialisationSurChangement([search, statusFilter], () => setPage(1));
+  useReinitialisationSurChangement([search, statusFilter, clePeriode], () => setPage(1));
 
   // Charger la liste des incidents avec useSWR
   const {
@@ -155,8 +159,8 @@ export const Incident = () => {
     // redemandait rien au serveur et le filtre ne s'appliquait qu'aux lignes
     // deja recues — soit la page courante, pendant que la pagination
     // continuait d'annoncer le total complet.
-    listeContinue ? null : ['/incidents/all', page, search, statusFilter],
-    () => getIncidentsService(page, pageSize, search, statusFilter),
+    listeContinue ? null : ['/incidents/all', page, search, statusFilter, clePeriode],
+    () => getIncidentsService(page, pageSize, search, statusFilter, periodeActive),
     {
       // Changer de page laisse la page précédente affichée le temps de la réponse.
       keepPreviousData: true,
@@ -182,9 +186,9 @@ export const Incident = () => {
     (index, precedent) => {
       if (!listeContinue) return null;
       if (precedent && !precedent.next) return null;
-      return ['/incidents/mobile', index + 1, search, statusFilter];
+      return ['/incidents/mobile', index + 1, search, statusFilter, clePeriode];
     },
-    ([, p, s, e]) => getIncidentsService(p, pageSize, s, e),
+    ([, p, s, e]) => getIncidentsService(p, pageSize, s, e, periodeActive),
     { revalidateFirstPage: false, focusThrottleInterval: 60000 },
   );
 
@@ -302,6 +306,8 @@ export const Incident = () => {
               }}
               statusFilter={statusFilter}
               setStatusFilter={setStatusFilter}
+              periode={periode}
+              setPeriode={setPeriode}
               page={page}
               setPage={setPage}
               pageSize={pageSize}

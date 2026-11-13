@@ -1,20 +1,22 @@
 /**
  * Échelle de gravité — source unique côté frontend.
  *
- * ── SOURCE PRINCIPALE : global_impact_score ──────────────────────────────────
- * Le champ `global_impact_score` (0–10), présent au niveau des détails d'un
- * incident (ou de sa prédiction IA), est la métrique de référence pour
- * déterminer le niveau de gravité :
- *
- *   De 0 à 3   → Faible  ('low')
- *   De 4 à 6   → Moyenne ('medium') (ex. 5.36)
- *   De 7 à 10  → Élevée  ('high')
+ * ── SOURCE PRINCIPALE : severity du serveur ──────────────────────────────────
+ * Le champ `severity` ('high' | 'medium' | 'low') est la sévérité catégorielle
+ * de l'incident côté backend. C'est aussi lui qu'agrège `by_severity` dans
+ * /incidents/dashboard-stats/ : le lire en premier garde le donut du
+ * dashboard d'accord avec les marqueurs, listes et badges.
  *
  * Ordre de priorité des sources :
- *   1. `global_impact_score` (de la prédiction ou des détails de l'incident) ;
- *   2. `base_severity` (repli numérique 0–10 si le score global n'est pas fourni) ;
- *   3. `severity` texte du serveur ('high' | 'medium' | 'low') ;
- *   4. `badges` (dernier recours pour les anciennes charges utiles).
+ *   1. `severity` texte du serveur ;
+ *   2. `global_impact_score` (0–10) de la prédiction IA, si severity est vide ;
+ *   3. `base_severity` (0–10) ;
+ *   4. `badges` (anciennes charges utiles) ;
+ *   5. sinon 'unknown' (« Non évaluée ») : un incident que personne n'a
+ *      évalué ne doit pas passer pour « faible ».
+ *
+ * Seuils des scores numériques : moins de 4 → Faible, de 4 à moins de 7 →
+ * Moyenne, 7 et plus → Élevée.
  */
 
 /**
@@ -30,10 +32,16 @@ export const NIVEAUX_GRAVITE = [
 
 export const CLES_GRAVITE = NIVEAUX_GRAVITE.map((n) => n.cle);
 
-/** Le palier le moins grave : le repli quand rien n'est exploitable. */
-const CLE_PAR_DEFAUT = 'low';
+/**
+ * Incident sans aucune évaluation. Hors de NIVEAUX_GRAVITE : ce n'est pas un
+ * palier de l'échelle, les légendes et filtres ne le proposent pas.
+ */
+export const GRAVITE_INCONNUE = 'unknown';
 
-const LIBELLES = Object.fromEntries(NIVEAUX_GRAVITE.map((n) => [n.cle, n.libelle]));
+const LIBELLES = {
+  ...Object.fromEntries(NIVEAUX_GRAVITE.map((n) => [n.cle, n.libelle])),
+  [GRAVITE_INCONNUE]: 'Non évaluée',
+};
 
 /** Libellé affichable d'un niveau, ou tiret si la clé est inconnue. */
 export const libelleGravite = (cle) => LIBELLES[cle] ?? '—';
@@ -114,33 +122,24 @@ export const scoreVersNiveau = (score) => {
 };
 
 /**
- * Lit le niveau de gravité d'un incident.
- *
- * Sources dans l'ordre de priorité :
- *   1. `global_impact_score` (0–10) :
- *        0 à 3  → faible ('low')
- *        4 à 6  → moyenne ('medium') (ex: 5.36)
- *        7 à 10 → élevée ('high')
- *   2. `severity` textuel du backend ('high' | 'medium' | 'low') si pas de global_impact_score ;
- *   3. `base_severity` numérique (0–10) si severity textuel absent ;
- *   4. `badges` (dernier recours).
+ * Lit le niveau de gravité d'un incident (ordre des sources : voir l'en-tête).
  *
  * @param {Object} incident
  * @param {Object} [prediction] détails de prédiction
- * @returns {'high'|'medium'|'low'}
+ * @returns {'high'|'medium'|'low'|'unknown'}
  */
 export const gravite = (incident, prediction = null) => {
-  if (!incident && !prediction) return CLE_PAR_DEFAUT;
+  if (!incident && !prediction) return GRAVITE_INCONNUE;
 
-  // 1. Priorité absolue : global_impact_score
+  // 1. La décision du serveur, celle que compte by_severity.
+  if (incident?.severity && CLES_GRAVITE.includes(incident.severity)) {
+    return incident.severity;
+  }
+
+  // 2. Repli : score d'impact de la prédiction IA.
   const score = extraireScoreImpact(incident, prediction);
   if (score !== null) {
     return scoreVersNiveau(score);
-  }
-
-  // 2. Repli : champ severity texte du serveur
-  if (incident?.severity && CLES_GRAVITE.includes(incident.severity)) {
-    return incident.severity;
   }
 
   // 3. Repli : base_severity
@@ -161,8 +160,9 @@ export const gravite = (incident, prediction = null) => {
   const badges = (incident?.badges || []).map((b) => b?.variant);
   if (badges.includes('critical') || badges.includes('high') || badges.includes('expert-needed')) return 'high';
   if (badges.includes('in-progress') || badges.includes('medium')) return 'medium';
+  if (badges.includes('low')) return 'low';
 
-  return CLE_PAR_DEFAUT;
+  return GRAVITE_INCONNUE;
 };
 
 /**
@@ -173,8 +173,11 @@ export const repartitionGravite = (incidents) => {
   const liste = Array.isArray(incidents) ? incidents : [];
   const compteurs = Object.fromEntries(CLES_GRAVITE.map((c) => [c, 0]));
 
+  // Les incidents non évalués ne tombent dans aucun palier, mais restent dans
+  // le total : les pourcentages ne gonflent pas artificiellement.
   liste.forEach((inc) => {
-    compteurs[gravite(inc)] += 1;
+    const cle = gravite(inc);
+    if (cle in compteurs) compteurs[cle] += 1;
   });
 
   // Diviser par 0 donnerait NaN% : sur une liste vide, tous les niveaux sont à 0.
@@ -211,6 +214,7 @@ export const lireRepartitionApi = (parGravite) => {
 export default {
   NIVEAUX_GRAVITE,
   CLES_GRAVITE,
+  GRAVITE_INCONNUE,
   gravite,
   extraireScoreImpact,
   scoreVersNiveau,

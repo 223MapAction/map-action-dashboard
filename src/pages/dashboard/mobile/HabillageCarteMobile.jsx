@@ -19,10 +19,6 @@ export const HabillageCarteMobile = ({
   onEtat,
   proprietaire,
   onProprietaire,
-  pays,
-  onPays,
-  paysUtilisateur,
-  nomPays,
   styles,
   styleActif,
   onStyle,
@@ -40,20 +36,14 @@ export const HabillageCarteMobile = ({
   const libellePerimetre = proprietaire === 'mine' ? 'Mes signalements' : 'Tous les signalements';
   const nomStyle = styles.find((s) => s.id === styleActif)?.id === 'humanitarian' ? 'Plan' : styles.find((s) => s.id === styleActif)?.label;
 
-  const sousTitre = [
-    libellePerimetre,
-    etat === 'resolved' ? 'résolus' : 'actifs',
-    graviteActive && `gravité ${libelleGravite(graviteActive).toLowerCase()}`,
-    zoneActive,
-  ].filter(Boolean).join(' · ');
 
   return (
     <>
       <div className="dm-haut">
-        <span className="dm-verre dm-contexte" aria-live="polite">
-          <b>{nomPays || 'Tous les pays'}</b>
-          <span>{sousTitre}</span>
-        </span>
+        <button type="button" className="dm-verre dm-perimetre" onClick={() => setFiltresOuverts(true)}>
+          <span>{libellePerimetre}</span>
+          <Chevron />
+        </button>
         <button type="button" className="dm-verre dm-rond" onClick={onStatistiques} aria-label="Statistiques">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6" /></svg>
         </button>
@@ -71,15 +61,12 @@ export const HabillageCarteMobile = ({
         </button>
       </div>
 
-      <div className="dm-puces">
-        <div className="dm-verre dm-etat" role="radiogroup" aria-label="État">
-          {[{ v: 'active', l: 'Actifs' }, { v: 'resolved', l: 'Résolus' }].map(({ v, l }) => (
-            <button key={v} type="button" role="radio" aria-checked={etat === v} onClick={() => onEtat(v)}>{l}</button>
-          ))}
+      {(graviteActive || zoneActive) && (
+        <div className="dm-puces">
+          {graviteActive && <span className="dm-verre dm-puce">Gravité {libelleGravite(graviteActive).toLowerCase()}</span>}
+          {zoneActive && <span className="dm-verre dm-puce">{zoneActive}</span>}
         </div>
-        <button type="button" className="dm-verre dm-puce" onClick={() => setFiltresOuverts(true)}>{libellePerimetre}<Chevron /></button>
-        <button type="button" className="dm-verre dm-puce" onClick={() => setFiltresOuverts(true)}>{nomPays || 'Tous les pays'}<Chevron /></button>
-      </div>
+      )}
 
       {styles.length > 1 && (
         <button type="button" className="dm-verre dm-rond dm-fond" onClick={() => setFiltresOuverts(true)} aria-label={`Fond de carte : ${nomStyle}`}>
@@ -116,9 +103,6 @@ export const HabillageCarteMobile = ({
           onEtat={onEtat}
           graviteActive={graviteActive}
           onGravite={onGravite}
-          pays={pays}
-          onPays={onPays}
-          paysUtilisateur={paysUtilisateur}
           styles={styles}
           styleActif={styleActif}
           onStyle={onStyle}

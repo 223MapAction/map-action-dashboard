@@ -58,35 +58,6 @@
   gap: 8px;
 }
 
-.dm-contexte {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0 14px;
-  border-radius: 14px;
-}
-
-.dm-contexte b {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.dm-contexte span,
-.dm-contexte b {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dm-contexte span {
-  font-size: 12px;
-  color: #5B6472;
-}
-
 .dm-rond {
   position: relative;
   width: 44px;
@@ -340,7 +311,7 @@
 
 /* --- Détail rapide (écran 3) : le panneau du bureau, en feuille plein écran --- */
 .panneau-mobile.panneau-detail {
-  top: calc(env(safe-area-inset-top, 0px) + 50px);
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
   left: 0;
   width: 100%;
   overflow: hidden;
@@ -527,8 +498,8 @@
   right: 0;
   bottom: 0;
   z-index: 1060;
-  max-height: 82dvh;
-  height: 690px;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
   flex-direction: column;
   border-radius: 22px 22px 0 0;
@@ -680,7 +651,7 @@
   position: fixed;
   left: 0;
   right: 0;
-  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
   bottom: 0;
   z-index: 998;
   display: flex;
@@ -1263,3 +1234,133 @@
   border-radius: 50%;
   background: var(--color-primary-text);
 }
+
+/* --- Feuilles basses : entrée, sortie, bouton fermer --- */
+@keyframes dm-feuille-entree {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+
+@keyframes dm-feuille-sortie {
+  from { transform: none; }
+  to { transform: translateY(100%); }
+}
+
+@keyframes dm-fondu-entree {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dm-fondu-sortie {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Courbe « ressort » à l'ouverture, sortie plus vive (240 ms = DUREE_SORTIE). */
+.dm-feuille {
+  animation: dm-feuille-entree 380ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  will-change: transform;
+}
+
+.dm-feuille.is-sortie {
+  animation: dm-feuille-sortie 240ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* L'aperçu flotte au-dessus de la barre : il doit sortir entièrement de l'écran. */
+.dm-apercu.dm-feuille.is-sortie {
+  animation-name: dm-apercu-sortie;
+}
+
+@keyframes dm-apercu-sortie {
+  to { transform: translateY(calc(100% + var(--am-tabbar-h) + 16px)); }
+}
+
+.dm-voile,
+.dm-fondu {
+  animation: dm-fondu-entree 300ms ease-out both;
+}
+
+.dm-voile.is-sortie,
+.dm-fondu.is-sortie {
+  animation: dm-fondu-sortie 240ms ease-in both;
+}
+
+.dm-fermer {
+  flex-shrink: 0;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(118, 118, 128, 0.14);
+  color: #5B6472;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Zone tactile de 44 px autour d'un rond de 30 px. */
+.dm-fermer::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+
+.dm-fermer:active {
+  background: rgba(118, 118, 128, 0.24);
+}
+
+.dm-fermer:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.dm-filtres-entete .dm-fermer {
+  min-height: 0;
+  margin-right: 8px;
+  padding: 0;
+  background: rgba(118, 118, 128, 0.14);
+  color: #5B6472;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-feuille,
+  .dm-feuille.is-sortie,
+  .dm-voile,
+  .dm-voile.is-sortie,
+  .dm-fondu,
+  .dm-fondu.is-sortie {
+    animation: none;
+  }
+}
+
+/* Périmètre (Tous / Mes signalements) en tête de carte. */
+.dm-perimetre {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 14px;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dm-perimetre span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

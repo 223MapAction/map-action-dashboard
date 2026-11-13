@@ -14,7 +14,7 @@ const INCIDENTS_URL = 'incidents';
  * @param {number} pageSize - Taille de la page (default: 10)
  * @returns {Promise<Object>} - { count, next, previous, results }
  */
-export const getIncidentsService = async (page = null, pageSize = null, search = '', etat = '') => {
+export const getIncidentsService = async (page = null, pageSize = null, search = '', etat = '', periode = null) => {
   try {
     const axios = authService.createAuthenticatedAxios();
     
@@ -32,6 +32,14 @@ export const getIncidentsService = async (page = null, pageSize = null, search =
 
     if (etat) {
       params.push(`etat=${encodeURIComponent(etat)}`);
+    }
+
+    // Plage de dates sur created_at, envoyée seulement quand les deux bornes
+    // sont choisies. Sans elle, l'API renvoie tous les signalements.
+    if (periode?.debut && periode?.fin) {
+      params.push('filter_type=custom_range');
+      params.push(`custom_start=${encodeURIComponent(periode.debut)}`);
+      params.push(`custom_end=${encodeURIComponent(periode.fin)}`);
     }
 
     const queryString = params.length > 0 ? `?${params.join('&')}` : '';

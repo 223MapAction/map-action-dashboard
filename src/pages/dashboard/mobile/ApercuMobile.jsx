@@ -4,6 +4,8 @@ import { getIncidentService } from '../../incident/service/incident_service';
 import { titreIncident } from '../../../utils/titreIncident';
 import { gravite, couleurGravite, couleurTexteGravite, libelleGravite } from '../../../utils/gravite';
 import { tempsRelatif } from '../components/widgets/useStatsWidgets';
+import { useFeuille } from './useFeuille';
+import { BoutonFermer } from './BoutonFermer';
 
 const STATUTS = {
   declared: { libelle: 'Déclaré', classe: 'bulle-statut-declare' },
@@ -16,6 +18,7 @@ const STATUTS = {
 /** Écran 2 : le signalement touché sur la carte, en feuille basse. */
 export const ApercuMobile = ({ incident, onDetail, onFermer }) => {
   const navigate = useNavigate();
+  const { fermer, classe } = useFeuille(onFermer);
   // Même clé que le détail rapide : ce qui est chargé ici lui sert de cache.
   const { data: detail } = useSWR(`/incident/${incident.id}`, () => getIncidentService(incident.id));
   const i = { ...incident, ...(detail || {}) };
@@ -26,11 +29,11 @@ export const ApercuMobile = ({ incident, onDetail, onFermer }) => {
 
   return (
     <>
-      <button type="button" className="dm-verre dm-retour-carte" onClick={onFermer} aria-label="Fermer l'aperçu">
+      <button type="button" className={`dm-verre dm-retour-carte dm-fondu ${classe}`} onClick={fermer} aria-label="Fermer l'aperçu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
 
-      <section className="dm-apercu" aria-label="Aperçu du signalement">
+      <section className={`dm-apercu dm-feuille ${classe}`} aria-label="Aperçu du signalement">
         <span className="dm-poignee" aria-hidden="true" />
         <div className="dm-apercu-haut">
           <span className="dm-apercu-photo" style={photo ? { backgroundImage: `url(${photo})` } : undefined} />
@@ -45,9 +48,7 @@ export const ApercuMobile = ({ incident, onDetail, onFermer }) => {
               <span className={`bulle-pastille ${statut.classe}`}>{statut.libelle}</span>
             </span>
           </div>
-          <button type="button" className="dm-apercu-fermer" onClick={onFermer} aria-label="Fermer l'aperçu">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-          </button>
+          <BoutonFermer onClick={fermer} libelle="Fermer l'aperçu" />
         </div>
         <div className="dm-deux-boutons">
           <button type="button" className="dm-bouton" onClick={() => onDetail(i)}>Détail</button>

@@ -9,7 +9,8 @@
 
 @media (max-width: 640px) {
   :root {
-    --am-tabbar-h: calc(50px + env(safe-area-inset-bottom, 0px));
+    /* 58px de zone utile + au moins 10px au-dessus du bord / de l'indicateur iPhone. */
+    --am-tabbar-h: calc(58px + max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px)));
   }
 
   /* Les onglets remplacent le tiroir : plus de bouton pour l'ouvrir. */

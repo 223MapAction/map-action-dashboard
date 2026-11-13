@@ -9,7 +9,7 @@
   z-index: 1000;
   box-sizing: border-box;
   height: var(--am-tabbar-h);
-  padding: 6px 4px env(safe-area-inset-bottom, 0px);
+  padding: 4px max(4px, env(safe-area-inset-left, 0px)) max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px)) max(4px, env(safe-area-inset-right, 0px));
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -22,7 +22,7 @@
 
 .am-onglet {
   min-width: 0;
-  min-height: 44px;
+  min-height: 54px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -38,6 +38,23 @@
   letter-spacing: 0.01em;
   white-space: nowrap;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  border-radius: 12px;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+/* Retour immédiat sous le pouce. */
+.am-onglet:active {
+  background: rgba(15, 23, 42, 0.06);
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .am-onglet { transition: none; }
+  .am-onglet:active { transform: none; }
 }
 
 .am-onglet.is-actif {
