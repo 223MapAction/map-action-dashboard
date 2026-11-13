@@ -5,6 +5,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
 
+  // maplibre-gl 6 charge son worker depuis une URL relative à son module.
+  // Pré-bundlé par Vite en dev, le module change de dossier et le worker
+  // ne se charge plus (« Worker failed to load ») : on le laisse tel quel.
+  optimizeDeps: { exclude: ['maplibre-gl'] },
+
   // Prefixe sous lequel l'application est servie.
   //
   // Par defaut `/` : c'est le cas en developpement et pour un deploiement

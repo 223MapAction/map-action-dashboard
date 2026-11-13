@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import useSWR from 'swr';
 import { NIVEAUX_GRAVITE, lireRepartitionApi, couleurGravite, gravite } from '../../../../utils/gravite';
 import { getIncidentsFilteredService } from '../../service/dashboard_service';
-import { getIncidentsService, getIncidentService } from '../../../incident/service/incident_service';
+import { getIncidentService } from '../../../incident/service/incident_service';
 
-const ORDRE_GRAVITE = { high: 0, medium: 1, low: 2 };
+const ORDRE_GRAVITE = { high: 0, medium: 1, low: 2, unknown: 3 };
 
 export const tempsRelatif = (iso) => {
   if (!iso) return '';
@@ -28,24 +28,13 @@ export const useStatsWidgets = (stats) => {
     return zones.map((z) => ({ ...z, ratio: z.count / max }));
   }, [stats]);
 
-  // Répartition par gravité de chaque localité : by_zone ne donne qu'un total,
-  // on lit donc les signalements de chaque localité (recherche par nom).
-  const nomsZones = locationStats.map((z) => z.name).filter((n) => n && n !== 'Zone inconnue');
-  const { data: graviteParZone } = useSWR(
-    nomsZones.length ? ['gravite-par-zone', ...nomsZones] : null,
-    async () => {
-      const paires = await Promise.all(
-        nomsZones.map(async (nom) => {
-          const data = await getIncidentsService(1, 100, nom);
-          const compte = { high: 0, medium: 0, low: 0 };
-          (data?.results || []).filter((i) => i.zone === nom).forEach((i) => { compte[gravite(i)] += 1; });
-          return [nom, compte];
-        })
-      );
-      return Object.fromEntries(paires);
-    },
-    { revalidateOnFocus: false }
-  );
+  // Pas de répartition par gravité par localité : by_zone ne donne qu'un total,
+  // et la reconstituer coûtait une recherche lourde par localité
+  // (/incident/?search=<zone>&page_size=100, plusieurs secondes chacune),
+  // plafonnée à 100 lignes et faussée tant que le backend renvoie la même
+  // severity pour tous les incidents. Les barres restent d'une seule couleur.
+  // À rebrancher quand l'API fournira by_zone[].by_severity.
+  const graviteParZone = null;
 
   // Les signalements encore déclarés (personne ne les a pris), du plus grave au
   // plus ancien. Le classement se fait sur la liste légère de la carte (rapide,

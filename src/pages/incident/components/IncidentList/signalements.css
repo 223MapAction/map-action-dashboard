@@ -147,6 +147,8 @@
 .sg-gc-medium i { background: var(--color-severity-medium); }
 .sg-gc-low { background: var(--color-severity-low-surface); color: var(--color-severity-low-text); }
 .sg-gc-low i { background: var(--color-severity-low); }
+.sg-gc-unknown { background: var(--color-severity-unknown-surface); color: var(--color-severity-unknown-text); }
+.sg-gc-unknown i { background: var(--color-severity-unknown); }
 
 .sg-e-declare { background: var(--sg-neutral-surface); color: var(--sg-neutral-text); }
 .sg-e-pris,
@@ -317,6 +319,7 @@
 .sg-g-high { background: var(--color-severity-high); }
 .sg-g-medium { background: var(--color-severity-medium); }
 .sg-g-low { background: var(--color-severity-low); }
+.sg-g-unknown { background: var(--color-severity-unknown); }
 
 .sg-point {
   display: block;

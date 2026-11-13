@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useFeuille } from './useFeuille';
 import { getRelativeTime, formatNotificationMessage, cibleNotification } from '../../../components/layout/useNotifications';
 
 const IconeNotification = ({ type }) => {
@@ -19,6 +20,7 @@ const IconeNotification = ({ type }) => {
 /** Écran 7 : les notifications, poussées depuis la carte. */
 export const NotificationsMobile = ({ donnees, onRetour }) => {
   const navigate = useNavigate();
+  const { fermer, classe } = useFeuille(onRetour);
   const {
     notifications,
     isLoadingNotifications,
@@ -37,9 +39,9 @@ export const NotificationsMobile = ({ donnees, onRetour }) => {
   };
 
   return (
-    <div className="dm-ecran dm-ecran-notifications">
+    <div className={`dm-ecran dm-ecran-notifications dm-feuille ${classe}`}>
       <header className="dm-notif-entete">
-        <button type="button" className="dm-retour" onClick={onRetour}>
+        <button type="button" className="dm-retour" onClick={fermer}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
           Carte
         </button>

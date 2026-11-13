@@ -64,6 +64,8 @@ const DEFAULT_MALI_LNG = -8.0;
 // Taille de page côté front uniquement (l'API garde son propre défaut/plafond).
 // Le front boucle sur `next` jusqu'à épuisement, donc cette valeur ne fait
 // qu'ajuster le nombre d'aller-retours, pas ce qui finit par s'afficher.
+// Incidents par page : la suivante vient au clic sur « Charger plus » ou
+// quand la carte bouge.
 const MAP_PAGE_SIZE = 30;
 
 const INCIDENT_STATUS_STEPS = [
@@ -588,25 +590,10 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
 
         setIsLoadingMore(false);
 
-        /**
-         * Auto-chargement de toutes les pages.
-         *
-         * On ne touche à rien côté API : elle garde sa pagination
-         * telle quelle. Mais côté front, dès qu'une page arrive et
-         * qu'il en reste, on enchaîne tout de suite sur la suivante,
-         * pour que tous les incidents finissent par apparaître sur
-         * la carte sans action de l'utilisateur (pas besoin de
-         * déplacer la carte ni de cliquer sur "Charger plus").
-         *
-         * On avance uniquement après un SUCCÈS : si une page échoue
-         * (onError ci-dessous), on n'avance pas dessus tout seul —
-         * l'utilisateur peut relancer via le bouton "Charger plus".
-         */
-        if (nextPageAvailable) {
-          setCurrentPage(
-            (previous) => previous + 1
-          );
-        }
+        // Pas d'enchaînement automatique : la page suivante ne se charge
+        // qu'au clic sur « Charger plus » ou quand la carte bouge
+        // (onMapMoveEnd). Enchaîner ici chargeait les 385 incidents d'un
+        // coup à l'ouverture du dashboard.
       },
 
       onError: (error) => {
@@ -669,7 +656,12 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
    * ------------------------------------------------------------------------ */
 
   const onMapMoveEnd =
-    useCallback(() => {
+    useCallback((evt) => {
+      // Seuls les gestes de l'utilisateur (zoom, glisser) chargent la suite :
+      // les animations de caméra (cadrage initial, focus pays) n'ont pas
+      // d'originalEvent et ne doivent rien déclencher.
+      if (!evt?.originalEvent) return;
+
       if (
         hasMorePagesRef.current &&
         !isLoadingMoreRef.current &&
@@ -1562,10 +1554,6 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
           }}
           proprietaire={ownershipFilter}
           onProprietaire={setOwnershipFilter}
-          pays={countryFilter}
-          onPays={setCountryFilter}
-          paysUtilisateur={userOrgCountry}
-          nomPays={COUNTRIES.find((c) => c.en === countryFilter)?.fr || null}
           styles={Object.values(MAP_STYLES)}
           styleActif={activeStyle}
           onStyle={handleStyleChange}

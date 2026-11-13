@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { couleurGravite } from '../../../utils/gravite';
 import { titreIncident } from '../../../utils/titreIncident';
 import { useStatsWidgets, tempsRelatif } from '../components/widgets/useStatsWidgets';
+import { useFeuille } from './useFeuille';
+import { BoutonFermer } from './BoutonFermer';
 
 const pourcentage = (part, total) => (total > 0 ? Math.round((part / total) * 100) : 0);
 const nombre = (n) => n.toLocaleString('fr-FR');
@@ -13,6 +15,7 @@ const nombre = (n) => n.toLocaleString('fr-FR');
 export const StatistiquesMobile = ({ stats, statut, zoneActive, graviteActive, onStatut, onZone, onGravite, onIncident, onFermer }) => {
   const { locationStats, graviteParZone, nonResolus, aTraiter, aAfficher, severityData, totalGravite, sommePourcent } = useStatsWidgets(stats);
   const debutGeste = useRef(null);
+  const { fermer, classe } = useFeuille(onFermer);
 
   const total = stats?.total_alerts ?? 0;
   const resolus = stats?.resolved_incidents ?? 0;
@@ -35,15 +38,15 @@ export const StatistiquesMobile = ({ stats, statut, zoneActive, graviteActive, o
     .join(', ');
 
   return (
-    <section className="dm-stats" aria-label="Vue d'ensemble">
+    <section className={`dm-stats dm-feuille ${classe}`} aria-label="Vue d'ensemble">
       <button
         type="button"
         className="dm-stats-poignee"
         aria-label="Réduire le panneau"
-        onClick={onFermer}
+        onClick={fermer}
         onTouchStart={(e) => { debutGeste.current = e.touches[0].clientY; }}
         onTouchEnd={(e) => {
-          if (debutGeste.current !== null && e.changedTouches[0].clientY - debutGeste.current > 40) onFermer();
+          if (debutGeste.current !== null && e.changedTouches[0].clientY - debutGeste.current > 40) fermer();
           debutGeste.current = null;
         }}
       >
@@ -53,7 +56,7 @@ export const StatistiquesMobile = ({ stats, statut, zoneActive, graviteActive, o
       <div className="dm-stats-corps">
         <div className="dm-stats-titre">
           <h1>Statistiques</h1>
-          <button type="button" className="dm-lien" onClick={onFermer}>Voir la carte</button>
+          <BoutonFermer onClick={fermer} libelle="Fermer les statistiques" />
         </div>
 
         <div className="dm-indicateurs">
@@ -124,9 +127,9 @@ export const StatistiquesMobile = ({ stats, statut, zoneActive, graviteActive, o
                     >
                       <span className="dm-zone-ligne"><b>{zone.name}</b><span>{nombre(zone.count)}</span></span>
                       <span className="dm-zone-barre" aria-hidden="true">
-                        {somme > 0 && ['high', 'medium', 'low'].map((cle) => (
+                        {somme > 0 ? ['high', 'medium', 'low'].map((cle) => (
                           <span key={cle} style={{ width: `${(c[cle] / somme) * 100}%`, backgroundColor: couleurGravite(cle) }} />
-                        ))}
+                        )) : <span style={{ width: `${Math.max(zone.ratio * 100, 4)}%`, backgroundColor: 'var(--color-primary)' }} />}
                       </span>
                     </button>
                   </li>
