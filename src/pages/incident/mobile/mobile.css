@@ -735,6 +735,8 @@
 }
 
 .sgm-segs button[aria-checked='true'] { background: #1A1C1E; color: #fff; font-weight: 600; }
+.sgm-segs.sgm-segs-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sgm-segs button small { margin-left: 4px; font-size: 13px; font-weight: 500; opacity: 0.7; font-variant-numeric: tabular-nums; }
 .sgm-segs button:focus-visible,
 .sgm-choix button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
 
