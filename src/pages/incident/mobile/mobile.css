@@ -697,7 +697,7 @@
   .sgm-spin { width: 16px; height: 16px; border: 2px solid #E4E7EC; border-top-color: var(--color-primary-text); border-radius: 50%; animation: sgm-tourne 0.9s linear infinite; }
 
   /* Erreur de chargement : alerte qui descend du haut de l'écran. */
-  .incident-workspace > .sgm-erreur {
+  .sgm-erreur {
     position: fixed;
     top: calc(env(safe-area-inset-top, 0px) + 8px);
     left: 12px;
@@ -759,6 +759,6 @@
 .sgm-consigne { margin: 8px 4px 0; font-size: 13px; color: #5B6472; text-align: center; }
 
 @media (prefers-reduced-motion: reduce) {
-  .incident-workspace > .sgm-erreur { animation: none; }
+  .sgm-erreur { animation: none; }
   .sgm-spin { animation-duration: 2.4s; }
 }

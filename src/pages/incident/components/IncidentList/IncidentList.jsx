@@ -17,6 +17,7 @@ import { CarteSignalementsMapbox } from './CarteSignalementsMapbox';
 import { ETATS, etatDe, nomEtatPluriel, quandRelatif, auteurDe, priseEnChargeDe } from './formatSignalement';
 import { FeuilleActions } from '../../mobile/FeuilleActions';
 import { FiltresSignalements } from '../../mobile/FiltresSignalements';
+import { ChargerPlus } from '../../mobile/ChargerPlus';
 import { FiltrePeriode } from './FiltrePeriode';
 import { libellePeriode } from './periode';
 import './signalements.css';
@@ -126,37 +127,6 @@ const BarreTelephone = ({ search, setSearch, nbFiltres, onFiltres, resume }) => 
       </div>
       {resume}
     </>
-  );
-};
-
-/**
- * Bas de la liste sur téléphone : le lot suivant se charge quand on approche
- * de la fin. Le bouton reste pour les navigateurs sans IntersectionObserver
- * et pour qui préfère toucher.
- */
-const ChargerPlus = ({ chargement, onPlus, reste }) => {
-  const repere = useRef(null);
-
-  // Pas d'observation pendant un chargement ; à la fin, l'observateur repart
-  // et redemande un lot si le bas de liste est encore en vue.
-  useEffect(() => {
-    const el = repere.current;
-    if (chargement || !el || typeof IntersectionObserver === 'undefined') return undefined;
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { obs.disconnect(); onPlus?.(); }
-    }, { rootMargin: '0px 0px 400px 0px' });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [chargement, onPlus]);
-
-  return (
-    <div ref={repere} className="sgm-charger-plus">
-      {chargement ? (
-        <span role="status"><i className="sgm-spin" aria-hidden="true" />Chargement des {reste} suivants…</span>
-      ) : (
-        <button type="button" onClick={onPlus}>Afficher {reste} signalements de plus</button>
-      )}
-    </div>
   );
 };
 

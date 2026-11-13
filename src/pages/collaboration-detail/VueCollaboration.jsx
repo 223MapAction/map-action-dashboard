@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft2, Crown1, TickCircle, Gallery, Add,
-  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle,
+  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle, Location, Calendar,
 } from 'iconsax-react';
 import { IS_MAPBOX } from '../../config/mapEngine';
 import { OSM_STYLE, MAPBOX_SATELLITE_STYLE, HAS_SATELLITE_STYLE as HAS_MAPBOX_SATELLITE } from '../../config/mapStyles';
@@ -197,14 +197,16 @@ export const VueCollaboration = ({
     <div className="vd vc">
       {estTelephone ? (
         <>
-          {photoPassee && (
-            <header className="vdm-compacte">
+          {(photoPassee || !collaboration.image) && (
+            <header className={`vdm-compacte ${collaboration.image ? '' : 'is-fixe'}`}>
               <button type="button" onClick={onBack} aria-label="Retour aux collaborations">{iconeRetour}</button>
-              <b>{collaboration.title}</b>
+              <b>{!collaboration.image && !photoPassee ? 'Collaboration' : collaboration.title}</b>
               {lectureSeule ? <span /> : <button type="button" onClick={() => setMenuOuvert(true)} aria-label="Autres actions">{iconeMenu}</button>}
             </header>
           )}
 
+          {/* Sans photo, pas de grande zone grise : la barre compacte d'emblée. */}
+          {!collaboration.image ? <div className="vdm-sans-media" ref={refPhoto} aria-hidden="true" /> : (
           <div className="vdm-photo" ref={refPhoto}>
             <div className="vd-stage">
               {collaboration.image ? (
@@ -220,11 +222,23 @@ export const VueCollaboration = ({
               {!lectureSeule && <button type="button" className="vdm-rond" onClick={() => setMenuOuvert(true)} aria-label="Autres actions">{iconeMenu}</button>}
             </div>
           </div>
+          )}
 
-          <div className="vdm-corps">
+          <div className={`vdm-corps ${collaboration.image ? '' : 'is-sans-media'}`}>
+            <div className="vd-chips">
+              <span className={`vd-chip ${CHIP_ETAT[etat] || 'vc-chip-info'}`}><i style={{ backgroundColor: 'currentColor' }} />{formatEtat(etat)}</span>
+              {collaboration.userRole && (
+                <span className={`vd-chip ${estLeader ? 'vc-chip-lead' : 'vd-chip-neutre'}`}>
+                  {estLeader && <Crown1 size={13} variant="Bold" color="currentColor" />}Votre rôle : {formatRole(collaboration.userRole)}
+                </span>
+              )}
+            </div>
             <div className="vdm-titre">
               <h1>{collaboration.title}</h1>
-              <p>{collaboration.location}{collaboration.userRole && ` · Votre rôle : ${formatRole(collaboration.userRole)}`}</p>
+              <ul className="vdm-meta">
+                {collaboration.location && <li><Location size={15} color="currentColor" aria-hidden="true" />{collaboration.location}</li>}
+                {collaboration.joinedAt && <li><Calendar size={15} color="currentColor" aria-hidden="true" />Rejointe le {collaboration.joinedAt}</li>}
+              </ul>
             </div>
             {bandeaux}
             <section className="vcm-suivi">
@@ -236,7 +250,7 @@ export const VueCollaboration = ({
               >
                 <span>{progression} %</span>
               </span>
-              <span>
+              <span className="vdm-score-t">
                 <b>{nbFaites} tâche{nbFaites > 1 ? 's' : ''} sur {liste.length} terminée{nbFaites > 1 ? 's' : ''}</b>
                 <span>
                   {nbEnCours + nbEchouees === 0 && liste.length > 0
@@ -244,8 +258,19 @@ export const VueCollaboration = ({
                     : <>Reste {nbEnCours} en cours{nbEchouees > 0 && <em> et {nbEchouees} échouée{nbEchouees > 1 ? 's' : ''}</em>}</>}
                 </span>
                 {modificationsEnAttente && <span>{progressionSauvee} % enregistré</span>}
+                <span className="vdm-etapes" role="img" aria-label={`Suivi du signalement : ${formatEtat(etat).toLowerCase()}`}>
+                  {ETAPES.map((id, i) => (
+                    <span key={id} className={i <= indexEtape || etat === 'resolved' ? 'is-fait' : ''}>
+                      <i aria-hidden="true" />{formatEtat(id)}
+                    </span>
+                  ))}
+                </span>
               </span>
             </section>
+            {/* Le leader voit pourquoi « Résoudre » n'est pas encore proposé. */}
+            {estLeader && !lectureSeule && !peutResoudre && raisonBlocage && (
+              <p className="vcm-verrou"><Lock1 size={16} variant="Bold" color="currentColor" aria-hidden="true" />{raisonBlocage}</p>
+            )}
           </div>
 
           {menuOuvert && <FeuilleActions titre={collaboration.title} actions={actionsMenu} onClose={() => setMenuOuvert(false)} />}
@@ -370,7 +395,8 @@ export const VueCollaboration = ({
               <div className="vd-card vd-pad">
                 <h3>
                   Tâches
-                  {!lectureSeule && liste.length > 0 && (
+                  {/* Sur téléphone, « Nouvelle tâche » est dans la barre du bas. */}
+                  {!lectureSeule && !estTelephone && liste.length > 0 && (
                     <button type="button" className="vd-btn vd-btn-p vd-btn-s vc-h-btn" onClick={onCreerTache}>
                       <Add size={15} color="currentColor" />Nouvelle tâche
                     </button>
@@ -432,9 +458,11 @@ export const VueCollaboration = ({
                       <div className="vd-coords">
                         <span className="vd-coord">Lat. <b>{nombre(coords.lat, 5)}</b></span>
                         <span className="vd-coord">Long. <b>{nombre(coords.lng, 5)}</b></span>
-                        <button type="button" className="vd-btn vd-btn-g vd-btn-s" onClick={() => copier(`${coords.lat}, ${coords.lng}`, 'Coordonnées copiées')}>
-                          <Copy size={14} color="currentColor" />Copier
-                        </button>
+                        {!estTelephone && (
+                          <button type="button" className="vd-btn vd-btn-g vd-btn-s" onClick={() => copier(`${coords.lat}, ${coords.lng}`, 'Coordonnées copiées')}>
+                            <Copy size={14} color="currentColor" />Copier
+                          </button>
+                        )}
                         <a className="vd-btn vd-btn-g vd-btn-s" href={`https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}`} target="_blank" rel="noreferrer">
                           <Routing2 size={14} color="currentColor" />Itinéraire
                         </a>
@@ -532,7 +560,8 @@ export const VueCollaboration = ({
         )}
       </div>
 
-      {estTelephone && !lectureSeule && (
+      {/* Sur l'onglet Discussion, la barre laisserait la saisie dessous. */}
+      {estTelephone && !lectureSeule && ongletActif !== 'discussion' && (
         <div className="vdm-barre">
           {estLeader && peutResoudre && liste.length > 0 ? (
             <>
