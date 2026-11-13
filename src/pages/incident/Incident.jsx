@@ -192,6 +192,10 @@ export const Incident = () => {
     { revalidateFirstPage: false, focusThrottleInterval: 60000 },
   );
 
+  // Un lot de plus est demandé mais pas encore arrivé.
+  const chargementPlus = Boolean(listeContinue && lotsMobile && nbLots > lotsMobile.length);
+  const chargerPlus = React.useCallback(() => setNbLots((n) => n + 1), [setNbLots]);
+
   const reponse = listeContinue
     ? (lotsMobile?.length ? { count: lotsMobile[0]?.count ?? 0, results: lotsMobile.flatMap((l) => l?.results || []) } : undefined)
     : rawIncidents;
@@ -289,11 +293,19 @@ export const Incident = () => {
           )}
 
           <div className={workspaceClass}>
-            <BandeauErreur
-              erreur={listeContinue ? erreurMobile : erreurIncidents}
-              onReessayer={listeContinue ? mutateMobile : mutateIncidents}
-              message="Impossible de charger les signalements. La liste affichée peut ne plus être à jour."
-            />
+            {/* Sur téléphone, l'erreur descend du haut de l'écran en alerte
+                flottante, au-dessus de la liste, au lieu de la pousser. */}
+            {(() => {
+              const erreur = listeContinue ? erreurMobile : erreurIncidents;
+              const bandeau = (
+                <BandeauErreur
+                  erreur={erreur}
+                  onReessayer={listeContinue ? mutateMobile : mutateIncidents}
+                  message="Impossible de charger les signalements. La liste affichée peut ne plus être à jour."
+                />
+              );
+              return estTelephone ? (erreur && <div className="sgm-erreur">{bandeau}</div>) : bandeau;
+            })()}
             {/* Liste des incidents (Pleine largeur) */}
             <IncidentList
               incidents={incidents}
@@ -316,7 +328,8 @@ export const Incident = () => {
               setVue={setVue}
               isMobile={isMobile}
               estTelephone={estTelephone}
-              onPlus={() => setNbLots(nbLots + 1)}
+              onPlus={chargerPlus}
+              chargementPlus={chargementPlus}
             />
           </div>
         </div>

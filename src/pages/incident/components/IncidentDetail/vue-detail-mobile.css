@@ -309,5 +309,56 @@
   .vd-agir .join-modal-textarea { font-size: 16px; }
 }
 
+/* ============================================================
+   Refonte du 2026-11-13 : fiche sans média, méta en lignes,
+   étapes, carte « Prise en charge », assistant IA dans la barre.
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Sans média : la barre compacte d'emblée, pas de grande zone vide. */
+  .vdm-sans-media { height: calc(env(safe-area-inset-top, 0px) + 52px); }
+  .vdm-corps.is-sans-media { margin-top: 0; padding-top: 12px; border-radius: 0; }
+  .vdm-compacte.is-fixe { animation: none; }
+
+  /* Lieu, date, auteur : une ligne chacun. */
+  .vdm-meta { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 13.5px; line-height: 1.45; color: #5B6472; }
+  .vdm-meta li { display: flex; align-items: flex-start; gap: 8px; }
+  .vdm-meta svg { flex-shrink: 0; margin-top: 2px; color: #8A929E; }
+
+  /* Score : mention IA et étapes du suivi. */
+  .vdm-score-t { gap: 6px; min-width: 0; }
+  .vdm-score-t .vdm-score-ia { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--color-primary-text); }
+  .vdm-etapes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
+  .vdm-score-t .vdm-etapes > span { display: flex; flex-direction: column; gap: 5px; overflow: hidden; font-size: 11.5px; color: #5B6472; white-space: nowrap; text-overflow: ellipsis; }
+  .vdm-etapes i { height: 4px; border-radius: 99px; background: #E4E7EC; }
+  .vdm-score-t .vdm-etapes .is-fait { font-weight: 600; color: #1A1C1E; }
+  .vdm-etapes .is-fait i { background: var(--color-primary-text); }
+
+  /* Prise en charge : organisation, mode, rôle, demande. */
+  .vdm-prise { display: flex; flex-direction: column; padding: 4px 14px; border-radius: 16px; background: #fff; }
+  .vdm-prise-l { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .vdm-prise-l + .vdm-prise-l { border-top: 1px solid #F1F3F6; }
+  .vdm-prise-l > span:first-child { flex-shrink: 0; color: #5B6472; }
+  .vdm-prise-l > b { min-width: 0; overflow: hidden; font-weight: 600; text-align: right; white-space: nowrap; text-overflow: ellipsis; }
+  .vdm-prise-l .vd-chip { margin: 0; }
+
+  /* Assistant IA dans la barre d'action */
+  .vdm-ia {
+    position: relative;
+    width: 52px;
+    min-height: 52px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 14px;
+    background: #1A1C1E;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .vdm-ia:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .vdm-ia-point { position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border: 2px solid #1A1C1E; border-radius: 50%; background: #38BDF8; }
+}
+
 @keyframes vdm-monte { from { transform: translateY(100%); } }
 @keyframes vdm-descend { to { transform: translateY(100%); } }

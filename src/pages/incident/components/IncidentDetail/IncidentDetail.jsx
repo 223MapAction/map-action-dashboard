@@ -925,11 +925,14 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           setDetailMapStyle={setDetailMapStyle}
           ouvrirImage={() => setIsImageModalOpen(true)}
           onToast={afficherToast}
+          onOuvrirIA={basculerChat}
+          iaDisponible={Boolean(pred)}
         />
         {toast && <div key={toast.n} className="vd-toast" role="status">{toast.texte}</div>}
 
-        {/* Assistant IA : bouton flottant + panneau */}
-        <button
+        {/* Assistant IA : bouton flottant + panneau. Sur téléphone, quand la
+            barre d'action est là, le bouton vit dans cette barre. */}
+        {!(estTelephone && showInvolvementButton) && <button
           type="button"
           className={`vd-fab ${chatOpen && !chatClosing ? 'is-open' : ''}`}
           onClick={basculerChat}
@@ -939,7 +942,7 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           <span className="vd-fab-ic vd-fab-msg"><Message size={26} variant="Bold" color="currentColor" /></span>
           <span className="vd-fab-ic vd-fab-x"><CloseCircle size={26} variant="Bold" color="currentColor" /></span>
           {pred && !chatOpen && <span className="vd-fab-dot" aria-hidden="true" />}
-        </button>
+        </button>}
 
         {chatOpen && estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
         {chatOpen && (
