@@ -18,6 +18,7 @@ import { CarteSignalementsMapLibre } from './CarteSignalementsMapLibre';
 import { CarteSignalementsMapbox } from './CarteSignalementsMapbox';
 import { ETATS, etatDe, nomEtatPluriel, quandRelatif, auteurDe, priseEnChargeDe } from './formatSignalement';
 import { FeuilleActions } from '../../mobile/FeuilleActions';
+import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
 import './signalements.css';
 import '../../mobile/mobile.css';
 
@@ -41,8 +42,8 @@ const Gravite = ({ niveau, petite = false }) => (
 );
 
 /** Badge de gravité affiché dans les colonnes étendu (renduCarte / rendu). */
-const BadgeGravite = ({ incident }) => (
-  <Gravite niveau={gravite(incident)} petite />
+const BadgeGravite = ({ incident, pred = null }) => (
+  <Gravite niveau={gravite(incident, pred)} petite />
 );
 
 const Etat = ({ etat, petite = false, surPhoto = false }) => {
@@ -115,17 +116,23 @@ export const IncidentList = ({
   const isAdmin = !isSuperAdmin && getAccessibleNavIds(user).includes('incidents');
   const monOrgId = user?.organisation_member;
 
-  const lignes = useMemo(() => incidents.map((incident) => ({
-    incident,
-    niveau: gravite(incident),
-    // Ni le titre ni la description ne sont coupés : on les affiche en entier.
-    titre: titreIncident(incident, Infinity),
-    description: descriptionPleine(incident),
-    lieu: lieuIncident(incident),
-    charge: priseEnChargeDe(incident, monOrgId),
-    auteur: auteurDe(incident),
-    quand: quandRelatif(incident.created_at),
-  })), [incidents, monOrgId]);
+  const predictionsMap = useIncidentPredictions(incidents);
+
+  const lignes = useMemo(() => incidents.map((incident) => {
+    const pred = predictionsMap[incident.id] || null;
+    return {
+      incident,
+      pred,
+      niveau: gravite(incident, pred),
+      // Ni le titre ni la description ne sont coupés : on les affiche en entier.
+      titre: titreIncident(incident, Infinity),
+      description: descriptionPleine(incident),
+      lieu: lieuIncident(incident),
+      charge: priseEnChargeDe(incident, monOrgId),
+      auteur: auteurDe(incident),
+      quand: quandRelatif(incident.created_at),
+    };
+  }), [incidents, monOrgId, predictionsMap]);
 
   const listeActions = (incident, charge) => [
     { id: 'view', label: 'Voir le détail', icon: Eye, onSelect: () => onSelectIncident?.(incident) },

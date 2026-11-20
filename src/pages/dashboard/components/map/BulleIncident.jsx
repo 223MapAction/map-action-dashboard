@@ -2,7 +2,7 @@ import useSWR from 'swr';
 import { CloseCircle } from 'iconsax-react';
 import { ShimmerThumbnail } from 'react-shimmer-effects';
 import { useNavigate } from 'react-router-dom';
-import { getIncidentService } from '../../../incident/service/incident_service';
+import { getIncidentService, getIncidentPredictionService } from '../../../incident/service/incident_service';
 import { titreIncident } from '../../../../utils/titreIncident';
 import { gravite, couleurGravite, couleurTexteGravite, libelleGravite } from '../../../../utils/gravite';
 
@@ -35,8 +35,12 @@ export const BulleIncident = ({ incident, onApercu, onFermer }) => {
   const { data: detail } = useSWR(incident?.id ? `/incident/${incident.id}` : null, () =>
     getIncidentService(incident.id)
   );
+  const { data: prediction } = useSWR(incident?.id ? `/Incidentprediction/${incident.id}` : null, () =>
+    getIncidentPredictionService(incident.id)
+  );
+  const pred = Array.isArray(prediction) && prediction.length > 0 ? prediction[0] : (prediction || null);
   const i = { ...incident, ...(detail || {}) };
-  const niveau = gravite(i);
+  const niveau = gravite(i, pred);
   const statut = STATUTS[i.etat] ?? STATUTS.declared;
   const photo = i.thumbnail || i.photo;
 

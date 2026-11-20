@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
+import useSWR from 'swr';
 import { CloseCircle } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerTitle, ShimmerText } from 'react-shimmer-effects';
 import { titreIncident, descriptionRedondante } from '../../../../utils/titreIncident';
 import { gravite, couleurGravite, couleurTexteGravite, libelleGravite } from '../../../../utils/gravite';
+import { getIncidentPredictionService } from '../../../incident/service/incident_service';
 
 const STATUTS = {
   declared: { libelle: 'Déclaré', classe: 'bulle-statut-declare' },
@@ -39,8 +41,15 @@ const dateLongue = (iso) =>
  * Photo en tête, pastilles, frise verticale de suivi, informations, médias,
  * organisations mobilisées, et l'action principale selon l'état.
  */
-export const PanneauDetail = ({ incident, isLoading, ouvert, etapes, coordonnees, onFermer, onOuvrirFiche, mobile = false }) => {
+export const PanneauDetail = ({ incident, prediction = null, isLoading, ouvert, etapes, coordonnees, onFermer, onOuvrirFiche, mobile = false }) => {
   const fermerRef = useRef(null);
+
+  const { data: swrPrediction } = useSWR(
+    ouvert && incident?.id && !prediction ? `/Incidentprediction/${incident.id}` : null,
+    () => getIncidentPredictionService(incident.id),
+    { revalidateOnFocus: false }
+  );
+  const pred = prediction || (Array.isArray(swrPrediction) && swrPrediction.length > 0 ? swrPrediction[0] : (swrPrediction || null));
 
   useEffect(() => {
     if (!ouvert) return undefined;
@@ -55,7 +64,7 @@ export const PanneauDetail = ({ incident, isLoading, ouvert, etapes, coordonnees
   const pret = !isLoading && incident;
   const etat = incident?.etat || 'declared';
   const statut = STATUTS[etat] ?? STATUTS.declared;
-  const niveau = pret ? gravite(incident) : 'low';
+  const niveau = pret ? gravite(incident, pred) : 'low';
   const indexEtape = Math.max(0, etapes.findIndex((e) => e.id === (etat === 'in_progress' ? 'taken_into_account' : etat)));
   const organisation =
     (typeof incident?.taken_by_organisation === 'object' && incident?.taken_by_organisation?.name) ||

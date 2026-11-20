@@ -34,3 +34,5 @@ CLAUDE.md
 node_modules
 
 public/.htaccess
+.vercel
+.env*
