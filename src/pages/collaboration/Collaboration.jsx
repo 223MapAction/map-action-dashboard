@@ -3,6 +3,7 @@ import { FiltersBar } from '../../components/molecules/FiltersBar';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import { useSidebarState } from '../../hooks/useSidebarState';
 import Pagination from '../../components/molecules/Pagination';
 import { getIncidentsService } from '../incident/service/incident_service';
@@ -37,6 +38,9 @@ import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { useSocketCollaborations } from '../../hooks/useSocketCollaborations';
 import { useEstTelephone } from '../incident/mobile/useEstTelephone';
 import { FeuilleBasse } from './mobile/FeuilleBasse';
+import { ChargerPlus } from '../incident/mobile/ChargerPlus';
+import { ChoixPeriode } from '../incident/mobile/ChoixPeriode';
+import { versIso, depuisIso, libellePeriode } from '../incident/components/IncidentList/periode';
 import '../incident/components/IncidentDetail/vue-detail-mobile.css';
 import './mobile/collaboration-mobile.css';
 
@@ -232,9 +236,33 @@ export const Collaboration = () => {
   );
 
   // Utiliser useSWR pour charger les collaborations
-  const { data: swrData, error: swrError, isLoading, mutate } = useSWR(
-    // Sur À traiter (téléphone), cette route à 10 s ne sert à rien.
-    estTelephone && activeTab !== 'collaborations' ? null : ['collaborations', page, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
+  // Sur téléphone, la liste s'allonge au lieu de paginer : chaque lot de 20
+  // est demandé à la suite des précédents, qui restent en mémoire. La route
+  // coûte 8 à 10 s ; redemander ce qui est déjà affiché serait payer deux fois.
+  const listeContinue = estTelephone && activeTab === 'collaborations';
+  const optionsSWR = { revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false };
+  const {
+    data: lots,
+    error: erreurLots,
+    isLoading: chargementLots,
+    size: nbLots,
+    setSize: setNbLots,
+    mutate: mutateLots,
+  } = useSWRInfinite(
+    (index, precedent) => {
+      if (!listeContinue) return null;
+      if (precedent && (precedent.results || []).length < pageSize) return null;
+      return ['collaborations-mobile', index + 1, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter];
+    },
+    ([, p]) => getCollaborationsService(buildParams(p)),
+    { ...optionsSWR, revalidateFirstPage: false },
+  );
+  const chargementPlus = Boolean(listeContinue && lots && nbLots > lots.length);
+  const chargerPlus = useCallback(() => setNbLots((n) => n + 1), [setNbLots]);
+
+  const { data: donneesPage, error: erreurPage, isLoading: chargementPage, mutate: mutatePage } = useSWR(
+    // Sur téléphone, la liste continue ci-dessus prend le relais.
+    estTelephone ? null : ['collaborations', page, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
     () => getCollaborationsService(buildParams(page)),
     // Cette route met 8 a 10 secondes. Les revalidations automatiques de SWR —
     // au focus de la fenetre, a la reconnexion, ou parce que la donnee est
@@ -242,8 +270,15 @@ export const Collaboration = () => {
     // l'utilisateur ait rien demande. Mesure : un second appel identique
     // partait exactement a la fin du premier. Le rafraichissement reste
     // possible, mais seulement quand on revient sur l'onglet.
-    { revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
+    optionsSWR
   );
+
+  const swrData = useMemo(() => (listeContinue
+    ? (lots?.length ? { count: lots[0]?.count ?? 0, results: lots.flatMap((l) => l?.results || (Array.isArray(l) ? l : [])) } : undefined)
+    : donneesPage), [listeContinue, lots, donneesPage]);
+  const swrError = listeContinue ? erreurLots : erreurPage;
+  const isLoading = listeContinue ? chargementLots : chargementPage;
+  const mutate = listeContinue ? mutateLots : mutatePage;
 
   // Le prechargement de la page suivante est suspendu. Il avait du sens sur une
   // route rapide ; mesuree entre 7 et 12 secondes, elle fait payer a chacun un
@@ -282,7 +317,10 @@ export const Collaboration = () => {
     // d'ailleurs (autre onglet, autre appareil).
     mutate().then((frais) => {
       if (!id || !frais) return;
-      const liste = frais.results || (Array.isArray(frais) ? frais : []);
+      // Liste continue : `frais` est la liste des lots reçus.
+      const liste = Array.isArray(frais) && frais.some((l) => l?.results)
+        ? frais.flatMap((l) => l?.results || [])
+        : frais.results || (Array.isArray(frais) ? frais : []);
       const ligne = liste.find((c) => String(c.id) === String(id));
       if (!ligne || ligne.status !== statut) return;
       setStatutsTempsReel((prec) => {
@@ -434,6 +472,15 @@ export const Collaboration = () => {
   const nbTotal = swrData?.count ?? collaborations.length;
   const nbATraiter = (nbDemandes || 0) + (nbSuggestions || 0);
   const nbFiltresTelephone = [Boolean(roleFilter), Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
+  const periodeTelephone = { debut: versIso(dateFrom), fin: versIso(dateTo) };
+  const setPeriodeTelephone = ({ debut, fin }) => setDateRange([depuisIso(debut), depuisIso(fin)]);
+  const effacerFiltresTelephone = () => { setRoleFilter(''); setIncidentFilter(''); resetDateRange(); };
+  const [generationPeriode, setGenerationPeriode] = useState(0);
+  const titreSignalementFiltre = incidentFilter ? (incidentsList.find((i) => String(i.id) === String(incidentFilter))?.title || 'Un signalement') : '';
+  const totalTelephone = ongletTelephone === 'atraiter'
+    ? (nbATraiter ? `${nbATraiter} demande${nbATraiter > 1 ? 's' : ''} à traiter` : '')
+    : isLoading ? 'Chargement…'
+      : `${nbTotal.toLocaleString('fr-FR')} collaboration${nbTotal > 1 ? 's' : ''} ${ongletTelephone === 'terminees' ? `terminée${nbTotal > 1 ? 's' : ''}` : 'en cours'}`;
 
   return (
     <div className="collaboration-layout">
@@ -454,15 +501,29 @@ export const Collaboration = () => {
 
         <main className="collaboration-content">
           <div className="collab-page vl">
-            <BandeauErreur
-              erreur={swrError}
-              onReessayer={mutate}
-              message="Impossible de charger vos collaborations. La liste affichée peut ne plus être à jour."
-            />
+            {/* Sur téléphone, l'erreur descend du haut de l'écran en alerte
+                flottante, au lieu de pousser la liste. */}
+            {estTelephone ? swrError && (
+              <div className="sgm-erreur">
+                <BandeauErreur
+                  erreur={swrError}
+                  onReessayer={mutate}
+                  message="Impossible de charger vos collaborations. La liste affichée peut ne plus être à jour."
+                />
+              </div>
+            ) : (
+              <BandeauErreur
+                erreur={swrError}
+                onReessayer={mutate}
+                message="Impossible de charger vos collaborations. La liste affichée peut ne plus être à jour."
+              />
+            )}
 
             <header className="vl-head">
               <h1>Collaborations</h1>
-              <p>Les signalements sur lesquels votre organisation agit avec d'autres.</p>
+              {estTelephone
+                ? totalTelephone && <p className="vlm-total">{totalTelephone}</p>
+                : <p>Les signalements sur lesquels votre organisation agit avec d'autres.</p>}
             </header>
 
             {estTelephone && (
@@ -472,8 +533,29 @@ export const Collaboration = () => {
                   <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Titre, organisation ou lieu" aria-label="Rechercher une collaboration" />
                 </label>
                 {activeTab === 'collaborations' && (
-                  <button type="button" className={`vlm-filtre ${nbFiltresTelephone ? 'is-on' : ''}`} onClick={() => setFiltresTelephone(true)} aria-label={`Filtres${nbFiltresTelephone ? `, ${nbFiltresTelephone} actifs` : ''}`}>
+                  <button type="button" className={`vlm-filtre ${nbFiltresTelephone ? 'is-on' : ''}`} onClick={() => setFiltresTelephone(true)} aria-label={`Filtres${nbFiltresTelephone ? `, ${nbFiltresTelephone} actif${nbFiltresTelephone > 1 ? 's' : ''}` : ''}`}>
                     <Filter size={18} color="currentColor" aria-hidden="true" />
+                    {nbFiltresTelephone > 0 && <span className="vlm-filtre-n" aria-hidden="true">{nbFiltresTelephone}</span>}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {estTelephone && activeTab === 'collaborations' && nbFiltresTelephone > 0 && (
+              <div className="sgm-resume vlm-resume">
+                {roleFilter && (
+                  <button type="button" className="sgm-puce" onClick={() => setRoleFilter('')} aria-label={`Retirer le filtre ${libelleRole(roleFilter)}`}>
+                    {libelleRole(roleFilter)}<i aria-hidden="true">×</i>
+                  </button>
+                )}
+                {incidentFilter && (
+                  <button type="button" className="sgm-puce" onClick={() => setIncidentFilter('')} aria-label={`Retirer le filtre ${titreSignalementFiltre}`}>
+                    <span className="vlm-puce-t">{titreSignalementFiltre}</span><i aria-hidden="true">×</i>
+                  </button>
+                )}
+                {(dateFrom || dateTo) && (
+                  <button type="button" className="sgm-puce" onClick={resetDateRange} aria-label={`Retirer la période ${libellePeriode(periodeTelephone)}`}>
+                    {libellePeriode(periodeTelephone)}<i aria-hidden="true">×</i>
                   </button>
                 )}
               </div>
@@ -517,53 +599,48 @@ export const Collaboration = () => {
                   <>
                     {filtresTelephone && (
                       <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresTelephone(false)}>
-                        <div className="vlm-filtres-tete">
-                          <button type="button" onClick={() => { setRoleFilter(''); setIncidentFilter(''); resetDateRange(); }}>Tout effacer</button>
-                          <b>Filtres</b>
-                          <button type="button" onClick={() => setFiltresTelephone(false)}>Terminé</button>
-                        </div>
-                        <div className="vlm-filtres">
-                          <fieldset className="vlm-champ">
-                            <legend>Mon rôle</legend>
-                            <div className="vlm-seg">
-                              {[['', 'Tous'], ['leader', 'Leader'], ['contributor', 'Contrib.'], ['observer', 'Observ.']].map(([cle, libelle]) => (
-                                <button key={cle} type="button" className={roleFilter === cle ? 'is-on' : ''} aria-pressed={roleFilter === cle} onClick={() => setRoleFilter(cle)}>{libelle}</button>
+                        <header className="sgm-filtres-tete">
+                          <button type="button" className="sgm-lien" onClick={() => { effacerFiltresTelephone(); setGenerationPeriode((g) => g + 1); }}>Tout effacer</button>
+                          <h2>Filtres</h2>
+                          <button type="button" className="sgm-fermer" onClick={() => setFiltresTelephone(false)} aria-label="Fermer les filtres">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                          </button>
+                        </header>
+                        <div className="sgm-filtres-corps vlm-filtres-corps">
+                          <div>
+                            <h3 id="vlm-titre-role">Mon rôle</h3>
+                            <div className="sgm-segs" role="radiogroup" aria-labelledby="vlm-titre-role">
+                              {[['', 'Tous'], ['leader', 'Leader'], ['contributor', 'Contributeur'], ['observer', 'Observateur']].map(([cle, libelle]) => (
+                                <button key={cle || 'tous'} type="button" role="radio" aria-checked={roleFilter === cle} onClick={() => setRoleFilter(cle)}>{libelle}</button>
                               ))}
                             </div>
-                          </fieldset>
-                          <label className="vlm-champ">
-                            Signalement
+                          </div>
+                          <div>
+                            <h3 id="vlm-titre-signalement">Signalement</h3>
                             <select
+                              className="vlm-select"
                               value={incidentFilter}
                               onChange={(e) => setIncidentFilter(e.target.value)}
                               onMouseDown={() => setListeSignalementsDemandee(true)}
                               onFocus={() => setListeSignalementsDemandee(true)}
+                              aria-labelledby="vlm-titre-signalement"
                               aria-busy={chargementListeSignalements}
                             >
                               <option value="">Tous les signalements</option>
                               {chargementListeSignalements && <option value="" disabled>Chargement des signalements...</option>}
                               {incidentsList.map((inc) => <option key={inc.id} value={inc.id}>{inc.title}</option>)}
                             </select>
-                          </label>
-                          <div className="vlm-champ">
-                            Période
-                            <DatePicker
-                              selectsRange
-                              startDate={dateFrom}
-                              endDate={dateTo}
-                              onChange={(update) => setDateRange(update)}
-                              locale="fr"
-                              dateFormat="dd MMM yyyy"
-                              placeholderText="Période…"
-                              isClearable={false}
-                              withPortal
-                              shouldCloseOnSelect={false}
-                              className="collab-date-input"
-                              calendarClassName="collab-datepicker"
-                              portalId="collab-datepicker-portal"
-                            />
+                          </div>
+                          <div>
+                            <h3 id="vlm-titre-periode">Période</h3>
+                            <ChoixPeriode key={generationPeriode} periode={periodeTelephone} setPeriode={setPeriodeTelephone} idTitre="vlm-titre-periode" />
                           </div>
                         </div>
+                        <footer className="sgm-filtres-pied">
+                          <button type="button" className="sgm-voir" onClick={() => setFiltresTelephone(false)}>
+                            {isLoading ? 'Voir les collaborations' : `Voir ${nbTotal.toLocaleString('fr-FR')} collaboration${nbTotal > 1 ? 's' : ''}`}
+                          </button>
+                        </footer>
                       </FeuilleBasse>
                     )}
                   </>
@@ -708,7 +785,11 @@ export const Collaboration = () => {
                 </div>
                 )}
 
-                {isLoading ? (
+                {isLoading && estTelephone ? (
+                  <div className="vl-grid" aria-busy="true">
+                    {[0, 1, 2].map((n) => <div key={n} className="sgm-squelette" aria-hidden="true"><i /><div><span /><span /><span /></div></div>)}
+                  </div>
+                ) : isLoading ? (
                   <div className={vue === 'cartes' ? 'vl-grid' : 'vl-rows'} aria-busy="true">
                     {[...Array(vue === 'cartes' ? 6 : 5)].map((_, i) => (
                       vue === 'cartes' ? (
@@ -737,6 +818,9 @@ export const Collaboration = () => {
                         ? 'Modifiez la recherche ou les filtres pour élargir les résultats.'
                         : "Vous ne participez encore à aucune collaboration. Depuis un signalement, choisissez « Lancer une collaboration » ou acceptez une invitation dans l'onglet Demandes."}
                     </p>
+                    {estTelephone && nbFiltresTelephone > 0 && (
+                      <button type="button" className="sgm-vide-effacer" onClick={effacerFiltresTelephone}>Effacer les filtres</button>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -754,15 +838,24 @@ export const Collaboration = () => {
                               tabIndex={0}
                               aria-label={`Ouvrir la collaboration : ${c.title}`}
                             >
-                              <CollabCardCover className="vl-cover" image={c.image}>
-                                {!c.image && <Gallery size={26} color="currentColor" aria-hidden="true" />}
-                                <span className={`vd-chip vl-chip ${s.classe}`}><i style={{ backgroundColor: 'currentColor' }} />{s.libelle}</span>
-                                {c.userRole && <span className="vd-chip vl-role">{c.userRole === 'leader' && <Crown1 size={12} variant="Bold" color="currentColor" />}{libelleRole(c.userRole)}</span>}
-                              </CollabCardCover>
+                              {/* Téléphone : l'onglet dit déjà En cours ou Terminées,
+                                  la photo ne porte que le rôle ; sans photo, pas de
+                                  zone grise, le rôle passe dans le corps. */}
+                              {(!estTelephone || c.image) && (
+                                <CollabCardCover className="vl-cover" image={c.image}>
+                                  {!c.image && <Gallery size={26} color="currentColor" aria-hidden="true" />}
+                                  {!estTelephone && <span className={`vd-chip vl-chip ${s.classe}`}><i style={{ backgroundColor: 'currentColor' }} />{s.libelle}</span>}
+                                  {c.userRole && <span className="vd-chip vl-role">{c.userRole === 'leader' && <Crown1 size={12} variant="Bold" color="currentColor" />}{libelleRole(c.userRole)}</span>}
+                                </CollabCardCover>
+                              )}
                               <div className="vl-card-body">
-                                <span className="vl-lieu"><Location size={13} color="currentColor" />{c.location}</span>
+                                {estTelephone && !c.image && c.userRole && (
+                                  <span className="vd-chip vl-role vlm-role-corps">{c.userRole === 'leader' && <Crown1 size={12} variant="Bold" color="currentColor" />}{libelleRole(c.userRole)}</span>
+                                )}
+                                {!(estTelephone && !c.image) && <span className="vl-lieu"><Location size={13} color="currentColor" />{c.location}</span>}
                                 <h3 className="vl-title">{c.title}</h3>
                                 <span className="vl-orgs">
+                                  {estTelephone && !c.image && c.location && <>{c.location} · </>}
                                   {c.leader && <>Leader : <b>{c.leader}</b> · </>}
                                   {c.participantsCount} {c.participantsCount > 1 ? 'participants' : 'participant'}
                                 </span>
@@ -816,12 +909,24 @@ export const Collaboration = () => {
                       </div>
                     )}
 
-                    <Pagination
-                      page={page}
-                      pageSize={pageSize}
-                      count={swrData?.count || filtered.length}
-                      onChange={setPage}
-                    />
+                    {estTelephone ? (
+                      collaborations.length < (swrData?.count || 0) && (
+                        <ChargerPlus
+                          chargement={chargementPlus}
+                          onPlus={chargerPlus}
+                          reste={Math.min(pageSize, (swrData?.count || 0) - collaborations.length)}
+                          nom="collaborations"
+                          feminin
+                        />
+                      )
+                    ) : (
+                      <Pagination
+                        page={page}
+                        pageSize={pageSize}
+                        count={swrData?.count || filtered.length}
+                        onChange={setPage}
+                      />
+                    )}
                   </>
                 )}
               </>
@@ -830,7 +935,9 @@ export const Collaboration = () => {
                 <CollaborationRequests embedded aTraiter filtreTexte={search} onNombre={setNbDemandes} />
                 <SuggestRequests embedded aTraiter filtreTexte={search} onNombre={setNbSuggestions} />
                 {(nbDemandes === null || nbSuggestions === null) && (
-                  <div className="vlm-squelette" aria-busy="true" aria-label="Chargement"><span /><span /></div>
+                  <div className="vlm-squelettes" aria-busy="true" aria-label="Chargement">
+                    {[0, 1].map((n) => <div key={n} className="vlm-squelette"><i /><div><span /><span /><span /></div></div>)}
+                  </div>
                 )}
                 {nbDemandes === 0 && nbSuggestions === 0 && (
                   <div className="vd-card vd-empty vl-empty">

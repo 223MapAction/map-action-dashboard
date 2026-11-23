@@ -116,6 +116,12 @@
   /* Jaune */
 }
 
+/* Pas encore évalué : gris, pour ne pas le confondre avec « faible ». */
+.incident-marker.severity-active-unknown .incident-marker-dot,
+.incident-marker.severity-active-unknown .incident-marker-pulse {
+  background-color: var(--color-severity-unknown);
+}
+
 .incident-marker.severity-resolved-others .incident-marker-dot,
 .incident-marker.severity-resolved-others .incident-marker-pulse {
   background-color: var(--color-primary);
@@ -1292,6 +1298,7 @@
 .incident-group-item.severity-active-high .incident-group-dot { background: var(--color-severity-high); }
 .incident-group-item.severity-active-medium .incident-group-dot { background: var(--color-severity-medium); }
 .incident-group-item.severity-active-low .incident-group-dot { background: var(--color-severity-low); }
+.incident-group-item.severity-active-unknown .incident-group-dot { background: var(--color-severity-unknown); }
 .incident-group-item.severity-resolved-others .incident-group-dot { background: var(--color-primary); }
 .incident-group-item.severity-resolved-mine .incident-group-dot { background: var(--color-success); }
 

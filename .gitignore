@@ -36,3 +36,6 @@ node_modules
 public/.htaccess
 .vercel
 .env*
+
+# Ancien dossier Vercel, ne doit pas revenir
+/dashboard plan b/

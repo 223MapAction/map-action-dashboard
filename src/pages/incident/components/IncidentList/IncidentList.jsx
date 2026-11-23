@@ -5,11 +5,9 @@ import { BlurryImage } from '../../../../components/atoms/BlurryImage';
 import { useIncidentModalContext } from '../../modale/IncidentModalContext';
 import { authService } from '../../../auth/services/authService';
 import { isSuperAdmin as checkSuperAdmin, getAccessibleNavIds } from '../../../../utils/permissions';
-import { retryIncidentPredictionService } from '../../service/incident_service';
-import { logger } from '../../../../utils/logger';
 import Pagination from '../../../../components/molecules/Pagination';
 import { TableActionsMenu } from '../../../../components/molecules/TableActionsMenu';
-import { gravite, libelleGravite, couleurGravite } from '../../../../utils/gravite';
+import { gravite, libelleGravite } from '../../../../utils/gravite';
 import { titreIncident, descriptionRedondante } from '../../../../utils/titreIncident';
 import { lieuIncident } from '../../../../utils/lieuIncident';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
@@ -18,9 +16,14 @@ import { CarteSignalementsMapLibre } from './CarteSignalementsMapLibre';
 import { CarteSignalementsMapbox } from './CarteSignalementsMapbox';
 import { ETATS, etatDe, nomEtatPluriel, quandRelatif, auteurDe, priseEnChargeDe } from './formatSignalement';
 import { FeuilleActions } from '../../mobile/FeuilleActions';
-import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
+import { FiltresSignalements } from '../../mobile/FiltresSignalements';
+import { ChargerPlus } from '../../mobile/ChargerPlus';
+import { FiltrePeriode } from './FiltrePeriode';
+import { libellePeriode } from './periode';
 import './signalements.css';
 import '../../mobile/mobile.css';
+
+const etatLibelle = (valeur) => ETATS.find((e) => e.valeur === valeur)?.libelle || '';
 
 const CarteSignalements = IS_MAPBOX ? CarteSignalementsMapbox : CarteSignalementsMapLibre;
 
@@ -77,6 +80,56 @@ const OngletsEtat = ({ valeur, onChange, count, chargement, variante = 'souligne
   </div>
 );
 
+/** Recherche et bouton Filtres, collés en haut de l'écran au défilement. */
+const BarreTelephone = ({ search, setSearch, nbFiltres, onFiltres, resume }) => {
+  const repere = useRef(null);
+  const [colle, setColle] = useState(false);
+
+  useEffect(() => {
+    const el = repere.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const obs = new IntersectionObserver(([e]) => setColle(!e.isIntersecting), { threshold: 0 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <>
+      <span ref={repere} className="sgm-repere" aria-hidden="true" />
+      <div className={`sgm-barre ${colle ? 'is-colle' : ''}`}>
+        <label className="sgm-recherche">
+          <SearchNormal1 size={17} color="currentColor" aria-hidden="true" />
+          <input
+            type="search"
+            enterKeyHint="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher"
+            aria-label="Rechercher un signalement"
+          />
+          {search && (
+            <button type="button" className="sgm-effacer" onClick={() => setSearch('')} aria-label="Effacer la recherche">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          )}
+        </label>
+        <button
+          type="button"
+          className={`sgm-bouton-filtres ${nbFiltres > 0 ? 'is-actif' : ''}`}
+          onClick={onFiltres}
+          aria-label={nbFiltres > 0 ? `Filtres, ${nbFiltres} actif${nbFiltres > 1 ? 's' : ''}` : 'Filtres'}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
+          </svg>
+          {nbFiltres > 0 && <span className="sgm-bouton-filtres-n" aria-hidden="true">{nbFiltres}</span>}
+        </button>
+      </div>
+      {resume}
+    </>
+  );
+};
+
 const Recherche = ({ valeur, onChange, placeholder = 'Titre, description ou quartier…' }) => (
   <label className="sg-recherche">
     <SearchNormal1 size={16} color="currentColor" aria-hidden="true" />
@@ -98,6 +151,8 @@ export const IncidentList = ({
   setSearch,
   statusFilter,
   setStatusFilter,
+  periode,
+  setPeriode,
   page,
   setPage,
   pageSize,
@@ -107,9 +162,12 @@ export const IncidentList = ({
   isMobile,
   estTelephone = false,
   onPlus,
+  chargementPlus = false,
 }) => {
   const { openDeleteModal, openAssignModal } = useIncidentModalContext();
   const [feuille, setFeuille] = useState(null);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
+  const nbFiltres = (statusFilter ? 1 : 0) + (periode?.debut && periode?.fin ? 1 : 0);
   const user = authService.getCurrentUser();
   const isSuperAdmin = checkSuperAdmin(user);
   // « admin » ici = peut piloter les incidents sans être super_admin.
@@ -150,14 +208,19 @@ export const IncidentList = ({
   const nomEtat = nomEtatPluriel(statusFilter);
   const annonce = isLoading
     ? 'Chargement…'
-    : `${count} signalement${count > 1 ? 's' : ''}${nomEtat ? ` ${nomEtat}` : ''}${search ? ` pour « ${search} »` : ''}`;
+    : `${count} signalement${count > 1 ? 's' : ''}${nomEtat ? ` ${nomEtat}` : ''}${search ? ` pour « ${search} »` : ''}${periode?.debut && periode?.fin ? ` · ${libellePeriode(periode).toLowerCase()}` : ''}`;
 
   const vide = !isLoading && lignes.length === 0;
   const etatVide = (
     <div className="sg-vide">
       <span className="sg-vide-ic"><SearchNormal1 size={22} color="currentColor" /></span>
       <b>Aucun signalement</b>
-      <p>{search ? 'Aucun résultat pour cette recherche. Essayez un autre mot ou un autre état.' : "Il n'y a aucun signalement dans cet état pour le moment."}</p>
+      <p>{search ? 'Aucun résultat pour cette recherche. Essayez un autre mot ou un autre état.' : periode?.debut ? 'Aucun signalement sur cette période. Élargissez la plage ou revenez à toutes les dates.' : "Il n'y a aucun signalement dans cet état pour le moment."}</p>
+      {estTelephone && nbFiltres > 0 && (
+        <button type="button" className="sgm-vide-effacer" onClick={() => { setStatusFilter(''); setPeriode({ debut: '', fin: '' }); }}>
+          Effacer les filtres
+        </button>
+      )}
     </div>
   );
 
@@ -166,7 +229,11 @@ export const IncidentList = ({
       <div className="sg-tete">
         <div>
           <h1 id="sg-titre">Signalements</h1>
-          {vue !== 'carte' && <p>Les problèmes remontés par les citoyens et les agents de terrain.</p>}
+          {estTelephone ? (
+            <p className="sgm-total" aria-hidden="true">
+              {isLoading && lignes.length === 0 ? 'Chargement…' : `${count.toLocaleString('fr-FR')} signalement${count > 1 ? 's' : ''}${nomEtat ? ` ${nomEtat}` : ''}`}
+            </p>
+          ) : vue !== 'carte' && <p>Les problèmes remontés par les citoyens et les agents de terrain.</p>}
         </div>
         {!isMobile && !estTelephone && (
           <div className="sg-vue" role="group" aria-label="Affichage">
@@ -191,6 +258,8 @@ export const IncidentList = ({
           setSearch={setSearch}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
+          periode={periode}
+          setPeriode={setPeriode}
           page={page}
           setPage={setPage}
           pageSize={pageSize}
@@ -200,13 +269,83 @@ export const IncidentList = ({
         />
       ) : isMobile ? (
         <>
-          <Recherche valeur={search} onChange={setSearch} placeholder={estTelephone ? 'Titre, description ou quartier' : undefined} />
-          <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} variante="pastille" />
+          {estTelephone ? (
+            <BarreTelephone
+              search={search}
+              setSearch={setSearch}
+              nbFiltres={nbFiltres}
+              onFiltres={() => setFiltresOuverts(true)}
+              resume={nbFiltres > 0 && (
+                <div className="sgm-resume">
+                  {statusFilter && (
+                    <button type="button" className="sgm-puce" onClick={() => setStatusFilter('')} aria-label={`Retirer le filtre ${etatLibelle(statusFilter)}`}>
+                      {etatLibelle(statusFilter)}<i aria-hidden="true">×</i>
+                    </button>
+                  )}
+                  {periode?.debut && periode?.fin && (
+                    <button type="button" className="sgm-puce" onClick={() => setPeriode({ debut: '', fin: '' })} aria-label={`Retirer la période ${libellePeriode(periode)}`}>
+                      {libellePeriode(periode)}<i aria-hidden="true">×</i>
+                    </button>
+                  )}
+                </div>
+              )}
+            />
+          ) : (
+            <>
+              <Recherche valeur={search} onChange={setSearch} />
+              <FiltrePeriode valeur={periode} onChange={setPeriode} />
+              <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} variante="pastille" />
+            </>
+          )}
+          {estTelephone && filtresOuverts && (
+            <FiltresSignalements
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              periode={periode}
+              setPeriode={setPeriode}
+              count={count}
+              chargement={isLoading}
+              onFermer={() => setFiltresOuverts(false)}
+            />
+          )}
           <p className="sg-annonce" role="status">{annonce}</p>
           {vide ? etatVide : (
             <div className="sg-cartes">
-              {lignes.map(({ incident, niveau, titre, description, lieu, charge, quand }) => (
-                <div key={incident.id} className={estTelephone ? 'sgm-carte' : undefined}>
+              {lignes.map(({ incident, niveau, titre, description, lieu, charge, quand }) => estTelephone ? (
+                <div key={incident.id} className={`sgm-carte ${incident.thumbnail ? '' : 'is-sans-photo'}`} data-gravite={niveau}>
+                  <a href={`/signalements/${incident.id}`} className="sgm-carte-lien" onClick={(e) => { e.preventDefault(); onSelectIncident?.(incident); }}>
+                    {incident.thumbnail && (
+                      <span className="sgm-carte-photo">
+                        <BlurryImage src={incident.thumbnail} alt="" />
+                        <Gravite niveau={niveau} />
+                      </span>
+                    )}
+                    <span className="sgm-carte-corps">
+                      {!incident.thumbnail && <span className="sgm-carte-chips"><Gravite niveau={niveau} petite /></span>}
+                      <b>{titre}</b>
+                      {description && <p className="sg-desc">{description}</p>}
+                      <span className="sgm-carte-meta">{[lieu, quand].filter(Boolean).join(' · ')}</span>
+                      <span className="sgm-carte-statut">
+                        <Etat etat={incident.etat} petite />
+                        <span className={`sgm-carte-qui ${charge ? 'is-pris' : ''}`}>
+                          {charge
+                            ? <><b>{charge.nom}</b>{charge.mode ? ` · ${charge.mode.toLowerCase()}` : ''}</>
+                            : 'Personne ne l\'a encore pris en charge'}
+                        </span>
+                      </span>
+                    </span>
+                  </a>
+                  <button
+                    type="button"
+                    className="sgm-plus"
+                    aria-label="Actions sur ce signalement"
+                    onClick={() => setFeuille({ incident, titre, lieu, actions: listeActions(incident, charge) })}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
+                  </button>
+                </div>
+              ) : (
+                <div key={incident.id}>
                   <a href={`/signalements/${incident.id}`} className="sg-carte" onClick={(e) => { e.preventDefault(); onSelectIncident?.(incident); }}>
                     <span className="sg-carte-photo">
                       <Vignette incident={incident} className="sg-carte-img" />
@@ -222,20 +361,10 @@ export const IncidentList = ({
                       </span>
                     </span>
                   </a>
-                  {estTelephone && (
-                    <button
-                      type="button"
-                      className="sgm-plus"
-                      aria-label="Actions sur ce signalement"
-                      onClick={() => setFeuille({ incident, titre, lieu, actions: listeActions(incident, charge) })}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
-                    </button>
-                  )}
                 </div>
               ))}
-              {isLoading && [0, 1].map((n) => (estTelephone
-                ? <div key={n} className="sgm-squelette" aria-hidden="true"><i /><div><span /><span /></div></div>
+              {isLoading && (estTelephone ? [0, 1, 2] : [0, 1]).map((n) => (estTelephone
+                ? <div key={n} className="sgm-squelette" aria-hidden="true"><i /><div><span /><span /><span /></div></div>
                 : <div key={n} className="sg-carte"><ShimmerThumbnail height={150} className="m-0" /><div className="sg-carte-corps"><ShimmerText line={2} gap={8} /></div></div>))}
             </div>
           )}
@@ -247,17 +376,20 @@ export const IncidentList = ({
               onClose={() => setFeuille(null)}
             />
           )}
-          {!isLoading && lignes.length < count && (
+          {!isLoading && lignes.length < count && (estTelephone ? (
+            <ChargerPlus chargement={chargementPlus} onPlus={onPlus} reste={Math.min(pageSize, count - lignes.length)} />
+          ) : (
             <button type="button" className="sg-plus" onClick={onPlus}>
               Afficher {Math.min(pageSize, count - lignes.length)} signalements de plus
             </button>
-          )}
+          ))}
         </>
       ) : (
         <>
           <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} />
           <div className="sg-outils">
             <Recherche valeur={search} onChange={setSearch} />
+            <FiltrePeriode valeur={periode} onChange={setPeriode} />
             <span className="sg-annonce" role="status">{annonce}</span>
           </div>
 
@@ -350,7 +482,7 @@ export const IncidentList = ({
 
 /** Vue carte : la liste de la page à gauche, ses signalements sur la carte à droite. */
 const VueCarte = ({
-  lignes, isLoading, isMobile, search, setSearch, statusFilter, setStatusFilter,
+  lignes, isLoading, isMobile, search, setSearch, statusFilter, setStatusFilter, periode, setPeriode,
   page, setPage, pageSize, count, onOuvrir, etatVide,
 }) => {
   const carteRef = useRef(null);
@@ -421,6 +553,7 @@ const VueCarte = ({
       <section className="sg-liste" aria-label="Liste des signalements">
         <div className="sg-liste-tete">
           <Recherche valeur={search} onChange={setSearch} />
+          <FiltrePeriode valeur={periode} onChange={setPeriode} />
           <div className="sg-segment" role="tablist" aria-label="État">
             {ETATS.map((e) => (
               <button key={e.valeur || 'tous'} type="button" role="tab" aria-selected={statusFilter === e.valeur} onClick={() => setStatusFilter(e.valeur)}>

@@ -73,6 +73,7 @@
   --color-severity-high: #EF4444;
   --color-severity-medium: #F97316;
   --color-severity-low: #EAB308;
+  --color-severity-unknown: #7C8798;
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-danger: #EF4444;
@@ -104,6 +105,7 @@
   --color-severity-high-text: #E21313;
   --color-severity-medium-text: #B24408;
   --color-severity-low-text: #8F6E00;
+  --color-severity-unknown-text: #475569;
 
   /* ── Fonds pâles de statut ──────────────────────────────────────────────────
      Chaque couleur sémantique se décline en trois usages : un aplat vif
@@ -122,6 +124,7 @@
   --color-severity-high-surface: #FEE2E2;
   --color-severity-medium-surface: #FFEDD5;
   --color-severity-low-surface: #FEF9C3;
+  --color-severity-unknown-surface: #F1F5F9;
 
   /* ── Accent violet ──────────────────────────────────────────────────────────
      Le violet porte les statuts qui ne sont ni un succès, ni une alerte, ni une
@@ -579,6 +582,10 @@ h2,
 
 .activity-item.severity-low {
   border-left-color: var(--color-severity-low);
+}
+
+.activity-item.severity-unknown {
+  border-left-color: var(--color-severity-unknown);
 }
 
 .activity-icon {

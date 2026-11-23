@@ -66,8 +66,8 @@ const Squelette = () => (window.matchMedia?.('(max-width: 640px)').matches ? (
     <div style={{ width: 220 }}><ShimmerText line={1} gap={0} /></div>
     <div style={{ maxWidth: 560 }}><ShimmerTitle line={1} gap={8} /><ShimmerText line={1} gap={8} /></div>
     <section className="vd-hero vc-hero">
-      <div className="vd-card vd-decide"><ShimmerTitle line={1} gap={8} /><ShimmerThumbnail height={10} rounded /><ShimmerText line={3} gap={10} /></div>
       <div className="vd-card vd-media"><ShimmerThumbnail height={240} rounded /></div>
+      <div className="vd-card vd-decide"><ShimmerTitle line={1} gap={8} /><ShimmerThumbnail height={10} rounded /><ShimmerText line={3} gap={10} /></div>
     </section>
     <div className="vc-work">
       <div className="vc-work-main"><div className="vd-card vd-pad"><ShimmerTitle line={1} gap={8} /><ShimmerText line={6} gap={12} /></div></div>

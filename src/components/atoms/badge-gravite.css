@@ -40,6 +40,12 @@
   border-color: var(--color-severity-low);
 }
 
+.badge-gravite--discret.badge-gravite--unknown {
+  background-color: var(--color-severity-unknown-surface);
+  color: var(--color-severity-unknown-text);
+  border-color: var(--color-severity-unknown);
+}
+
 /* Variante pleine : aplat de la couleur lisible, texte blanc. Reservee au
    detail d'un incident, ou le badge est seul et doit se voir.
    On peint la variante -text et non l'aplat vif : le jaune vif ne tient que
@@ -60,4 +66,8 @@
 
 .badge-gravite--plein.badge-gravite--low {
   background-color: var(--color-severity-low-text);
+}
+
+.badge-gravite--plein.badge-gravite--unknown {
+  background-color: var(--color-severity-unknown-text);
 }

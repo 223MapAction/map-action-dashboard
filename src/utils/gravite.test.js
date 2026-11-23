@@ -43,11 +43,16 @@ describe('gravite — prise en compte de global_impact_score', () => {
     expect(gravite({ global_impact_score: 10 })).toBe('high');
   });
 
-  it('donne priorité à global_impact_score sur le severity textuel du serveur', () => {
-    // Le serveur a dit 'low', mais le score d'impact calculé est 8.5 -> high
-    expect(gravite({ severity: 'low', global_impact_score: 8.5 })).toBe('high');
-    // Le serveur a dit 'high', mais le score d'impact est 5.36 -> medium
-    expect(gravite({ severity: 'high', global_impact_score: 5.36 })).toBe('medium');
+  it('donne priorité au severity du serveur sur global_impact_score', () => {
+    // by_severity (donut du dashboard) compte avec severity : les marqueurs
+    // doivent dire la même chose, quel que soit le score IA.
+    expect(gravite({ severity: 'low', global_impact_score: 8.5 })).toBe('low');
+    expect(gravite({ severity: 'high', global_impact_score: 5.36 })).toBe('high');
+  });
+
+  it('se rabat sur global_impact_score quand severity est vide ou inconnu', () => {
+    expect(gravite({ severity: '', global_impact_score: 8.5 })).toBe('high');
+    expect(gravite({ severity: null, global_impact_score: 5.36 })).toBe('medium');
   });
 
   it('extrait global_impact_score au niveau des détails de l\'incident ou de la prédiction', () => {
@@ -99,7 +104,12 @@ describe('gravite — la decision du backend prime quand global_impact_score est
   });
 
   it('ne casse pas sur un incident absent', () => {
-    expect(gravite(null)).toBe('low');
+    expect(gravite(null)).toBe('unknown');
+  });
+
+  it('classe « non évaluée » un incident sans aucune donnée de gravité', () => {
+    expect(gravite({ id: 1 })).toBe('unknown');
+    expect(libelleGravite('unknown')).toBe('Non évaluée');
   });
 });
 

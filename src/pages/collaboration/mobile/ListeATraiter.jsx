@@ -33,6 +33,14 @@ export const ListeATraiter = ({ elements, onDecider, onVoir }) => {
     }
   }, [onDecider]);
 
+  // L'alerte flottante d'une décision refusée se retire seule : elle couvre
+  // le haut de l'écran et n'a pas de bouton Réessayer.
+  useEffect(() => {
+    if (!erreur) return undefined;
+    const minuteur = setTimeout(() => setErreur(null), 6000);
+    return () => clearTimeout(minuteur);
+  }, [erreur]);
+
   const envoyerRef = useRef(envoyer);
   useEffect(() => { envoyerRef.current = envoyer; }, [envoyer]);
 
@@ -93,7 +101,8 @@ export const ListeATraiter = ({ elements, onDecider, onVoir }) => {
 
   return (
     <>
-      <BandeauErreur erreur={erreur} message={erreur} />
+      {/* L'erreur descend du haut de l'écran, comme sur Signalements. */}
+      {erreur && <div className="sgm-erreur"><BandeauErreur erreur={erreur} message={erreur} /></div>}
       {visibles.map((el) => (
         <article key={el.id} className="vlm-atraiter">
           <button type="button" className="vlm-atraiter-tete" onClick={() => setApercu(el)}>

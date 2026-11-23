@@ -53,3 +53,41 @@
   .me-contact span { display: none; }
   .me-contact a { min-height: 44px; display: inline-flex; align-items: center; }
 }
+
+/* ============================================================
+   Refonte du 2026-11-13 : total sous le titre, filtres dans la
+   feuille, état dans le corps, carte sans photo, rapports.
+   ============================================================ */
+@media (max-width: 640px) {
+  .mi .mi-tete p.mim-total { display: block; margin: 2px 0 0; font-size: 13px; font-weight: 600; color: #5B6472; font-variant-numeric: tabular-nums; }
+  .mi .mim-resume { order: 3; }
+
+  .mim-statut { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .mim-statut .mi-statut { padding: 2px 8px; font-size: 11.5px; }
+  .mim-mode { padding: 2px 8px; border-radius: 99px; background: #EEF0F3; font-size: 11.5px; font-weight: 600; color: #3F4650; }
+
+  .mim-pied { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 14px 0; padding: 8px 0 12px; border-top: 1px solid #F1F3F6; font-size: 13px; color: #5B6472; }
+
+  .mim-rapports {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: -6px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    color: #5B6472;
+  }
+
+  .mim-rapports.is-on { background: var(--color-primary-surface); font-weight: 600; color: var(--color-primary-text); cursor: pointer; }
+  .mim-rapports:disabled { cursor: default; }
+  .mim-rapports:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+  /* Sans photo : pas de zone grise, ⋯ sur fond clair. */
+  .mim-carte.is-sans-photo .mim-corps { padding-right: 56px; }
+  .mim-carte.is-sans-photo .mim-menu { top: 6px; right: 6px; background: #EEF0F3; color: #1A1C1E; }
+}

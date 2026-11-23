@@ -21,6 +21,7 @@ import { AVATAR_COLORS, AVATAR_COULEUR_DEFAUT } from '../../utils/couleursAvatar
 import { logger } from '../../utils/logger';
 import { useEstTelephone } from '../incident/mobile/useEstTelephone';
 import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
+import { ChargerPlus } from '../incident/mobile/ChargerPlus';
 import './agents-liste.css';
 import '../organisations/mobile/annuaire-mobile.css';
 
@@ -86,6 +87,7 @@ export const Agents = () => {
   const { saisie: searchInput, setSaisie: setSearchInput, recherche: search } = useRechercheDebouncee();
   const estTelephone = useEstTelephone();
   const [fiche, setFiche] = useState(null);
+  const [codeVisible, setCodeVisible] = useState(false);
   const [filtresOuverts, setFiltresOuverts] = useState(false);
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -201,6 +203,20 @@ export const Agents = () => {
         ? `${nombreFr(statsData.total)} agent${statsData.total > 1 ? 's' : ''} · ${nombreFr(statsData.active)} actif${statsData.active > 1 ? 's' : ''}`
         : `${nombreFr(total)} agent${total > 1 ? 's' : ''}`;
 
+  // Téléphone : rôle et statut vivent tous deux dans la feuille Filtres.
+  const nbFiltresTelephone = (roleFilter ? 1 : 0) + (statusFilter ? 1 : 0);
+  const effacerFiltres = () => { setRoleFilter(''); setStatusFilter(''); };
+  const libelleRoleFiltre = roleFilter === 'admin' ? 'Admins' : ROLES.find((r) => r.id === roleFilter)?.onglet;
+  const libelleStatutFiltre = statusFilter === 'active' ? 'Actifs' : statusFilter === 'inactive' ? 'Inactifs' : '';
+  const totalTelephone = isLoading && !fetchedAgents
+    ? 'Chargement…'
+    : nbFiltresTelephone || search
+      ? `${nombreFr(total)} agent${total > 1 ? 's' : ''}`
+      : statsData
+        ? `${nombreFr(statsData.total)} agent${statsData.total > 1 ? 's' : ''} · ${nombreFr(statsData.active)} actif${statsData.active > 1 ? 's' : ''}`
+        : `${nombreFr(total)} agent${total > 1 ? 's' : ''}`;
+  const ouvrirFiche = (a) => { setCodeVisible(false); setFiche(a); };
+
   const pageAgents = isMobile
     ? agents.slice(0, nbVisibles)
     : agents.slice((page - 1) * TAILLE_PAGE, page * TAILLE_PAGE);
@@ -222,11 +238,18 @@ export const Agents = () => {
           {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
 
           <main className="ag" onScroll={surDefilement}>
-            <BandeauErreur
-              erreur={erreurAgents}
-              onReessayer={mutateAgents}
-              message="Impossible de charger les agents. La liste affichée peut ne plus être à jour."
-            />
+            {/* Sur téléphone, l'erreur descend du haut de l'écran en alerte flottante. */}
+            {estTelephone ? erreurAgents && (
+              <div className="sgm-erreur">
+                <BandeauErreur erreur={erreurAgents} onReessayer={mutateAgents} message="Impossible de charger les agents. La liste affichée peut ne plus être à jour." />
+              </div>
+            ) : (
+              <BandeauErreur
+                erreur={erreurAgents}
+                onReessayer={mutateAgents}
+                message="Impossible de charger les agents. La liste affichée peut ne plus être à jour."
+              />
+            )}
 
             {/* L'en-tête de la page — titre, onglets, recherche et filtre — reste
                 fixe au défilement : seul le tableau passe dessous. */}
@@ -235,7 +258,9 @@ export const Agents = () => {
               <div className="ag-tete">
                 <div>
                   <h1>Agents</h1>
-                  <p>Les personnes qui ont accès à Map Action, sur le terrain et au bureau.</p>
+                  {estTelephone
+                    ? <p className="anm-total">{totalTelephone}</p>
+                    : <p>Les personnes qui ont accès à Map Action, sur le terrain et au bureau.</p>}
                 </div>
                 <button type="button" className="ag-btn-p" onClick={openCreate} aria-label={isMobile ? 'Nouvel agent' : undefined}>
                   <Add size={18} color="currentColor" />
@@ -243,18 +268,18 @@ export const Agents = () => {
                 </button>
               </div>
 
-              <div className={isMobile ? 'ag-roles-pastilles' : 'ag-roles'} role="tablist" aria-label="Rôle">
+              {!estTelephone && <div className={isMobile ? 'ag-roles-pastilles' : 'ag-roles'} role="tablist" aria-label="Rôle">
                 {onglets.map((r) => {
                   const actif = roleFilter === r.id;
                   const n = compteurs[r.id];
                   return (
                     <button key={r.id || 'tous'} type="button" role="tab" aria-selected={actif} className={actif ? 'is-on' : ''} onClick={() => setRoleFilter(r.id)}>
-                      {estTelephone && r.id === 'admin' ? 'Admins' : r.onglet}
+                      {r.onglet}
                       {n !== undefined && (isMobile ? ` ${nombreFr(n)}` : <span className="ag-n">{nombreFr(n)}</span>)}
                     </button>
                   );
                 })}
-              </div>
+              </div>}
 
               <div className="ag-outils">
                 <label className="ag-recherche">
@@ -272,12 +297,29 @@ export const Agents = () => {
                   </label>
                 )}
                 {estTelephone && (
-                  <button type="button" className={`vlm-filtre ${statusFilter ? 'is-on' : ''}`} onClick={() => setFiltresOuverts(true)} aria-label="Filtres">
+                  <button type="button" className={`vlm-filtre ${nbFiltresTelephone ? 'is-on' : ''}`} onClick={() => setFiltresOuverts(true)} aria-label={`Filtres${nbFiltresTelephone ? `, ${nbFiltresTelephone} actif${nbFiltresTelephone > 1 ? 's' : ''}` : ''}`}>
                     <Filter size={18} color="currentColor" aria-hidden="true" />
+                    {nbFiltresTelephone > 0 && <span className="vlm-filtre-n" aria-hidden="true">{nbFiltresTelephone}</span>}
                   </button>
                 )}
                 {!isMobile && <span className="ag-annonce" role="status">{annonce}</span>}
               </div>
+
+              {estTelephone && nbFiltresTelephone > 0 && (
+                <div className="sgm-resume vlm-resume anm-resume">
+                  {roleFilter && (
+                    <button type="button" className="sgm-puce" onClick={() => setRoleFilter('')} aria-label={`Retirer le filtre ${libelleRoleFiltre}`}>
+                      {libelleRoleFiltre}<i aria-hidden="true">×</i>
+                    </button>
+                  )}
+                  {statusFilter && (
+                    <button type="button" className="sgm-puce" onClick={() => setStatusFilter('')} aria-label={`Retirer le filtre ${libelleStatutFiltre}`}>
+                      {libelleStatutFiltre}<i aria-hidden="true">×</i>
+                    </button>
+                  )}
+                </div>
+              )}
+              {estTelephone && <p className="ag-annonce anm-annonce" role="status">{annonce}</p>}
             </div>
 
             {vide ? (
@@ -286,25 +328,35 @@ export const Agents = () => {
                 <b>Aucun agent</b>
                 <p>{filtreActif || roleFilter ? 'Aucun résultat avec ces critères. Modifiez la recherche ou le filtre.' : 'Ajoutez le premier agent de l’équipe : il recevra un code pour se connecter.'}</p>
                 {!filtreActif && !roleFilter && <button type="button" className="ag-btn-p" onClick={openCreate}><Add size={18} color="currentColor" />Nouvel agent</button>}
+                {estTelephone && nbFiltresTelephone > 0 && <button type="button" className="sgm-vide-effacer" onClick={effacerFiltres}>Effacer les filtres</button>}
               </div>
             ) : estTelephone ? (
               <>
                 <ul className="anm-liste">
-                  {chargementInitial ? [0, 1, 2].map((n) => <li key={n} className="anm-squelette"><ShimmerText line={2} gap={8} /></li>) : pageAgents.map((a) => (
-                    <li key={a.id}>
-                      <button type="button" className={`anm-ligne ${a.status === 'inactive' ? 'is-inactif' : ''}`} onClick={() => setFiche(a)}>
+                  {chargementInitial ? [0, 1, 2, 3].map((n) => (
+                    <li key={n} className="anm-squelette anm-squelette-ligne" aria-hidden="true"><i /><span><span /><span /></span></li>
+                  )) : pageAgents.map((a) => (
+                    <li key={a.id} className="anm-rang">
+                      <button type="button" className="anm-ligne" onClick={() => ouvrirFiche(a)}>
                         <AvatarAgent agent={a} taille={44} />
                         <span className="anm-t">
                           <b>{a.fullName}</b>
-                          <span>{ROLES.find((r) => r.id === a.role)?.label}{a.status === 'inactive' ? ' · Inactif' : ''}</span>
+                          <span>{ROLES.find((r) => r.id === a.role)?.label}{a.phone ? '' : ' · pas de numéro'}</span>
+                          {a.status === 'inactive' && <span className="anm-inactif">Inactif</span>}
                         </span>
-                        <span className="anm-chevron" aria-hidden="true">›</span>
+                        {!a.phone && <span className="anm-chevron" aria-hidden="true">›</span>}
                       </button>
+                      {/* Appeler est le geste le plus fréquent : un toucher depuis la ligne. */}
+                      {a.phone && (
+                        <a className="anm-appeler" href={telLien(a.phone)} aria-label={`Appeler ${a.fullName} au ${formatTelephone(a.phone)}`}>
+                          <Call size={18} variant="Bold" color="currentColor" aria-hidden="true" />
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>
                 {nbVisibles < total && (
-                  <button type="button" className="ag-plus" onClick={() => setNbVisibles((n) => n + TAILLE_PAGE)}>Afficher plus</button>
+                  <ChargerPlus chargement={false} onPlus={() => setNbVisibles((n) => n + TAILLE_PAGE)} reste={Math.min(TAILLE_PAGE, total - nbVisibles)} nom="agents" />
                 )}
               </>
             ) : isMobile ? (
@@ -395,7 +447,20 @@ export const Agents = () => {
               </div>
               {fiche.phone && <a className="vlm-btn anm-appel" href={telLien(fiche.phone)}>Appeler le {formatTelephone(fiche.phone)}</a>}
               <div className="anm-bloc">
-                {[['E-mail', fiche.email], ['Code d’accès', fiche.agentCode], ['Adresse', fiche.address], ['Organisation', fiche.organisationName], ['Dans l’équipe depuis', formatDateLongue(fiche.joinedAt)]]
+                {fiche.email && (
+                  <div className="anm-kv"><span>E-mail</span><a href={`mailto:${fiche.email}`}>{fiche.email}</a></div>
+                )}
+                {/* Le code de connexion reste masqué tant qu'on ne le demande pas. */}
+                {fiche.agentCode && (
+                  <div className="anm-kv">
+                    <span>Code d’accès</span>
+                    <span className="anm-code">
+                      <b>{codeVisible ? fiche.agentCode : '••••••'}</b>
+                      <button type="button" onClick={() => setCodeVisible((v) => !v)} aria-pressed={codeVisible}>{codeVisible ? 'Masquer' : 'Afficher'}</button>
+                    </span>
+                  </div>
+                )}
+                {[['Adresse', fiche.address], ['Organisation', fiche.organisationName], ['Dans l’équipe depuis', formatDateLongue(fiche.joinedAt)]]
                   .filter(([, v]) => v)
                   .map(([k, v]) => <div key={k} className="anm-kv"><span>{k}</span><b>{v}</b></div>)}
               </div>
@@ -411,21 +476,39 @@ export const Agents = () => {
 
         {filtresOuverts && (
           <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
-            <div className="vlm-filtres-tete">
-              <button type="button" onClick={() => setStatusFilter('')}>Tout effacer</button>
-              <b>Filtres</b>
-              <button type="button" onClick={() => setFiltresOuverts(false)}>Terminé</button>
-            </div>
-            <div className="vlm-filtres">
-              <fieldset className="vlm-champ">
-                <legend>Statut</legend>
-                <div className="vlm-seg">
-                  {[{ valeur: '', libelle: 'Tous' }, ...STATUTS].map((s) => (
-                    <button key={s.valeur || 'tous'} type="button" className={statusFilter === s.valeur ? 'is-on' : ''} aria-pressed={statusFilter === s.valeur} onClick={() => setStatusFilter(s.valeur)}>{s.libelle}</button>
+            <header className="sgm-filtres-tete">
+              <button type="button" className="sgm-lien" onClick={effacerFiltres}>Tout effacer</button>
+              <h2>Filtres</h2>
+              <button type="button" className="sgm-fermer" onClick={() => setFiltresOuverts(false)} aria-label="Fermer les filtres">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </header>
+            <div className="sgm-filtres-corps vlm-filtres-corps">
+              <div>
+                <h3 id="anm-titre-role">Rôle</h3>
+                <div className="sgm-segs" role="radiogroup" aria-labelledby="anm-titre-role">
+                  {onglets.map((r) => (
+                    <button key={r.id || 'tous'} type="button" role="radio" aria-checked={roleFilter === r.id} onClick={() => setRoleFilter(r.id)}>
+                      {r.id === 'admin' ? 'Admins' : r.onglet}
+                      {compteurs[r.id] !== undefined && <small className="anm-seg-n">{nombreFr(compteurs[r.id])}</small>}
+                    </button>
                   ))}
                 </div>
-              </fieldset>
+              </div>
+              <div>
+                <h3 id="anm-titre-statut">Statut</h3>
+                <div className="sgm-segs sgm-segs-3" role="radiogroup" aria-labelledby="anm-titre-statut">
+                  {[['', 'Tous'], ['active', 'Actifs'], ['inactive', 'Inactifs']].map(([v, l]) => (
+                    <button key={v || 'tous'} type="button" role="radio" aria-checked={statusFilter === v} onClick={() => setStatusFilter(v)}>{l}</button>
+                  ))}
+                </div>
+              </div>
             </div>
+            <footer className="sgm-filtres-pied">
+              <button type="button" className="sgm-voir" onClick={() => setFiltresOuverts(false)}>
+                {isLoading ? 'Voir les agents' : `Voir ${nombreFr(total)} agent${total > 1 ? 's' : ''}`}
+              </button>
+            </footer>
           </FeuilleBasse>
         )}
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useFeuille } from './useFeuille';
 import { categorie, initiales, couleurPour, tempsRelatif, libelleJour } from '../components/activity/activite-utils';
 
 const FILTRES = [
@@ -16,6 +17,7 @@ const CATEGORIES = {
 /** Écran 5 : l'activité du réseau, ouverte par le bouton de la carte. */
 export const ActiviteMobile = ({ activites, isLoading, nextUrl, onLoadMore, isLoadingMore, onRetour }) => {
   const navigate = useNavigate();
+  const { fermer, classe } = useFeuille(onRetour);
   const [filtre, setFiltre] = useState('all');
 
   const groupes = useMemo(() => {
@@ -45,9 +47,9 @@ export const ActiviteMobile = ({ activites, isLoading, nextUrl, onLoadMore, isLo
   }, [activites, filtre]);
 
   return (
-    <div className="dm-ecran">
+    <div className={`dm-ecran dm-feuille ${classe}`}>
       <header className="dm-ecran-entete">
-        <button type="button" className="dm-retour" onClick={onRetour}>
+        <button type="button" className="dm-retour" onClick={fermer}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
           Carte
         </button>

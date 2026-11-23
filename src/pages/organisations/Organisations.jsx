@@ -341,21 +341,23 @@ export const Organisations = () => {
 
         const errorDetails = [];
 
-        Object.keys(backendErrors).forEach((backendKey) => {
-          const frontendKey = keyMapping[backendKey] || backendKey;
-          const rawErr = backendErrors[backendKey];
+        const erreurs = {};
+
+        Object.keys(err.response.data).forEach((backendKey) => {
+          const frontendKey = correspondance[backendKey] || backendKey;
+          const rawErr = err.response.data[backendKey];
           const errorMsg = Array.isArray(rawErr)
             ? rawErr.join(' ')
             : typeof rawErr === 'object'
               ? JSON.stringify(rawErr)
               : String(rawErr);
 
-          mappedErrors[frontendKey] = errorMsg;
+          erreurs[frontendKey] = errorMsg;
           const label = fieldLabels[frontendKey] || frontendKey;
           errorDetails.push(`${label} : ${errorMsg}`);
         });
 
-        setFormErrors(mappedErrors);
+        setFormErrors(erreurs);
 
         const alertMessage = errorDetails.length > 0
           ? `Erreur de validation : ${errorDetails.join(' — ')}`
@@ -365,8 +367,6 @@ export const Organisations = () => {
           type: 'danger',
           message: alertMessage,
         });
-        setFormErrors(erreurs);
-        setModalAlert({ type: 'danger', message: 'Le serveur a refusé certains champs : corrigez-les ci-dessous.' });
       } else {
         const msg = err?.response?.data?.detail || err?.response?.data?.message
           || `L’organisation n’a pas pu être ${formModal.mode === 'create' ? 'créée' : 'modifiée'}. Réessayez dans un instant.`;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CloseCircle, ArrowDown2, TickCircle } from 'iconsax-react';
+import { CloseCircle, ArrowDown2 } from 'iconsax-react';
 import { useOrganisationsContext } from '../context/OrganisationsContext';
 import { SECTORS, TYPES, COUNTRIES } from '../data/organisations';
 import { Dialogue } from '../../../components/molecules/Dialogue';
@@ -50,12 +50,30 @@ const FormOrganisationModal = () => {
   return (
     <Dialogue
       onClose={closeFormModal}
-      isClosing={formAnimating === 'closing'}
-      title={titre}
-      ariaLabel={titre}
-      closeVariant="plain"
-      closeDisabled={verrouille}
+      verrouille={isSubmitting}
+      taille="lg"
+      titre={creation ? 'Nouvelle organisation' : 'Modifier l’organisation'}
+      sousTitre={creation ? 'Elle pourra prendre en charge des signalements et être invitée en collaboration.' : form.name}
+      icone={<IcoBatiment />}
+      pied={({ close }) => (
+        <>
+          {nbErreurs > 0 ? (
+            <span className="dg-pied-info is-ko" role="status"><IcoInfo />{nbErreurs} champ{nbErreurs > 1 ? 's' : ''} à compléter</span>
+          ) : <span className="dg-espace" />}
+          <button type="button" className="dg-btn dg-btn-g" onClick={close} disabled={isSubmitting}>Annuler</button>
+          <button type="submit" form="form-organisation" className="dg-btn dg-btn-p" disabled={isSubmitting}>
+            {isSubmitting
+              ? <><span className="dg-spin" aria-hidden="true" />{creation ? 'Création…' : 'Enregistrement…'}</>
+              : (creation ? 'Créer l’organisation' : 'Enregistrer')}
+          </button>
+        </>
+      )}
     >
+      {modalAlert.message && modalAlert.type !== 'success' && (
+        <div className="dg-alerte dg-alerte-ko" role="alert">
+          <CloseCircle size={18} variant="Bold" color="currentColor" /><span>{modalAlert.message}</span>
+        </div>
+      )}
 
       <form id="form-organisation" className="of-form" noValidate onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
         <fieldset className="dg-fieldset">

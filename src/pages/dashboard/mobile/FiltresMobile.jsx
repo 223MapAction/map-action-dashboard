@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { NIVEAUX_GRAVITE, couleurGravite, couleurTexteGravite } from '../../../utils/gravite';
-import { COUNTRIES } from '../../organisations/data/organisations';
+import { useFeuille } from './useFeuille';
+import { BoutonFermer } from './BoutonFermer';
 
 const Segment = ({ libelle, options, valeur, onChange }) => (
   <div className="dm-seg" role="radiogroup" aria-label={libelle}>
@@ -20,32 +21,23 @@ export const FiltresMobile = ({
   onEtat,
   graviteActive,
   onGravite,
-  pays,
-  onPays,
-  paysUtilisateur,
   styles,
   styleActif,
   onStyle,
   onToutEffacer,
   onTerminer,
 }) => {
-  const listePays = [
-    { valeur: '', nom: 'Tous les pays' },
-    ...(paysUtilisateur
-      ? [{ valeur: paysUtilisateur, nom: `Mon pays (${COUNTRIES.find((c) => c.en === paysUtilisateur)?.fr || paysUtilisateur})` }]
-      : []),
-    ...COUNTRIES.filter((c) => c.en !== paysUtilisateur).map((c) => ({ valeur: c.en, nom: c.fr })),
-  ];
+  const { fermer, classe } = useFeuille(onTerminer);
 
   return createPortal(
     <>
-      <div className="dm-voile" onClick={onTerminer} aria-hidden="true" />
-      <section className="dm-filtres" role="dialog" aria-modal="true" aria-labelledby="dm-filtres-titre">
+      <div className={`dm-voile ${classe}`} onClick={fermer} aria-hidden="true" />
+      <section className={`dm-filtres dm-feuille ${classe}`} role="dialog" aria-modal="true" aria-labelledby="dm-filtres-titre">
         <span className="dm-poignee" aria-hidden="true" />
         <header className="dm-filtres-entete">
           <button type="button" onClick={onToutEffacer}>Tout effacer</button>
           <h2 id="dm-filtres-titre">Filtres</h2>
-          <button type="button" className="dm-terminer" onClick={onTerminer}>Terminé</button>
+          <BoutonFermer onClick={fermer} libelle="Fermer les filtres" />
         </header>
 
         <div className="dm-filtres-corps">
@@ -90,21 +82,6 @@ export const FiltresMobile = ({
             </div>
           </div>
 
-          <div>
-            <h3>Pays</h3>
-            <ul className="dm-pays" role="radiogroup" aria-label="Pays">
-              {listePays.map((p) => (
-                <li key={p.valeur || 'tous'}>
-                  <button type="button" role="radio" aria-checked={pays === p.valeur} onClick={() => onPays(p.valeur)}>
-                    {p.nom}
-                    {pays === p.valeur && (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-text)" strokeWidth="2.6" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
 
           {styles.length > 1 && (
             <div>

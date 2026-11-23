@@ -58,7 +58,8 @@ export const IncidentDeleteModal = () => {
             )}
           </div>
           <div className="sgm-alerte-boutons">
-            <button type="button" onClick={closeDeleteModal} disabled={verrouille}>Annuler</button>
+            {/* Le focus part sur Annuler : un double toucher ne supprime rien. */}
+            <button type="button" onClick={closeDeleteModal} disabled={verrouille} ref={(el) => el?.focus({ preventScroll: true })}>Annuler</button>
             <button type="button" className="is-danger" onClick={handleConfirmDelete} disabled={verrouille}>Supprimer</button>
           </div>
         </div>
