@@ -179,7 +179,7 @@
 
 /* Tableau */
 .sg-boite { border: 1px solid var(--sg-ligne); border-radius: 14px; background: var(--color-surface); }
-.sg-tableau-boite { overflow-x: auto; }
+.sg-tableau-boite { overflow-x: auto; container: tableau-signalements / inline-size; }
 
 .sg-tableau { width: 100%; min-width: 1120px; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
 
@@ -248,6 +248,28 @@
 .sg-pied { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--color-text-muted); }
 .sg-pied .am-pagination { margin: 0; padding: 0; }
 .sg-pied .am-pagination-info { display: none; }
+
+/* Tableau étroit (fenêtre de 768 à environ 1200 px, ou panneau latéral
+   ouvert) : au lieu de défiler à l'horizontale avec une largeur minimale de
+   1120 px, il masque Localisation et « Pris en charge par » et replie leur
+   contenu sous le titre et sous l'état. Rien n'est perdu, rien ne déborde. */
+.sg-repli { display: none; }
+
+@container tableau-signalements (max-width: 1099px) {
+  .sg-tableau { min-width: 0; }
+  .sg-tableau col:nth-child(2),
+  .sg-tableau col:nth-child(5),
+  .sg-tableau th:nth-child(2),
+  .sg-tableau td:nth-child(2),
+  .sg-tableau th:nth-child(5),
+  .sg-tableau td:nth-child(5) { display: none; }
+  .sg-col-sig { width: auto; }
+
+  .sg-tableau .sg-repli { display: flex; margin-top: 4px; }
+  .sg-tableau .sg-charge-repli { display: block; font-size: 12px; color: var(--color-text-muted); }
+  .sg-tableau .sg-charge-repli b { font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+  .sg-tableau .sg-charge-repli b.is-moi { color: var(--sg-primary); }
+}
 
 .sg-masque { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
