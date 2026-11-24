@@ -1,0 +1,67 @@
+/* ============================================================
+   MODALES EN PLEINE HAUTEUR SUR TÉLÉPHONE (sous 640 px)
+   Toutes les fenêtres qui se posent sur la page occupent la
+   hauteur de l'écran : dialogues, feuilles basses et hautes,
+   panneaux latéraux, modales Bootstrap et assistant IA.
+   Le préfixe :root et les !important l'emportent sur les règles
+   propres à chaque page, chargées après cette feuille.
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Dialogues (Dialogue.jsx) */
+  :root .dg-fond { place-items: stretch; padding: 0; }
+
+  :root .dg,
+  :root .dg-sm,
+  :root .dg-md,
+  :root .dg-lg {
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  :root .dg-corps { flex: 1; min-height: 0; overflow-y: auto; }
+
+  /* Feuilles basses (FeuilleBasse.jsx) */
+  :root .vlm-feuille {
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Panneaux latéraux et feuilles hautes (OffcanvasModal.jsx) */
+  :root .am-offcanvas-panel,
+  :root .am-offcanvas-panel.feuille-haute.feuille-haute {
+    top: 0 !important;
+    bottom: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh;
+    border-radius: 0 !important;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Modales Bootstrap */
+  :root .modal-dialog {
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+  }
+
+  :root .modal-content {
+    height: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  /* Assistant IA de la fiche signalement */
+  :root .vd-chat {
+    top: 0;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}

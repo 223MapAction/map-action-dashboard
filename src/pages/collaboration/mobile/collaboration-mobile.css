@@ -154,7 +154,8 @@
   .vc .vc-work { display: block; }
   .vc .vc-work-main { gap: 12px; }
 
-  .vc .vdm-photo { height: 150px; }
+  /* Même hauteur que la photo de la fiche signalement. */
+  .vc .vdm-photo { height: 300px; }
   .vc .vd-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .vc .vc-chat-tab .vc-chat { height: calc(100dvh - 120px); }
   .vcm-resoudre { background: #15803D; }

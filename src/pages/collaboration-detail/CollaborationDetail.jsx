@@ -25,6 +25,7 @@ import { aujourdhui, bornesTaches } from './modal/dates';
 import { useEstTelephone } from '../incident/mobile/useEstTelephone';
 import './collaboration-detail.css';
 import './modal/modales.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 
 /* Coquille commune : barre latérale, en-tête fixe, zone qui défile. */
@@ -45,12 +46,13 @@ const Coquille = ({ children }) => {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isCollapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed} hideToggle
         />
       )}
       <div className={`vc-shell-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
+        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />}
         <div className="vc-scroll">{children}</div>
+        <PiedDePage />
       </div>
     </div>
   );

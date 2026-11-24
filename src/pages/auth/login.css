@@ -4,8 +4,8 @@
 
 .login-split {
   display: flex;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh - var(--hauteur-copyright, 0px));
+  min-height: calc(100dvh - var(--hauteur-copyright, 0px));
   background-color: var(--color-surface);
 }
 
@@ -17,8 +17,8 @@
   padding: var(--spacing-6) var(--spacing-8);
   max-width: 560px;
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh - var(--hauteur-copyright, 0px));
+  min-height: calc(100dvh - var(--hauteur-copyright, 0px));
 }
 
 .login-brand {
@@ -221,8 +221,8 @@
 /* ===== Colonne droite (image) ===== */
 .login-hero {
   flex: 1;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh - var(--hauteur-copyright, 0px));
+  min-height: calc(100dvh - var(--hauteur-copyright, 0px));
   position: relative;
   overflow: hidden;
 }

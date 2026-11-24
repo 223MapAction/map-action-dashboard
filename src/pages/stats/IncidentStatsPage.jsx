@@ -7,6 +7,7 @@ import { getDashboardStatsService } from '../dashboard/service/dashboard_service
 import { ShimmerThumbnail, ShimmerTitle } from 'react-shimmer-effects';
 import './incident-stats-page.css';
 import { logger } from '../../utils/logger';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 export const IncidentStatsPage = () => {
   const {
@@ -38,12 +39,13 @@ export const IncidentStatsPage = () => {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
       
       <div className={`stats-page-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Header 
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           isCollapsed={sidebarCollapsed}
           sidebarCollapsed={sidebarCollapsed}
         />
@@ -72,6 +74,7 @@ export const IncidentStatsPage = () => {
             <IncidentStats stats={stats} />
           )}
         </main>
+        <PiedDePage />
       </div>
     </div>
   );

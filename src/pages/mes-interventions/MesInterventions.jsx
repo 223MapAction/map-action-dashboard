@@ -26,6 +26,7 @@ import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
 import { ChargerPlus } from '../incident/mobile/ChargerPlus';
 import './mes-interventions-liste.css';
 import './mes-interventions-mobile.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const TAILLE_PAGE = 20;
 
@@ -227,11 +228,11 @@ const Contenu = () => {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
 
       <div className={`mi-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
+        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />}
 
         <main className="mi" onScroll={surDefilement}>
           {/* Sur téléphone, l'erreur descend du haut de l'écran en alerte flottante. */}
@@ -440,6 +441,7 @@ const Contenu = () => {
             </div>
           )}
         </main>
+        <PiedDePage />
       </div>
 
       {menu && (

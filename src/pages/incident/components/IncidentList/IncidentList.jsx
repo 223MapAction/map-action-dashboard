@@ -285,11 +285,11 @@ export const IncidentList = ({
               )}
             />
           ) : (
-            <>
+            <div className="sg-barre-fixe">
               <Recherche valeur={search} onChange={setSearch} />
               <FiltrePeriode valeur={periode} onChange={setPeriode} />
               <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} variante="pastille" />
-            </>
+            </div>
           )}
           {estTelephone && filtresOuverts && (
             <FiltresSignalements
@@ -380,11 +380,14 @@ export const IncidentList = ({
         </>
       ) : (
         <>
-          <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} />
-          <div className="sg-outils">
-            <Recherche valeur={search} onChange={setSearch} />
-            <FiltrePeriode valeur={periode} onChange={setPeriode} />
-            <span className="sg-annonce" role="status">{annonce}</span>
+          {/* Onglets d'état et recherche restent collés sous l'en-tête au défilement. */}
+          <div className="sg-barre-fixe">
+            <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} />
+            <div className="sg-outils">
+              <Recherche valeur={search} onChange={setSearch} />
+              <FiltrePeriode valeur={periode} onChange={setPeriode} />
+              <span className="sg-annonce" role="status">{annonce}</span>
+            </div>
           </div>
 
           {vide ? <div className="sg-boite">{etatVide}</div> : (

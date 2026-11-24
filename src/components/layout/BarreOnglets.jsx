@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { authService } from '../../pages/auth/services/authService';
+import { texteCopyright } from '../../utils/copyright';
 import './barre-onglets.css';
 
 const Trait = ({ epaisseur = 1.8, taille = 24, children }) => (
@@ -128,6 +129,7 @@ const EcranPlus = ({ idsAccessibles, onAller }) => {
       >
         Se déconnecter
       </button>
+      <p className="plus-copyright">{texteCopyright()}</p>
     </div>,
     document.body
   );

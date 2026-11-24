@@ -5,6 +5,7 @@ import { Login, ForgotPassword, ResetPassword } from './pages/auth';
 import { ProtectedRoute } from './components/auth';
 import { FrontiereChargementPage } from './components/atoms/FrontiereChargementPage';
 import { ChargementPage } from './components/atoms/ChargementPage';
+import { MentionCopyright } from './components/layout/MentionCopyright';
 
 // Les pages protégées sont chargées à la demande : sans ça, maplibre-gl et
 // recharts partent dans le bundle initial et se téléchargent dès le login.
@@ -175,6 +176,7 @@ function App() {
       </Routes>
       </Suspense>
       </FrontiereChargementPage>
+      <MentionCopyright />
     </BrowserRouter>
     </SWRConfig>
   );

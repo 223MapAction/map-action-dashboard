@@ -5,6 +5,7 @@ import { Header, Sidebar } from '../../components/layout';
 import { IncidentDetail } from './components/IncidentDetail/IncidentDetail';
 import { useEstTelephone } from './mobile/useEstTelephone';
 import './incident.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 export const IncidentDetailPage = () => {
   const { id } = useParams();
@@ -36,7 +37,7 @@ export const IncidentDetailPage = () => {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isCollapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed} hideToggle
         />
       )}
 
@@ -44,6 +45,7 @@ export const IncidentDetailPage = () => {
         {!estTelephone && (
           <Header
             onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             sidebarCollapsed={sidebarCollapsed}
           />
         )}
@@ -56,6 +58,7 @@ export const IncidentDetailPage = () => {
             isLoading={false}
           />
         </div>
+        <PiedDePage />
       </div>
     </div>
   );

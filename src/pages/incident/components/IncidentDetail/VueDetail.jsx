@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft2, Location, Calendar, UserAdd, Danger, MagicStar, Play, Pause,
   VideoSquare, VolumeHigh, Copy, Routing2, Share, Wind, People, Drop,
-  Tree, Buildings2, Gallery, InfoCircle, Crown1, Health, ArrowDown2, Profile, CloseCircle, Briefcase, Add, Message,
+  Tree, Buildings2, Gallery, InfoCircle, Crown1, Health, ArrowDown2, Profile, CloseCircle, Briefcase, Add,
 } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerTitle, ShimmerText } from 'react-shimmer-effects';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
@@ -141,7 +141,6 @@ export const VueDetail = (props) => {
     audioRef, isPlaying, setIsPlaying, currentTime, duration, togglePlay,
     onAudioTimeUpdate, onAudioLoaded, onAudioEnded, seekAudio, seekAudioClavier,
     carteDetailRef, detailMapStyle, setDetailMapStyle, ouvrirImage, onToast,
-    onOuvrirIA, iaDisponible,
   } = props;
 
   const [onglet, setOnglet] = useState('apercu');
@@ -891,12 +890,6 @@ export const VueDetail = (props) => {
           <button type="button" className="vdm-agir" onClick={() => openJoinModal()} disabled={!!hasPendingRequest}>
             {hasPendingRequest ? 'Demande en attente' : libelleAction}
           </button>
-          {onOuvrirIA && (
-            <button type="button" className="vdm-ia" onClick={onOuvrirIA} aria-label="Ouvrir l'assistant IA">
-              <Message size={24} variant="Bold" color="currentColor" />
-              {iaDisponible && <span className="vdm-ia-point" aria-hidden="true" />}
-            </button>
-          )}
         </div>
       )}
 
