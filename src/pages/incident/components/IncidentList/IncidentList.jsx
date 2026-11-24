@@ -441,6 +441,12 @@ export const IncidentList = ({
                               {titre}
                             </a>
                             {description && <p className="sg-desc">{description}</p>}
+                            {/* Repli de la colonne Localisation, affiché seulement
+                                quand le tableau est trop étroit pour elle. */}
+                            <span className="sg-lieu sg-repli">
+                              <Location size={14} color="currentColor" aria-hidden="true" />
+                              {lieu}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -451,7 +457,13 @@ export const IncidentList = ({
                         </span>
                       </td>
                       <td><Gravite niveau={niveau} /></td>
-                      <td><Etat etat={incident.etat} /></td>
+                      <td>
+                        <Etat etat={incident.etat} />
+                        {/* Repli de la colonne « Pris en charge par ». */}
+                        <span className="sg-repli sg-charge-repli">
+                          {charge ? <b className={charge.estMoi ? 'is-moi' : ''}>{charge.nom}</b> : "Personne pour l'instant"}
+                        </span>
+                      </td>
                       <td>
                         {charge ? (
                           <span className="sg-charge">
