@@ -43,6 +43,7 @@ import { ChoixPeriode } from '../incident/mobile/ChoixPeriode';
 import { versIso, depuisIso, libellePeriode } from '../incident/components/IncidentList/periode';
 import '../incident/components/IncidentDetail/vue-detail-mobile.css';
 import './mobile/collaboration-mobile.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 
 registerLocale('fr', fr);
@@ -99,8 +100,8 @@ export const Collaboration = () => {
   } = useSidebarState();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  // Téléphone : À traiter (par défaut), En cours, Terminées.
-  const ongletTelephone = tabParam === 'terminees' ? 'terminees' : tabParam === 'collaborations' ? 'collaborations' : 'atraiter';
+  // Téléphone : Mes collaborations (par défaut, sans filtre d'avancement) et À traiter.
+  const ongletTelephone = tabParam === 'atraiter' ? 'atraiter' : 'collaborations';
   const activeTab = estTelephone
     ? (ongletTelephone === 'atraiter' ? 'requests' : 'collaborations')
     : tabParam === 'requests' ? 'requests' : tabParam === 'suggestions' ? 'suggestions' : 'collaborations';
@@ -121,7 +122,7 @@ export const Collaboration = () => {
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('accepted');
   const [filtreAvancementBureau, setLocalStatusFilter] = useState('all');
-  const localStatusFilter = estTelephone ? (ongletTelephone === 'terminees' ? 'completed' : 'in-progress') : filtreAvancementBureau;
+  const localStatusFilter = estTelephone ? 'all' : filtreAvancementBureau;
   const [nbDemandes, setNbDemandes] = useState(null);
   const [nbSuggestions, setNbSuggestions] = useState(null);
   const [incidentFilter, setIncidentFilter] = useState('');
@@ -480,7 +481,7 @@ export const Collaboration = () => {
   const totalTelephone = ongletTelephone === 'atraiter'
     ? (nbATraiter ? `${nbATraiter} demande${nbATraiter > 1 ? 's' : ''} à traiter` : '')
     : isLoading ? 'Chargement…'
-      : `${nbTotal.toLocaleString('fr-FR')} collaboration${nbTotal > 1 ? 's' : ''} ${ongletTelephone === 'terminees' ? `terminée${nbTotal > 1 ? 's' : ''}` : 'en cours'}`;
+      : `${nbTotal.toLocaleString('fr-FR')} collaboration${nbTotal > 1 ? 's' : ''}`;
 
   return (
     <div className="collaboration-layout">
@@ -488,13 +489,14 @@ export const Collaboration = () => {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
 
       <div className={`collaboration-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         {!estTelephone && (
           <Header
             onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             sidebarCollapsed={sidebarCollapsed}
           />
         )}
@@ -563,9 +565,8 @@ export const Collaboration = () => {
 
             <nav className="vd-tabs vl-tabs" role="tablist" aria-label="Sections">
               {(estTelephone ? [
+                ['collaborations', 'Mes collaborations'],
                 ['atraiter', nbATraiter ? `À traiter · ${nbATraiter}` : 'À traiter'],
-                ['collaborations', 'En cours'],
-                ['terminees', 'Terminées'],
               ] : [
                 ['collaborations', 'Mes collaborations', activeTab === 'collaborations' && !isLoading ? nbTotal : null],
                 ['requests', 'Demandes'],
@@ -953,6 +954,7 @@ export const Collaboration = () => {
             ) : null}
           </div>
         </main>
+        <PiedDePage />
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
 import { ChargerPlus } from '../incident/mobile/ChargerPlus';
 import './agents-liste.css';
 import '../organisations/mobile/annuaire-mobile.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const EMPTY_ARRAY = [];
 const TAILLE_PAGE = 20;
@@ -231,11 +232,11 @@ export const Agents = () => {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isCollapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed} hideToggle
         />
 
         <div className={`agents-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
+          {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />}
 
           <main className="ag" onScroll={surDefilement}>
             {/* Sur téléphone, l'erreur descend du haut de l'écran en alerte flottante. */}
@@ -433,6 +434,7 @@ export const Agents = () => {
               </div>
             )}
           </main>
+          <PiedDePage />
         </div>
 
         {fiche && (

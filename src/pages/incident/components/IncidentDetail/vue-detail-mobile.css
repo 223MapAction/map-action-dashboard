@@ -210,7 +210,8 @@
   .vdm-agir:disabled { opacity: 0.6; cursor: default; }
   .vdm-agir-plus { width: 52px; display: grid; place-items: center; background: #E0F2FE; color: #1E78AC; }
 
-  /* Bouton de l'assistant IA */
+  /* Bouton de l'assistant IA : flottant, au-dessus de la barre d'action
+     quand elle est là, pour lui laisser toute la largeur. */
   .vd-fab { right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); width: 52px; height: 52px; background: #1A1C1E; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3); }
   .project-detail:has(.vdm-barre) .vd-fab { bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
   .vd-fab.is-open { display: none; }
@@ -223,18 +224,21 @@
   /* Assistant IA en feuille haute */
   .vdm-chat-fond { position: fixed; inset: 0; z-index: 1045; background: rgba(26, 30, 38, 0.75); animation: vd-fade 0.2s ease-out both; }
 
+  /* Feuille pleine largeur, calée sur l'écran (le panneau est rendu dans
+     <body>, voir IncidentDetail.jsx). */
   .vd-chat {
     top: calc(env(safe-area-inset-top, 0px) + 50px);
     left: 0;
     right: 0;
     bottom: 0;
-    width: auto;
+    width: 100%;
     max-width: none;
+    margin: 0;
     height: auto;
     border: none;
     border-radius: 22px 22px 0 0;
     box-shadow: none;
-    transform-origin: bottom;
+    transform-origin: bottom center;
     animation: vdm-monte 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
@@ -341,23 +345,6 @@
   .vdm-prise-l > b { min-width: 0; overflow: hidden; font-weight: 600; text-align: right; white-space: nowrap; text-overflow: ellipsis; }
   .vdm-prise-l .vd-chip { margin: 0; }
 
-  /* Assistant IA dans la barre d'action */
-  .vdm-ia {
-    position: relative;
-    width: 52px;
-    min-height: 52px;
-    flex-shrink: 0;
-    display: grid;
-    place-items: center;
-    border: none;
-    border-radius: 14px;
-    background: #1A1C1E;
-    color: #fff;
-    cursor: pointer;
-  }
-
-  .vdm-ia:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-  .vdm-ia-point { position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border: 2px solid #1A1C1E; border-radius: 50%; background: #38BDF8; }
 }
 
 @keyframes vdm-monte { from { transform: translateY(100%); } }

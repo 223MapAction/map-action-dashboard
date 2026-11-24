@@ -23,6 +23,7 @@ import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
 import { OffcanvasModal } from '../../components/molecules/OffcanvasModal';
 import './impact-page.css';
 import './impact-mobile.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const CarteImpact = IS_MAPBOX ? CarteImpactMapbox : CarteImpactMapLibre;
 const VUE_PAR_DEFAUT = { longitude: -8, latitude: 12.6, zoom: 5 };
@@ -317,11 +318,11 @@ export const Impact = () => {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
 
       <div className={`ip-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
+        {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />}
 
         <main className="ip" onScroll={surDefilement} style={{ '--ip-entete': `${hauteurEntete}px` }}>
           <BandeauErreur
@@ -602,6 +603,7 @@ export const Impact = () => {
             </div>
           </section>}
         </main>
+        <PiedDePage />
       </div>
 
       {filtresOuverts && (

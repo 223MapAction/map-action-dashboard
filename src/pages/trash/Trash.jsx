@@ -12,6 +12,7 @@ import { restoreIncidentService, deleteIncidentService } from '../incident/servi
 import { getToutLaCorbeille, lireSignalementSupprime } from './corbeille';
 import { logger } from '../../utils/logger';
 import './corbeille-liste.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const EMPTY_ARRAY = [];
 const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
@@ -198,11 +199,11 @@ export const TrashPage = () => {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
 
       <div className={`cb-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
+        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />
 
         <main className={`cb ${isMobile && nbChoisis > 0 ? 'avec-barre' : ''}`} onScroll={surDefilement}>
           <BandeauErreur erreur={error} onReessayer={mutate} message="Impossible de charger la corbeille. La liste affichée peut ne plus être à jour." />
@@ -292,6 +293,7 @@ export const TrashPage = () => {
 
           {isMobile && nbChoisis > 0 && <div className="cb-selection-bas">{barreSelection}</div>}
         </main>
+        <PiedDePage />
       </div>
 
       {aSupprimer && (

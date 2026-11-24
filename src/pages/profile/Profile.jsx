@@ -10,6 +10,7 @@ import { getUserProfileService, updateUserProfileService } from './service/profi
 import { getRoleConfig, roleDepuisApi } from '../agents/roles';
 import { logger } from '../../utils/logger';
 import './profil.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const LONGUEUR_MIN = 8;
 
@@ -251,11 +252,11 @@ export const Profile = () => {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
 
       <div className={`pf-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
+        <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />
 
         <main className="pf">
           <div className="pf-page">
@@ -363,6 +364,7 @@ export const Profile = () => {
             </section>
           </div>
         </main>
+        <PiedDePage />
       </div>
 
       {toast && <div key={toast.n} className="pf-toast" role="status">{toast.texte}</div>}

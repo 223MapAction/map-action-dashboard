@@ -36,6 +36,7 @@ export const StatsWidgets = ({ stats, zoneActive = null, graviteActive = null, o
 
   return (
     <div className="stats-widgets">
+      <div className="stats-widgets-grille">
       {/* Par localité */}
       <section className="stats-widget">
         <header className="widget-header">
@@ -115,7 +116,7 @@ export const StatsWidgets = ({ stats, zoneActive = null, graviteActive = null, o
       </section>
 
       {/* Gravité */}
-      <section className="stats-widget">
+      <section className="stats-widget stats-widget-gravite">
         <header className="widget-header">
           <h3>Gravité</h3>
         </header>
@@ -156,6 +157,7 @@ export const StatsWidgets = ({ stats, zoneActive = null, graviteActive = null, o
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 };

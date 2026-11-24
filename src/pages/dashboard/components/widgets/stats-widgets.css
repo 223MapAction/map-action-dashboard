@@ -2,7 +2,15 @@
    STATS WIDGETS — reliés à la carte
    ============================================ */
 
+/* Les colonnes suivent la largeur réelle de la zone des widgets, pas celle de
+   la fenêtre : sur ordinateur, la barre de gauche et le panneau Activité en
+   prennent déjà près de 600 px. À 1024 px de fenêtre il ne reste qu'environ
+   400 px, où trois colonnes écrasaient l'anneau de gravité. */
 .stats-widgets {
+  container: widgets-stats / inline-size;
+}
+
+.stats-widgets-grille {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--spacing-4);
@@ -261,15 +269,53 @@
   }
 }
 
-@media (min-width: 768px) {
-  .stats-widgets {
-    grid-template-columns: repeat(2, 1fr);
+/* 560 à 879 px : localité et priorités côte à côte, gravité en pleine largeur. */
+@container widgets-stats (min-width: 560px) {
+  .stats-widgets-grille {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-widget-gravite {
+    grid-column: 1 / -1;
   }
 }
 
-@media (min-width: 1024px) {
-  .stats-widgets {
-    grid-template-columns: repeat(3, 1fr);
+@container widgets-stats (min-width: 880px) {
+  .stats-widgets-grille {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stats-widget-gravite {
+    grid-column: auto;
+  }
+}
+
+/* La carte Gravité s'adapte à sa propre largeur. */
+.stats-widget-gravite {
+  container: carte-gravite / inline-size;
+}
+
+/* Trop étroite pour l'anneau et la légende côte à côte : on les empile. */
+@container carte-gravite (max-width: 300px) {
+  .severity-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .severity-donut {
+    align-self: center;
+  }
+}
+
+/* En pleine largeur : anneau et légende centrés plutôt qu'étirés. */
+@container carte-gravite (min-width: 480px) {
+  .severity-content {
+    justify-content: center;
+    gap: 40px;
+  }
+
+  .severity-legend {
+    flex: 0 1 260px;
   }
 }
 

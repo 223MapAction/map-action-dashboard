@@ -15,6 +15,7 @@ import { useReinitialisationSurChangement } from '../../hooks/useReinitialisatio
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { logger } from '../../utils/logger';
 import { useEstTelephone } from './mobile/useEstTelephone';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 
 // Fonction pour adapter les données de l'API au format attendu
@@ -281,13 +282,14 @@ export const Incident = () => {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isCollapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed} hideToggle
         />
 
         <div className={`incident-page-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
           {!estTelephone && (
             <Header
               onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               sidebarCollapsed={sidebarCollapsed}
             />
           )}
@@ -332,6 +334,7 @@ export const Incident = () => {
               chargementPlus={chargementPlus}
             />
           </div>
+          <PiedDePage />
         </div>
 
         {/* Modales d'actions d'incidents */}

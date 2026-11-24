@@ -27,6 +27,7 @@ import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
 import './organisations.css';
 import './organisations-liste.css';
 import './mobile/annuaire-mobile.css';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const EMPTY_FORM = {
   name: '',
@@ -432,11 +433,11 @@ export const Organisations = () => {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isCollapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed} hideToggle
         />
 
         <div className={`orgs-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />}
+          {!estTelephone && <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />}
 
           <main className="og" onScroll={surDefilement}>
             <BandeauErreur
@@ -587,6 +588,7 @@ export const Organisations = () => {
               </div>
             )}
           </main>
+          <PiedDePage />
         </div>
 
         {fiche && (

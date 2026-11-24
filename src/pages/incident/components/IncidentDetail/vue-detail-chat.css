@@ -337,6 +337,5 @@
 }
 
 @media (max-width: 640px) {
-  .vd-chat { right: 8px; left: 8px; width: auto; bottom: 84px; height: calc(100vh - 120px); }
   .vd-fab { right: 16px; bottom: 16px; }
 }

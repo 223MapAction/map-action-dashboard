@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import useSWR from 'swr';
 import { NIVEAUX_GRAVITE, lireRepartitionApi, couleurGravite, gravite } from '../../../../utils/gravite';
 import { getIncidentsFilteredService } from '../../service/dashboard_service';
-import { getIncidentsService, getIncidentService } from '../../../incident/service/incident_service';
+import { getIncidentService } from '../../../incident/service/incident_service';
 import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
 
 const ORDRE_GRAVITE = { high: 0, medium: 1, low: 2, unknown: 3 };

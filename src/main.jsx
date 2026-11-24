@@ -5,6 +5,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './styles/modals.css'
+import './styles/modales-plein-ecran.css'
 import App from './App.jsx'
 
 // Suppress harmless maplibre-gl / browser tile abort warnings & error overlays in development

@@ -43,6 +43,7 @@ import { authService } from '../auth/services/authService';
 import '../../styles/collaboration-requests.css';
 import { logger } from '../../utils/logger';
 import { useSocketCollaborations } from '../../hooks/useSocketCollaborations';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const STATUS_META = {
   pending: {
@@ -1227,12 +1228,13 @@ export const CollaborationRequests = ({
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
 
       <div className={`requests-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Header
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           sidebarCollapsed={sidebarCollapsed}
         />
 
@@ -1241,6 +1243,7 @@ export const CollaborationRequests = ({
             {content}
           </div>
         </main>
+        <PiedDePage />
       </div>
     </div>
   );

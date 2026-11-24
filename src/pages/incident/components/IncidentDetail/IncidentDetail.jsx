@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
 import { MapDetailViewMapLibre } from './MapDetailViewMapLibre';
 import { MapDetailViewMapbox } from './MapDetailViewMapbox';
@@ -925,14 +926,13 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           setDetailMapStyle={setDetailMapStyle}
           ouvrirImage={() => setIsImageModalOpen(true)}
           onToast={afficherToast}
-          onOuvrirIA={basculerChat}
-          iaDisponible={Boolean(pred)}
         />
         {toast && <div key={toast.n} className="vd-toast" role="status">{toast.texte}</div>}
 
-        {/* Assistant IA : bouton flottant + panneau. Sur téléphone, quand la
-            barre d'action est là, le bouton vit dans cette barre. */}
-        {!(estTelephone && showInvolvementButton) && <button
+        {/* Assistant IA : bouton flottant + panneau. Sur téléphone, le bouton
+            flotte au-dessus de la barre d'action, qui garde toute sa largeur
+            pour « Agir sur ce signalement ». */}
+        <button
           type="button"
           className={`vd-fab ${chatOpen && !chatClosing ? 'is-open' : ''}`}
           onClick={basculerChat}
@@ -942,10 +942,13 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           <span className="vd-fab-ic vd-fab-msg"><Message size={26} variant="Bold" color="currentColor" /></span>
           <span className="vd-fab-ic vd-fab-x"><CloseCircle size={26} variant="Bold" color="currentColor" /></span>
           {pred && !chatOpen && <span className="vd-fab-dot" aria-hidden="true" />}
-        </button>}
+        </button>
 
-        {chatOpen && estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
-        {chatOpen && (
+        {/* Rendu dans <body> : le panneau, en position fixe, se cale sur l'écran
+            et non sur un conteneur de la fiche, ce qui le décalait sur téléphone. */}
+        {chatOpen && createPortal(<>
+        {estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
+        {(
           <section className={`vd-chat ${chatClosing ? 'is-closing' : ''}`} aria-label="Assistant IA Map Action">
             <header className="vd-chat-head">
               <span className="vd-chat-ai"><MagicStar size={18} variant="Bold" color="currentColor" /></span>
@@ -1041,6 +1044,7 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
             )}
           </section>
         )}
+        </>, document.body)}
 
         {/* Modal Rejoindre l'action / Inviter des organisations */}
         <InviteOrgModal key={"InviteOrgModalIncident"} />

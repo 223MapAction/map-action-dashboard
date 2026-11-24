@@ -10,6 +10,7 @@ import { TableActionsMenu } from '../../../../components/molecules/TableActionsM
 import { gravite, libelleGravite } from '../../../../utils/gravite';
 import { titreIncident, descriptionRedondante } from '../../../../utils/titreIncident';
 import { lieuIncident } from '../../../../utils/lieuIncident';
+import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
 import { OSM_STYLE } from '../../../../config/mapStyles';
 import { CarteSignalementsMapLibre } from './CarteSignalementsMapLibre';
@@ -291,11 +292,11 @@ export const IncidentList = ({
               )}
             />
           ) : (
-            <>
+            <div className="sg-barre-fixe">
               <Recherche valeur={search} onChange={setSearch} />
               <FiltrePeriode valeur={periode} onChange={setPeriode} />
               <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} variante="pastille" />
-            </>
+            </div>
           )}
           {estTelephone && filtresOuverts && (
             <FiltresSignalements
@@ -386,11 +387,14 @@ export const IncidentList = ({
         </>
       ) : (
         <>
-          <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} />
-          <div className="sg-outils">
-            <Recherche valeur={search} onChange={setSearch} />
-            <FiltrePeriode valeur={periode} onChange={setPeriode} />
-            <span className="sg-annonce" role="status">{annonce}</span>
+          {/* Onglets d'état et recherche restent collés sous l'en-tête au défilement. */}
+          <div className="sg-barre-fixe">
+            <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} />
+            <div className="sg-outils">
+              <Recherche valeur={search} onChange={setSearch} />
+              <FiltrePeriode valeur={periode} onChange={setPeriode} />
+              <span className="sg-annonce" role="status">{annonce}</span>
+            </div>
           </div>
 
           {vide ? <div className="sg-boite">{etatVide}</div> : (
