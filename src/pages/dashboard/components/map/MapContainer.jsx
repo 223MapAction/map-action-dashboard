@@ -15,6 +15,8 @@ import {
   couleurGravite,
 } from '../../../../utils/gravite';
 
+import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
+
 import { MapViewMapLibre } from './MapViewMapLibre';
 import { PanneauDetail } from './PanneauDetail';
 import { MapViewMapbox } from './MapViewMapbox';
@@ -118,7 +120,8 @@ const MAP_STYLES = {
  */
 const getMarkerColorClass = (
   incident,
-  currentUserId
+  currentUserId,
+  pred = null
 ) => {
   const isResolved =
     incident?.etat === 'resolved';
@@ -157,7 +160,7 @@ const getMarkerColorClass = (
     return 'resolved-others';
   }
 
-  return `active-${gravite(incident)}`;
+  return `active-${gravite(incident, pred)}`;
 };
 
 
@@ -367,6 +370,16 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
     allIncidents,
     setAllIncidents,
   ] = useState([]);
+
+  const predictionsMap = useIncidentPredictions(allIncidents);
+
+  const markerColorClass = useCallback(
+    (incident, userId) => {
+      const pred = predictionsMap?.[incident?.id] || null;
+      return getMarkerColorClass(incident, userId, pred);
+    },
+    [predictionsMap]
+  );
 
   const [
     currentPage,
@@ -807,7 +820,7 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
 
           if (
             filtreExterne?.gravite &&
-            gravite(incident) !== filtreExterne.gravite
+            gravite(incident, predictionsMap?.[incident?.id]) !== filtreExterne.gravite
           ) {
             return false;
           }
@@ -842,6 +855,7 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
       currentUserId,
       filtreExterne,
       idsZoneCharges,
+      predictionsMap,
     ]);
 
 
@@ -1200,7 +1214,7 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
               groupeOuvert={groupeOuvert}
               setGroupeOuvert={setGroupeOuvert}
               currentUserId={currentUserId}
-              getMarkerColorClass={getMarkerColorClass}
+              getMarkerColorClass={markerColorClass}
               translateEtat={translateEtat}
               openModal={ouvrirBulle}
               bulle={estMobile ? null : bulle}
@@ -1583,6 +1597,7 @@ export const MapContainer = ({ filtreExterne = null, cible = null, onFiltresChan
       {selectedIncidentId && (
         <PanneauDetail
           incident={selectedIncident}
+          prediction={predictionsMap?.[selectedIncident?.id]}
           isLoading={isLoadingIncident}
           ouvert={modalShowing && !modalClosing}
           mobile={estMobile}

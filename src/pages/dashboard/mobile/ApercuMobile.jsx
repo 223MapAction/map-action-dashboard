@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { useNavigate } from 'react-router-dom';
-import { getIncidentService } from '../../incident/service/incident_service';
+import { getIncidentService, getIncidentPredictionService } from '../../incident/service/incident_service';
 import { titreIncident } from '../../../utils/titreIncident';
 import { gravite, couleurGravite, couleurTexteGravite, libelleGravite } from '../../../utils/gravite';
 import { tempsRelatif } from '../components/widgets/useStatsWidgets';
@@ -21,8 +21,10 @@ export const ApercuMobile = ({ incident, onDetail, onFermer }) => {
   const { fermer, classe } = useFeuille(onFermer);
   // Même clé que le détail rapide : ce qui est chargé ici lui sert de cache.
   const { data: detail } = useSWR(`/incident/${incident.id}`, () => getIncidentService(incident.id));
+  const { data: prediction } = useSWR(`/Incidentprediction/${incident.id}`, () => getIncidentPredictionService(incident.id));
+  const pred = Array.isArray(prediction) && prediction.length > 0 ? prediction[0] : (prediction || null);
   const i = { ...incident, ...(detail || {}) };
-  const niveau = gravite(i);
+  const niveau = gravite(i, pred);
   const statut = STATUTS[i.etat] ?? STATUTS.declared;
   const photo = i.thumbnail || i.photo;
   const action = !i.etat || i.etat === 'declared' || i.etat === 'pending' ? 'Prendre en charge' : i.etat === 'resolved' ? 'Voir le rapport' : 'Voir le suivi';

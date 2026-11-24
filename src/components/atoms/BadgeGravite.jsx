@@ -18,10 +18,10 @@ import './badge-gravite.css';
  * @param {Object} incident
  * @param {string} [variante] 'discret' (fond pâle, défaut) | 'plein'
  */
-export const BadgeGravite = ({ incident, variante = 'discret', className = '' }) => {
+export const BadgeGravite = ({ incident, prediction = null, pred = null, variante = 'discret', className = '' }) => {
   if (!incident) return null;
 
-  const niveau = gravite(incident);
+  const niveau = gravite(incident, prediction || pred);
 
   return (
     <span className={`badge-gravite badge-gravite--${niveau} badge-gravite--${variante} ${className}`.trim()}>

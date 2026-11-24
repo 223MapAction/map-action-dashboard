@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import useSWR from 'swr';
 import { NIVEAUX_GRAVITE, lireRepartitionApi, couleurGravite, gravite } from '../../../../utils/gravite';
 import { getIncidentsFilteredService } from '../../service/dashboard_service';
-import { getIncidentService } from '../../../incident/service/incident_service';
+import { getIncidentsService, getIncidentService } from '../../../incident/service/incident_service';
+import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
 
 const ORDRE_GRAVITE = { high: 0, medium: 1, low: 2, unknown: 3 };
 
@@ -46,16 +47,24 @@ export const useStatsWidgets = (stats) => {
     { revalidateOnFocus: false }
   );
 
-  const aTraiter = useMemo(() => {
+  const nonResolusList = useMemo(() => {
     const liste = nonResolus?.results || (Array.isArray(nonResolus) ? nonResolus : []);
-    return liste
-      .filter((i) => (i.etat || 'declared') === 'declared' && !i.is_deleted)
-      .map((i) => ({ ...i, _gravite: gravite(i) }))
+    return liste.filter((i) => (i.etat || 'declared') === 'declared' && !i.is_deleted);
+  }, [nonResolus]);
+
+  const predictionsNonResolus = useIncidentPredictions(nonResolusList);
+
+  const aTraiter = useMemo(() => {
+    return nonResolusList
+      .map((i) => {
+        const pred = predictionsNonResolus?.[i.id] || null;
+        return { ...i, _gravite: gravite(i, pred) };
+      })
       .sort((a, b) =>
         ORDRE_GRAVITE[a._gravite] - ORDRE_GRAVITE[b._gravite] ||
         new Date(a.created_at) - new Date(b.created_at)
       );
-  }, [nonResolus]);
+  }, [nonResolusList, predictionsNonResolus]);
 
   const idsAffiches = aTraiter.slice(0, 4).map((i) => i.id);
   const { data: details } = useSWR(
@@ -66,15 +75,37 @@ export const useStatsWidgets = (stats) => {
     },
     { revalidateOnFocus: false }
   );
-  const aAfficher = aTraiter.slice(0, 4).map((i) => ({ ...i, ...(details?.[i.id] || {}) }));
+  const aAfficher = aTraiter.slice(0, 4).map((i) => {
+    const d = details?.[i.id] || {};
+    const pred = predictionsNonResolus?.[i.id] || null;
+    const merged = { ...i, ...d };
+    return { ...merged, _gravite: gravite(merged, pred) };
+  });
 
   const severityData = useMemo(() => {
+    if (nonResolusList.length > 0 && Object.keys(predictionsNonResolus).length > 0) {
+      const compteurs = { high: 0, medium: 0, low: 0 };
+      nonResolusList.forEach((inc) => {
+        const pred = predictionsNonResolus?.[inc.id] || null;
+        const g = gravite(inc, pred);
+        compteurs[g] = (compteurs[g] || 0) + 1;
+      });
+      const total = nonResolusList.length;
+      return NIVEAUX_GRAVITE.map(({ cle, libelle }) => ({
+        cle,
+        label: libelle,
+        count: compteurs[cle] || 0,
+        percentage: total > 0 ? Math.round(((compteurs[cle] || 0) / total) * 100) : 0,
+        color: couleurGravite(cle),
+      }));
+    }
+
     const niveaux = lireRepartitionApi(stats?.by_severity);
     return NIVEAUX_GRAVITE.map(({ cle, libelle }) => {
       const n = niveaux.find((x) => x.cle === cle);
       return { cle, label: libelle, count: n?.count ?? 0, percentage: n?.percentage ?? 0, color: couleurGravite(cle) };
     });
-  }, [stats]);
+  }, [stats, nonResolusList, predictionsNonResolus]);
 
   const totalGravite = severityData.reduce((s, x) => s + x.count, 0);
   const sommePourcent = severityData.reduce((s, x) => s + x.percentage, 0) || 1;
