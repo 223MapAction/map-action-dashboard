@@ -323,9 +323,19 @@
 @media (max-width: 640px) {
   .sgm-repere { display: block; height: 0; margin-bottom: -12px; } /* annule le gap de .sg */
 
+  /* .sg, qui défile, a env(safe-area-inset-top) + 16 px de marge en haut, et
+     le collage se mesure depuis cette marge : -16 px ramène la barre juste
+     sous l'encoche au lieu de la laisser flotter 16 px plus bas. La largeur
+     explicite annule le width: 100% de .sg > *, qui, avec les marges
+     négatives, décalait la barre vers la gauche. */
+  .sg > .sgm-barre {
+    width: calc(100% + 32px);
+    max-width: none;
+  }
+
   .sgm-barre {
     position: sticky;
-    top: env(safe-area-inset-top, 0px);
+    top: -16px;
     z-index: 20;
     display: flex;
     align-items: center;
