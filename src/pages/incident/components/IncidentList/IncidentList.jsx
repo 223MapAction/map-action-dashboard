@@ -10,6 +10,7 @@ import { TableActionsMenu } from '../../../../components/molecules/TableActionsM
 import { gravite, libelleGravite } from '../../../../utils/gravite';
 import { titreIncident, descriptionRedondante } from '../../../../utils/titreIncident';
 import { lieuIncident } from '../../../../utils/lieuIncident';
+import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
 import { OSM_STYLE } from '../../../../config/mapStyles';
 import { CarteSignalementsMapLibre } from './CarteSignalementsMapLibre';
