@@ -323,6 +323,34 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
     };
   }, [chatOpen]);
 
+  // Sous 1024 px, l'assistant occupe tout l'écran. Sur iPhone, le clavier
+  // réduit la zone visible sans déplacer les éléments fixes : le panneau
+  // paraissait alors décalé et coupé. On le cale donc sur la zone réellement
+  // visible (visualViewport), et la saisie reste au-dessus du clavier.
+  const refPanneauChat = useRef(null);
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!chatOpen || !vv) return undefined;
+    const caler = () => {
+      const panneau = refPanneauChat.current;
+      if (!panneau) return;
+      if (window.innerWidth >= 1024) {
+        panneau.style.removeProperty('--vd-chat-haut');
+        panneau.style.removeProperty('--vd-chat-hauteur');
+        return;
+      }
+      panneau.style.setProperty('--vd-chat-haut', `${Math.round(vv.offsetTop)}px`);
+      panneau.style.setProperty('--vd-chat-hauteur', `${Math.round(vv.height)}px`);
+    };
+    caler();
+    vv.addEventListener('resize', caler);
+    vv.addEventListener('scroll', caler);
+    return () => {
+      vv.removeEventListener('resize', caler);
+      vv.removeEventListener('scroll', caler);
+    };
+  }, [chatOpen]);
+
   // Défilement automatique vers le bas lors de la réception d'un nouveau message
   useEffect(() => {
     if (chatOpen && shouldScrollToBottomRef.current) {
@@ -949,7 +977,7 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
         {chatOpen && createPortal(<>
         {estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
         {(
-          <section className={`vd-chat ${chatClosing ? 'is-closing' : ''}`} aria-label="Assistant IA Map Action">
+          <section ref={refPanneauChat} className={`vd-chat ${chatClosing ? 'is-closing' : ''}`} aria-label="Assistant IA Map Action">
             <header className="vd-chat-head">
               <span className="vd-chat-ai"><MagicStar size={18} variant="Bold" color="currentColor" /></span>
               <div>
