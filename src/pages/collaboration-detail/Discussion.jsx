@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import {
-  Send2, Paperclip, Microphone, TickCircle, CloseSquare, Edit2, Trash, DocumentText, Messages2, CloseCircle,
+  Send2, Paperclip, Microphone, Microphone2, TickCircle, CloseSquare, Edit2, Trash, DocumentText, Messages2, CloseCircle,
 } from 'iconsax-react';
 import { authService } from '../auth/services/authService';
 import { CustomAudioPlayer } from './LecteurAudio';
@@ -233,14 +233,14 @@ export const Discussion = ({ discussion, lectureSeule, onRapports, onFermer }) =
                 ))}
               </div>
               <time>{formatRecordingTime(recordingTime)}</time>
-              <button type="button" className="vc-send" onClick={stopRecording} aria-label="Valider l'enregistrement" title="Valider l'enregistrement">
+              <button type="button" className="vc-send vc-send-envoyer" onClick={stopRecording} aria-label="Valider l'enregistrement" title="Valider l'enregistrement">
                 <TickCircle size={20} variant="Bold" color="currentColor" />
               </button>
             </div>
           ) : (
             <div className="vc-compose-row">
-              <label className={`vc-ico vc-ico-lg ${sendingMessage ? 'is-off' : ''}`} title="Joindre un fichier">
-                <Paperclip size={19} color="currentColor" />
+              <label className={`vc-ico vc-ico-lg vc-joindre ${sendingMessage ? 'is-off' : ''}`} title="Joindre un fichier" aria-label="Joindre un fichier">
+                <Paperclip size={20} color="currentColor" aria-hidden="true" />
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -275,11 +275,11 @@ export const Discussion = ({ discussion, lectureSeule, onRapports, onFermer }) =
                 }}
               />
               {videSaisie ? (
-                <button type="button" className="vc-send" onClick={startRecording} disabled={sendingMessage} aria-label="Enregistrer un message vocal" title="Enregistrer un message vocal">
-                  <Microphone size={18} variant="Bold" color="currentColor" />
+                <button type="button" className="vc-send vc-send-micro" onClick={startRecording} disabled={sendingMessage} aria-label="Enregistrer un message vocal" title="Enregistrer un message vocal">
+                  <Microphone2 size={20} variant="Bold" color="currentColor" />
                 </button>
               ) : (
-                <button type="button" className="vc-send" onClick={sendMessage} disabled={sendingMessage} aria-label="Envoyer le message" title="Envoyer">
+                <button type="button" className="vc-send vc-send-envoyer" onClick={sendMessage} disabled={sendingMessage} aria-label="Envoyer le message" title="Envoyer">
                   {sendingMessage ? <Spin size={16} /> : <Send2 size={18} variant="Bold" color="currentColor" />}
                 </button>
               )}
