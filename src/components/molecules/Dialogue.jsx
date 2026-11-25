@@ -79,7 +79,11 @@ export const Dialogue = ({
   useEffect(() => {
     origineRef.current = document.activeElement;
     const fenetre = fenetreRef.current;
-    (fenetre?.querySelector('[data-autofocus]') || fenetre)?.focus({ preventScroll: true });
+    // Écran tactile : pas de focus sur un champ, sinon le clavier virtuel
+    // s'ouvre d'office et masque la moitié du formulaire. La fenêtre reçoit
+    // le focus (lecteurs d'écran), l'utilisateur touche le champ voulu.
+    const tactile = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+    ((!tactile && fenetre?.querySelector('[data-autofocus]')) || fenetre)?.focus({ preventScroll: true });
     const html = document.documentElement;
     const ancien = html.style.overflow;
     html.style.overflow = 'hidden';
