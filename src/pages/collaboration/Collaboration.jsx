@@ -6,7 +6,6 @@ import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import { useSidebarState } from '../../hooks/useSidebarState';
 import Pagination from '../../components/molecules/Pagination';
-import { getIncidentsService } from '../incident/service/incident_service';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import { fr } from 'date-fns/locale/fr';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -126,7 +125,6 @@ export const Collaboration = () => {
   const localStatusFilter = estTelephone ? 'all' : filtreAvancementBureau;
   const [nbDemandes, setNbDemandes] = useState(null);
   const [nbSuggestions, setNbSuggestions] = useState(null);
-  const [incidentFilter, setIncidentFilter] = useState('');
   const [dateRange, setDateRange] = useState([null, null]);
   const [dateFrom, dateTo] = dateRange;
 
@@ -138,10 +136,10 @@ export const Collaboration = () => {
   // utilisees) toujours visibles, et on replie le reste.
   //
   // Le panneau s'ouvre tout seul si un filtre replie est deja actif (ex. lien
-  // partage avec ?incident=...) : sinon l'utilisateur verrait une liste
+  // partage) : sinon l'utilisateur verrait une liste
   // filtree sans savoir pourquoi, ni comment revenir en arriere.
   const filtresAvancesActifs =
-    statusFilter !== 'all' || Boolean(incidentFilter) ||
+    statusFilter !== 'all' ||
     Boolean(dateFrom) || Boolean(dateTo);
   const [filtresAvancesOuverts, setFiltresAvancesOuverts] = useState(filtresAvancesActifs);
   // On n'ouvre le panneau QUE lorsque filtresAvancesActifs passe de faux a
@@ -151,46 +149,15 @@ export const Collaboration = () => {
     if (filtresAvancesActifs) setFiltresAvancesOuverts(true);
   });
   const nbFiltresAvancesActifs = [
-    statusFilter !== 'all', Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo),
+    statusFilter !== 'all', Boolean(dateFrom) || Boolean(dateTo),
   ].filter(Boolean).length;
 
 
   // Retour a la premiere page des qu'un filtre change.
   useReinitialisationSurChangement(
-    [search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
+    [search, roleFilter, statusFilter, dateFrom, dateTo, localStatusFilter],
     () => setPage(1),
   );
-
-  // Les cent signalements qui remplissent la liste déroulante du filtre.
-  //
-  // Mesuré à 4,3 s (111 Ko, 35 signalements complets) : c'est cher pour un menu
-  // qui n'affiche qu'un titre par entrée. Cet appel partait jusqu'ici dès que
-  // le navigateur devenait inoccupé, donc à chaque visite, y compris pour les
-  // gens qui n'ouvrent jamais « Plus de filtres » — soit la majorité.
-  //
-  // On attend donc que ce menu-là soit ouvert. Se brancher sur le panneau
-  // « Plus de filtres » ne servirait à rien : statusFilter vaut « accepted »
-  // par défaut, donc le panneau s'ouvre de lui-même au premier rendu, pour
-  // tout le monde. Le menu des signalements, lui, reste fermé tant qu'on ne
-  // clique pas dessus.
-  //
-  // Une fois chargée, la liste reste en cache cinq minutes : refermer puis
-  // rouvrir ne relance rien. Le coût est un court délai à la première
-  // ouverture du menu, contre 4 s de trafic épargnées à tous ceux qui ne
-  // filtrent pas par signalement.
-  //
-  // Charger plutôt que réduire : couper à vingt entrées rendrait le filtre
-  // menteur, puisqu'il ne proposerait plus tous les signalements existants.
-  const [listeSignalementsDemandee, setListeSignalementsDemandee] = useState(false);
-
-  const { data: rawIncidents, isLoading: chargementListeSignalements } = useSWR(
-    listeSignalementsDemandee ? 'incidents_dropdown_list' : null,
-    () => getIncidentsService(1, 100),
-    { dedupingInterval: 300000, revalidateIfStale: false, revalidateOnFocus: false }
-  );
-  const incidentsList = useMemo(() => {
-    return rawIncidents?.results || (Array.isArray(rawIncidents) ? rawIncidents : []);
-  }, [rawIncidents]);
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
@@ -223,9 +190,6 @@ export const Collaboration = () => {
       } else if (localStatusFilter === 'in-progress') {
         params.status = 'in-progress';
       }
-      if (incidentFilter) {
-        params.incident_id = incidentFilter;
-      }
       if (dateFrom) {
         params.date_from = dateFrom.toISOString().slice(0, 10);
       }
@@ -234,7 +198,7 @@ export const Collaboration = () => {
       }
       return params;
     },
-    [search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter]
+    [search, roleFilter, statusFilter, dateFrom, dateTo, localStatusFilter]
   );
 
   // Utiliser useSWR pour charger les collaborations
@@ -254,7 +218,7 @@ export const Collaboration = () => {
     (index, precedent) => {
       if (!listeContinue) return null;
       if (precedent && (precedent.results || []).length < pageSize) return null;
-      return ['collaborations-mobile', index + 1, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter];
+      return ['collaborations-mobile', index + 1, search, roleFilter, statusFilter, dateFrom, dateTo, localStatusFilter];
     },
     ([, p]) => getCollaborationsService(buildParams(p)),
     { ...optionsSWR, revalidateFirstPage: false },
@@ -264,7 +228,7 @@ export const Collaboration = () => {
 
   const { data: donneesPage, error: erreurPage, isLoading: chargementPage, mutate: mutatePage } = useSWR(
     // Sur téléphone, la liste continue ci-dessus prend le relais.
-    estTelephone ? null : ['collaborations', page, search, roleFilter, statusFilter, incidentFilter, dateFrom, dateTo, localStatusFilter],
+    estTelephone ? null : ['collaborations', page, search, roleFilter, statusFilter, dateFrom, dateTo, localStatusFilter],
     () => getCollaborationsService(buildParams(page)),
     // Cette route met 8 a 10 secondes. Les revalidations automatiques de SWR —
     // au focus de la fenetre, a la reconnexion, ou parce que la donnee est
@@ -473,14 +437,13 @@ export const Collaboration = () => {
 
   const nbTotal = swrData?.count ?? collaborations.length;
   const nbATraiter = (nbDemandes || 0) + (nbSuggestions || 0);
-  const nbFiltresTelephone = [Boolean(roleFilter), Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
+  const nbFiltresTelephone = [Boolean(roleFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
   const periodeTelephone = { debut: versIso(dateFrom), fin: versIso(dateTo) };
   const setPeriodeTelephone = ({ debut, fin }) => setDateRange([depuisIso(debut), depuisIso(fin)]);
   const vueATraiter = ongletTelephone === 'atraiter';
   const nbFiltresActifsTelephone = vueATraiter ? 1 : nbFiltresTelephone;
-  const effacerFiltresTelephone = () => { setRoleFilter(''); setIncidentFilter(''); resetDateRange(); setActiveTab('collaborations'); };
+  const effacerFiltresTelephone = () => { setRoleFilter(''); resetDateRange(); setActiveTab('collaborations'); };
   const [generationPeriode, setGenerationPeriode] = useState(0);
-  const titreSignalementFiltre = incidentFilter ? (incidentsList.find((i) => String(i.id) === String(incidentFilter))?.title || 'Un signalement') : '';
   const totalTelephone = ongletTelephone === 'atraiter'
     ? (nbATraiter ? `${nbATraiter} demande${nbATraiter > 1 ? 's' : ''} à traiter` : '')
     : isLoading ? 'Chargement…'
@@ -583,22 +546,6 @@ export const Collaboration = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 id="vlm-titre-signalement">Signalement</h3>
-                    <select
-                      className="vlm-select"
-                      value={incidentFilter}
-                      onChange={(e) => setIncidentFilter(e.target.value)}
-                      onMouseDown={() => setListeSignalementsDemandee(true)}
-                      onFocus={() => setListeSignalementsDemandee(true)}
-                      aria-labelledby="vlm-titre-signalement"
-                      aria-busy={chargementListeSignalements}
-                    >
-                      <option value="">Tous les signalements</option>
-                      {chargementListeSignalements && <option value="" disabled>Chargement des signalements...</option>}
-                      {incidentsList.map((inc) => <option key={inc.id} value={inc.id}>{inc.title}</option>)}
-                    </select>
-                  </div>
-                  <div>
                     <h3 id="vlm-titre-periode">Période</h3>
                     <ChoixPeriode key={generationPeriode} periode={periodeTelephone} setPeriode={setPeriodeTelephone} idTitre="vlm-titre-periode" />
                   </div>
@@ -619,11 +566,6 @@ export const Collaboration = () => {
                 {roleFilter && (
                   <button type="button" className="sgm-puce" onClick={() => setRoleFilter('')} aria-label={`Retirer le filtre ${libelleRole(roleFilter)}`}>
                     {libelleRole(roleFilter)}<i aria-hidden="true">×</i>
-                  </button>
-                )}
-                {incidentFilter && (
-                  <button type="button" className="sgm-puce" onClick={() => setIncidentFilter('')} aria-label={`Retirer le filtre ${titreSignalementFiltre}`}>
-                    <span className="vlm-puce-t">{titreSignalementFiltre}</span><i aria-hidden="true">×</i>
                   </button>
                 )}
                 {(dateFrom || dateTo) && (
@@ -740,30 +682,6 @@ export const Collaboration = () => {
                             <option value="accepted">Acceptée</option>
                             <option value="pending">En attente</option>
                             <option value="declined">Refusée</option>
-                          </select>
-                          <ArrowDown2 size={14} variant="Linear" color="currentColor" aria-hidden="true" />
-                        </div>
-
-                        <div className="am-filtres-select">
-                          <select
-                            value={incidentFilter}
-                            onChange={(e) => setIncidentFilter(e.target.value)}
-                            // La liste des signalements coûte 4 s à l'API : on
-                            // ne la demande qu'ici, quand ce menu s'ouvre pour
-                            // de bon. `mousedown` précède l'ouverture, `focus`
-                            // couvre le clavier.
-                            onMouseDown={() => setListeSignalementsDemandee(true)}
-                            onFocus={() => setListeSignalementsDemandee(true)}
-                            aria-label="Filtrer par signalement"
-                            aria-busy={chargementListeSignalements}
-                          >
-                            <option value="">Tous les signalements</option>
-                            {chargementListeSignalements && (
-                              <option value="" disabled>Chargement des signalements...</option>
-                            )}
-                            {incidentsList.map((inc) => (
-                              <option key={inc.id} value={inc.id}>{inc.title}</option>
-                            ))}
                           </select>
                           <ArrowDown2 size={14} variant="Linear" color="currentColor" aria-hidden="true" />
                         </div>
