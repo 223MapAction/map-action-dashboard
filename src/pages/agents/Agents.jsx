@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Profile2User, Call, Filter } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useSidebarState } from '../../hooks/useSidebarState';
@@ -10,7 +11,7 @@ import Pagination from '../../components/molecules/Pagination';
 import { TableActionsMenu } from '../../components/molecules/TableActionsMenu';
 import { BandeauErreur } from '../../components/molecules/BandeauErreur';
 import { getOrganisationsService } from '../organisations/service/organisation_service';
-import { getTousLesAgentsService, getAgentsStatsService } from './service/members_service';
+import { getAgentsPageService, getAgentsStatsService } from './service/members_service';
 import AgentsContext from './modale/AgentsModalContext';
 import { AgentFormModal, AgentDeleteModal } from './modale';
 import { ROLES, roleDepuisApi } from './roles';
@@ -64,11 +65,11 @@ const versAgent = (m) => ({
   joinedAt: m.date_joined || null,
 });
 
-const fetcher = async ([, search, role, status]) => {
+// Une page d'agents, paginée par le serveur : { count, results }.
+const fetcherPage = async ([, page, search, role, status]) => {
   try {
-    const membres = await getTousLesAgentsService(search, role, status);
-    // Les plus récents d'abord.
-    return membres.map(versAgent).sort((a, b) => new Date(b.joinedAt || 0) - new Date(a.joinedAt || 0));
+    const { count, results } = await getAgentsPageService(page, TAILLE_PAGE, search, role, status);
+    return { count, results: results.map(versAgent) };
   } catch (err) {
     logger.error('[Agents] Erreur lors de la récupération des agents:', err);
     throw err;
@@ -93,8 +94,6 @@ export const Agents = () => {
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
-  // Sur mobile, la liste s'allonge au lieu de changer de page.
-  const [nbVisibles, setNbVisibles] = useState(TAILLE_PAGE);
 
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches);
   useEffect(() => {
@@ -116,7 +115,6 @@ export const Agents = () => {
   // Retour au début de la liste dès qu'un filtre change.
   useReinitialisationSurChangement([search, roleFilter, statusFilter], () => {
     setPage(1);
-    setNbVisibles(TAILLE_PAGE);
   });
 
   // Les organisations ne servent qu'au formulaire de création du
@@ -126,15 +124,30 @@ export const Agents = () => {
 
   const { data: statsData, mutate: mutateStats } = useSWR('agents_stats', getAgentsStatsService);
 
-  const {
-    data: fetchedAgents,
-    error: erreurAgents,
-    isLoading,
-    mutate: mutateAgents,
-  } = useSWR(['agents_list', search, roleFilter, statusFilter], fetcher, { keepPreviousData: true });
+  // Pagination côté serveur. Bureau : une page à la fois. Mobile : la liste
+  // s'allonge page après page (« Charger plus »), chaque lot venant du serveur.
+  const pageBureau = useSWR(
+    isMobile ? null : ['agents_page', page, search, roleFilter, statusFilter],
+    fetcherPage,
+    { keepPreviousData: true },
+  );
+  const listeMobile = useSWRInfinite(
+    (i) => (isMobile ? ['agents_page', i + 1, search, roleFilter, statusFilter] : null),
+    fetcherPage,
+    { revalidateFirstPage: false },
+  );
 
-  const agents = fetchedAgents || EMPTY_ARRAY;
-  const total = agents.length;
+  const fetchedAgents = isMobile ? listeMobile.data : pageBureau.data;
+  const erreurAgents = isMobile ? listeMobile.error : pageBureau.error;
+  const isLoading = isMobile ? listeMobile.isLoading : pageBureau.isLoading;
+  const mutateAgents = isMobile ? listeMobile.mutate : pageBureau.mutate;
+  const agents = useMemo(
+    () => (isMobile ? (listeMobile.data || []).flatMap((p) => p.results) : (pageBureau.data?.results || EMPTY_ARRAY)),
+    [isMobile, listeMobile.data, pageBureau.data],
+  );
+  const total = (isMobile ? listeMobile.data?.[0]?.count : pageBureau.data?.count) ?? 0;
+  const chargementPlus = isMobile && listeMobile.size > (listeMobile.data?.length || 0);
+  const chargerPlus = () => listeMobile.setSize((n) => n + 1);
 
   const compteurs = {
     '': statsData?.total,
@@ -218,9 +231,7 @@ export const Agents = () => {
         : `${nombreFr(total)} agent${total > 1 ? 's' : ''}`;
   const ouvrirFiche = (a) => { setCodeVisible(false); setFiche(a); };
 
-  const pageAgents = isMobile
-    ? agents.slice(0, nbVisibles)
-    : agents.slice((page - 1) * TAILLE_PAGE, page * TAILLE_PAGE);
+  const pageAgents = agents;
   const chargementInitial = isLoading && !fetchedAgents;
   const vide = !chargementInitial && agents.length === 0;
   const nbColonnes = estSuperAdmin ? 7 : 6;
@@ -356,8 +367,8 @@ export const Agents = () => {
                     </li>
                   ))}
                 </ul>
-                {nbVisibles < total && (
-                  <ChargerPlus chargement={false} onPlus={() => setNbVisibles((n) => n + TAILLE_PAGE)} reste={Math.min(TAILLE_PAGE, total - nbVisibles)} nom="agents" />
+                {agents.length < total && (
+                  <ChargerPlus chargement={chargementPlus} onPlus={chargerPlus} reste={Math.min(TAILLE_PAGE, total - agents.length)} nom="agents" />
                 )}
               </>
             ) : isMobile ? (
@@ -382,8 +393,8 @@ export const Agents = () => {
                     )}
                   </article>
                 ))}
-                {nbVisibles < total && (
-                  <button type="button" className="ag-plus" onClick={() => setNbVisibles((n) => n + TAILLE_PAGE)}>Afficher plus</button>
+                {agents.length < total && (
+                  <button type="button" className="ag-plus" onClick={chargerPlus} disabled={chargementPlus}>{chargementPlus ? 'Chargement…' : 'Afficher plus'}</button>
                 )}
               </div>
             ) : (

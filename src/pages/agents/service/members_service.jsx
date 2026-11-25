@@ -10,11 +10,11 @@ import { logger } from '../../../utils/logger';
  * @param {string} status - Statut filtré (active|inactive)
  * @returns {Promise<Object|Array>} Réponse paginée ou liste des membres
  */
-export const getOrganisationMembersService = async (organisationId, search = '', role = '', status = '') => {
+export const getOrganisationMembersService = async (organisationId, search = '', role = '', status = '', pagination = null) => {
     try {
         const axios = authService.createAuthenticatedAxios();
 
-        const params = {};
+        const params = { ...(pagination || {}) };
         if (search) params.search = search;
         if (role) {
             let backendRole = role;
@@ -40,6 +40,25 @@ export const getOrganisationMembersService = async (organisationId, search = '',
         logger.error('[Members] Erreur récupération membres:', error?.response?.status, error?.response?.data);
         throw error;
     }
+};
+
+/**
+ * Récupère UNE page d'agents, paginée par le serveur.
+ * Renvoie toujours { count, results } : si l'API répond par une liste non
+ * paginée, la page est découpée ici et count reste le vrai total.
+ * Les plus récents d'abord (ordering=-date_joined).
+ */
+export const getAgentsPageService = async (page, pageSize, search = '', role = '', status = '', organisationId = null) => {
+    const data = await getOrganisationMembersService(organisationId, search, role, status, {
+        page,
+        page_size: pageSize,
+        ordering: '-date_joined',
+    });
+    if (Array.isArray(data)) {
+        return { count: data.length, results: data.slice((page - 1) * pageSize, page * pageSize) };
+    }
+    const results = data?.results || [];
+    return { count: data?.count ?? results.length, results };
 };
 
 /**

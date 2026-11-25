@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import { Add, Edit2, Trash, SearchNormal1, ArrowDown2, Buildings2, Filter } from 'iconsax-react';
 import { ShimmerThumbnail, ShimmerText } from 'react-shimmer-effects';
 import { useRechercheDebouncee } from '../../hooks/useRechercheDebouncee';
@@ -24,6 +25,7 @@ import { AVATAR_COULEUR_DEFAUT } from '../../utils/couleursAvatar';
 import { libelleSecteur, libelleType, libellePays, nombreFr, COULEURS_ORGANISATION } from './libelles';
 import { useEstTelephone } from '../incident/mobile/useEstTelephone';
 import { FeuilleBasse } from '../collaboration/mobile/FeuilleBasse';
+import { ChargerPlus } from '../incident/mobile/ChargerPlus';
 import './organisations.css';
 import './organisations-liste.css';
 import './mobile/annuaire-mobile.css';
@@ -112,11 +114,31 @@ export const Organisations = () => {
 
   // Tous les filtres sont appliqués par le serveur : le total qu'il renvoie
   // est donc celui de la recherche, pas celui de la page affichée.
-  const { data: rawOrgs, error: erreurOrgs, isLoading: swrLoading, mutate: mutateOrgs } = useSWR(
-    ['organisation_list', page, search, sectorFilter, statusFilter, typeFilter],
+  // Bureau : une page à la fois. Mobile : la liste s'allonge page après page
+  // (« Charger plus »), chaque lot venant du serveur.
+  const pageBureau = useSWR(
+    isMobile ? null : ['organisation_list', page, search, sectorFilter, statusFilter, typeFilter],
     () => getOrganisationsService(page, pageSize, true, search, sectorFilter, statusFilter, typeFilter),
     { keepPreviousData: true },
   );
+  const listeMobile = useSWRInfinite(
+    (i) => (isMobile ? ['organisation_list', i + 1, search, sectorFilter, statusFilter, typeFilter] : null),
+    ([, p]) => getOrganisationsService(p, pageSize, true, search, sectorFilter, statusFilter, typeFilter),
+    { revalidateFirstPage: false },
+  );
+  const rawOrgs = useMemo(() => {
+    if (!isMobile) return pageBureau.data;
+    if (!listeMobile.data) return undefined;
+    return {
+      count: listeMobile.data[0]?.count ?? 0,
+      results: listeMobile.data.flatMap((p) => p?.results || (Array.isArray(p) ? p : [])),
+    };
+  }, [isMobile, pageBureau.data, listeMobile.data]);
+  const erreurOrgs = isMobile ? listeMobile.error : pageBureau.error;
+  const swrLoading = isMobile ? listeMobile.isLoading : pageBureau.isLoading;
+  const mutateOrgs = isMobile ? listeMobile.mutate : pageBureau.mutate;
+  const chargementPlus = isMobile && listeMobile.size > (listeMobile.data?.length || 0);
+  const chargerPlus = () => listeMobile.setSize((n) => n + 1);
 
   const { data: statsData, mutate: mutateStats } = useSWR('organisation_stats', getOrganisationStatsService);
 
@@ -498,6 +520,7 @@ export const Organisations = () => {
                 {!filtreActif && <button type="button" className="og-btn-p" onClick={openCreate}><Add size={18} color="currentColor" />Nouvelle organisation</button>}
               </div>
             ) : estTelephone ? (
+              <>
               <ul className="anm-liste">
                 {swrLoading && !orgs.length ? [0, 1, 2].map((n) => <li key={n} className="anm-squelette"><ShimmerText line={2} gap={8} /></li>) : orgs.map((o) => (
                   <li key={o.id}>
@@ -513,7 +536,12 @@ export const Organisations = () => {
                   </li>
                 ))}
               </ul>
+                {orgs.length < total && (
+                  <ChargerPlus chargement={chargementPlus} onPlus={chargerPlus} reste={Math.min(pageSize, total - orgs.length)} nom="organisations" feminin />
+                )}
+              </>
             ) : isMobile ? (
+              <>
               <div className="og-cartes">
                 {swrLoading && !orgs.length ? [0, 1, 2].map((n) => <div key={n} className="og-carte"><ShimmerText line={3} gap={8} /></div>) : orgs.map((o) => (
                   <article key={o.id} className="og-carte">
@@ -533,6 +561,10 @@ export const Organisations = () => {
                   </article>
                 ))}
               </div>
+                {orgs.length < total && (
+                  <ChargerPlus chargement={chargementPlus} onPlus={chargerPlus} reste={Math.min(pageSize, total - orgs.length)} nom="organisations" feminin />
+                )}
+              </>
             ) : (
               <div className="og-boite og-tableau-boite">
                 <table className="og-tableau">
@@ -581,7 +613,7 @@ export const Organisations = () => {
               </div>
             )}
 
-            {!vide && total > pageSize && (
+            {!vide && !isMobile && total > pageSize && (
               <div className="og-pied">
                 <span>{`${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} sur ${nombreFr(total)}`}</span>
                 <Pagination page={page} pageSize={pageSize} count={total} onChange={setPage} />
