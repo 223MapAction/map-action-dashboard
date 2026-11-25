@@ -22,6 +22,7 @@ import { FiltrePeriode } from './FiltrePeriode';
 import { libellePeriode } from './periode';
 import './signalements.css';
 import '../../mobile/mobile.css';
+import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
 
 const etatLibelle = (valeur) => ETATS.find((e) => e.valeur === valeur)?.libelle || '';
 

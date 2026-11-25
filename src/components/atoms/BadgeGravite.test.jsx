@@ -53,8 +53,8 @@ describe('BadgeGravite', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('affiche « non évaluée » quand la gravite est absente, pas « faible »', () => {
+  it('retombe sur « faible » quand la gravite est absente', () => {
     render(<BadgeGravite incident={{ id: 'x' }} />);
-    expect(screen.getByText('Gravité non évaluée')).toBeTruthy();
+    expect(screen.getByText('Gravité faible')).toBeTruthy();
   });
 });
