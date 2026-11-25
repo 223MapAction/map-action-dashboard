@@ -12,11 +12,35 @@
   }
 
   .mi .mi-repere { display: none; }
-  .mi .mi-entete { position: static; display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; background: none; box-shadow: none; }
-  .mi .mi-tete { order: 1; margin: 0; }
+  /* L'en-tête s'efface (display: contents) : titre, recherche et résumé des
+     filtres deviennent des enfants directs de .mi, la zone qui défile. Sans
+     ça, la recherche ne pouvait pas se coller : un élément collant ne sort
+     jamais de son parent, et l'en-tête ne fait que sa propre hauteur. */
+  .mi .mi-entete { display: contents; }
+  .mi .mi-entete > * { flex-shrink: 0; }
+  .mi .mi-tete { order: 0; margin: 0; }
   .mi .mi-tete h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.025em; }
   .mi .mi-tete p { display: none; }
-  .mi .mi-outils { order: 2; display: flex; flex-wrap: nowrap; gap: 8px; margin: 0; }
+  /* Recherche collée en haut au défilement, comme sur Signalements. .mi a
+     env(safe-area-inset-top) + 16 px de marge en haut : -16 px colle la barre
+     juste sous l'encoche. */
+  .mi-layout .mi .mi-outils {
+    position: sticky;
+    top: -16px;
+    z-index: 20;
+    order: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% + 32px);
+    max-width: none;
+    margin: 0 -16px;
+    padding: 8px 16px;
+    background: rgba(242, 244, 247, 0.86);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
   .mi .mi-recherche { flex: 1; min-width: 0; max-width: none; height: 44px; border: none; border-radius: 12px; background: #E4E7EC; color: #5B6472; }
   .mi .mi-recherche input { font-size: 16px; }
   .mi .mi-statuts-pastilles { order: 3; display: flex; gap: 8px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }

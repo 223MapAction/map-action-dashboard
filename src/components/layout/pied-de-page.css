@@ -1,0 +1,35 @@
+/* ============================================
+   PIED DE PAGE — mention de copyright (pages connectées)
+   Fixe : il ferme la colonne de contenu de la page, sous la zone
+   qui défile, et reste donc toujours visible en bas de l'écran.
+   ============================================ */
+.pied-de-page {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: var(--spacing-3) var(--spacing-6);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* Tableau de bord : la zone qui défile et le pied de page sont regroupés dans
+   une colonne, à côté du panneau Activité. */
+.dashboard-colonne {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 640px) {
+  .pied-de-page {
+    display: none;
+  }
+}

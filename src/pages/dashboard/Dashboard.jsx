@@ -16,6 +16,7 @@ import { libelleGravite } from '../../utils/gravite';
 import { getIncidentsService } from '../incident/service/incident_service';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { DashboardMobile } from './mobile/DashboardMobile';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 const FiltrePastille = ({ libelle, onRetirer }) => (
   <span className="dashboard-filter-pill">
@@ -346,6 +347,9 @@ export const Dashboard = () => {
         />
 
         {/* Zone centrale avec scroll */}
+        {/* Colonne centrale : la zone qui défile, puis le pied de page fixe en
+            dessous, sans passer sous le panneau Activité. */}
+        <div className="dashboard-colonne">
         <main className="dashboard-content">
           <div className="dashboard-grid">
             {/* Contexte de la carte : périmètre, puis filtres posés depuis le dashboard */}
@@ -402,6 +406,8 @@ export const Dashboard = () => {
             />
           </div>
         </main>
+        <PiedDePage />
+        </div>
 
         {/* Sidebar droite fixe - Activité en temps réel */}
         <aside className={`dashboard-sidebar-right ${activityCollapsed ? 'collapsed' : ''}`}>

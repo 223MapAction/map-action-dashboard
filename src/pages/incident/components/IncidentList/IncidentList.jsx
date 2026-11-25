@@ -10,6 +10,7 @@ import { TableActionsMenu } from '../../../../components/molecules/TableActionsM
 import { gravite, libelleGravite } from '../../../../utils/gravite';
 import { titreIncident, descriptionRedondante } from '../../../../utils/titreIncident';
 import { lieuIncident } from '../../../../utils/lieuIncident';
+import { useIncidentPredictions } from '../../../../hooks/useIncidentPredictions';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
 import { OSM_STYLE } from '../../../../config/mapStyles';
 import { CarteSignalementsMapLibre } from './CarteSignalementsMapLibre';
@@ -292,11 +293,11 @@ export const IncidentList = ({
               )}
             />
           ) : (
-            <>
+            <div className="sg-barre-fixe">
               <Recherche valeur={search} onChange={setSearch} />
               <FiltrePeriode valeur={periode} onChange={setPeriode} />
               <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} variante="pastille" />
-            </>
+            </div>
           )}
           {estTelephone && filtresOuverts && (
             <FiltresSignalements
@@ -387,11 +388,14 @@ export const IncidentList = ({
         </>
       ) : (
         <>
-          <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} />
-          <div className="sg-outils">
-            <Recherche valeur={search} onChange={setSearch} />
-            <FiltrePeriode valeur={periode} onChange={setPeriode} />
-            <span className="sg-annonce" role="status">{annonce}</span>
+          {/* Onglets d'état et recherche restent collés sous l'en-tête au défilement. */}
+          <div className="sg-barre-fixe">
+            <OngletsEtat valeur={statusFilter} onChange={setStatusFilter} count={count} chargement={isLoading} />
+            <div className="sg-outils">
+              <Recherche valeur={search} onChange={setSearch} />
+              <FiltrePeriode valeur={periode} onChange={setPeriode} />
+              <span className="sg-annonce" role="status">{annonce}</span>
+            </div>
           </div>
 
           {vide ? <div className="sg-boite">{etatVide}</div> : (
@@ -438,6 +442,12 @@ export const IncidentList = ({
                               {titre}
                             </a>
                             {description && <p className="sg-desc">{description}</p>}
+                            {/* Repli de la colonne Localisation, affiché seulement
+                                quand le tableau est trop étroit pour elle. */}
+                            <span className="sg-lieu sg-repli">
+                              <Location size={14} color="currentColor" aria-hidden="true" />
+                              {lieu}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -448,7 +458,13 @@ export const IncidentList = ({
                         </span>
                       </td>
                       <td><Gravite niveau={niveau} /></td>
-                      <td><Etat etat={incident.etat} /></td>
+                      <td>
+                        <Etat etat={incident.etat} />
+                        {/* Repli de la colonne « Pris en charge par ». */}
+                        <span className="sg-repli sg-charge-repli">
+                          {charge ? <b className={charge.estMoi ? 'is-moi' : ''}>{charge.nom}</b> : "Personne pour l'instant"}
+                        </span>
+                      </td>
                       <td>
                         {charge ? (
                           <span className="sg-charge">

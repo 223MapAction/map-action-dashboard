@@ -36,6 +36,7 @@ import { authService } from '../auth/services/authService';
 import { API_URL_BASE } from '../../config/api_url_base';
 import '../../styles/collaboration-requests.css';
 import { logger } from '../../utils/logger';
+import { PiedDePage } from '../../components/layout/PiedDePage';
 
 /* ──────────────────── Constants ──────────────────── */
 
@@ -841,11 +842,12 @@ export const SuggestRequests = ({ embedded = false, aTraiter = false, filtreText
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed} hideToggle
       />
       <div className={`requests-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Header
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           sidebarCollapsed={sidebarCollapsed}
         />
         <main className="requests-content">
@@ -853,6 +855,7 @@ export const SuggestRequests = ({ embedded = false, aTraiter = false, filtreText
             {content}
           </div>
         </main>
+        <PiedDePage />
       </div>
     </div>
   );

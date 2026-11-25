@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { IS_MAPBOX } from '../../../../config/mapEngine';
 import { MapDetailViewMapLibre } from './MapDetailViewMapLibre';
 import { MapDetailViewMapbox } from './MapDetailViewMapbox';
@@ -319,6 +320,34 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
     }
     return () => {
       document.body.style.overflow = '';
+    };
+  }, [chatOpen]);
+
+  // Sous 1024 px, l'assistant occupe tout l'écran. Sur iPhone, le clavier
+  // réduit la zone visible sans déplacer les éléments fixes : le panneau
+  // paraissait alors décalé et coupé. On le cale donc sur la zone réellement
+  // visible (visualViewport), et la saisie reste au-dessus du clavier.
+  const refPanneauChat = useRef(null);
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!chatOpen || !vv) return undefined;
+    const caler = () => {
+      const panneau = refPanneauChat.current;
+      if (!panneau) return;
+      if (window.innerWidth >= 1024) {
+        panneau.style.removeProperty('--vd-chat-haut');
+        panneau.style.removeProperty('--vd-chat-hauteur');
+        return;
+      }
+      panneau.style.setProperty('--vd-chat-haut', `${Math.round(vv.offsetTop)}px`);
+      panneau.style.setProperty('--vd-chat-hauteur', `${Math.round(vv.height)}px`);
+    };
+    caler();
+    vv.addEventListener('resize', caler);
+    vv.addEventListener('scroll', caler);
+    return () => {
+      vv.removeEventListener('resize', caler);
+      vv.removeEventListener('scroll', caler);
     };
   }, [chatOpen]);
 
@@ -925,14 +954,13 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           setDetailMapStyle={setDetailMapStyle}
           ouvrirImage={() => setIsImageModalOpen(true)}
           onToast={afficherToast}
-          onOuvrirIA={basculerChat}
-          iaDisponible={Boolean(pred)}
         />
         {toast && <div key={toast.n} className="vd-toast" role="status">{toast.texte}</div>}
 
-        {/* Assistant IA : bouton flottant + panneau. Sur téléphone, quand la
-            barre d'action est là, le bouton vit dans cette barre. */}
-        {!(estTelephone && showInvolvementButton) && <button
+        {/* Assistant IA : bouton flottant + panneau. Sur téléphone, le bouton
+            flotte au-dessus de la barre d'action, qui garde toute sa largeur
+            pour « Agir sur ce signalement ». */}
+        <button
           type="button"
           className={`vd-fab ${chatOpen && !chatClosing ? 'is-open' : ''}`}
           onClick={basculerChat}
@@ -942,11 +970,14 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
           <span className="vd-fab-ic vd-fab-msg"><Message size={26} variant="Bold" color="currentColor" /></span>
           <span className="vd-fab-ic vd-fab-x"><CloseCircle size={26} variant="Bold" color="currentColor" /></span>
           {pred && !chatOpen && <span className="vd-fab-dot" aria-hidden="true" />}
-        </button>}
+        </button>
 
-        {chatOpen && estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
-        {chatOpen && (
-          <section className={`vd-chat ${chatClosing ? 'is-closing' : ''}`} aria-label="Assistant IA Map Action">
+        {/* Rendu dans <body> : le panneau, en position fixe, se cale sur l'écran
+            et non sur un conteneur de la fiche, ce qui le décalait sur téléphone. */}
+        {chatOpen && createPortal(<>
+        {estTelephone && <div className="vdm-chat-fond" onClick={fermerChat} aria-hidden="true" />}
+        {(
+          <section ref={refPanneauChat} className={`vd-chat ${chatClosing ? 'is-closing' : ''}`} aria-label="Assistant IA Map Action">
             <header className="vd-chat-head">
               <span className="vd-chat-ai"><MagicStar size={18} variant="Bold" color="currentColor" /></span>
               <div>
@@ -1041,6 +1072,7 @@ export const IncidentDetail = ({ incident, onBack, isLoading = false }) => {
             )}
           </section>
         )}
+        </>, document.body)}
 
         {/* Modal Rejoindre l'action / Inviter des organisations */}
         <InviteOrgModal key={"InviteOrgModalIncident"} />

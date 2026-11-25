@@ -337,6 +337,34 @@
 }
 
 @media (max-width: 640px) {
-  .vd-chat { right: 8px; left: 8px; width: auto; bottom: 84px; height: calc(100vh - 120px); }
   .vd-fab { right: 16px; bottom: 16px; }
+}
+
+/* Sous 1024 px (téléphone, grand téléphone, tablette) : l'assistant couvre
+   tout l'écran, centré, au lieu de la petite fenêtre flottante du bureau.
+   Sa hauteur et sa position suivent la zone visible (--vd-chat-haut et
+   --vd-chat-hauteur, posées par IncidentDetail.jsx), pour rester entier
+   quand le clavier du téléphone s'ouvre. Le :root l'emporte sur les règles
+   propres au téléphone (vue-detail-mobile.css, modales-plein-ecran.css). */
+@media (max-width: 1023.98px) {
+  :root .vd-chat {
+    top: var(--vd-chat-haut, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    height: var(--vd-chat-hauteur, 100dvh);
+    margin: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    transform-origin: bottom center;
+  }
+
+  /* Plein écran : pas de poignée, rien à faire glisser. */
+  :root .vd-chat::before { display: none; }
+
+  .vd-fab.is-open { display: none; }
 }

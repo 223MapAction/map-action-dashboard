@@ -258,9 +258,9 @@ export function useTaches({ incidentId, collaboration, tasksData, mutateTasks })
     }, 10);
   };
 
-  // Ajouter une tâche à la liste temporaire (draft)
-  const addDraftTask = () => {
-    if (!newTaskTitle.trim()) return;
+  // Lit et valide la tâche en cours de saisie. Renvoie null (avec une alerte)
+  // si les dates ne conviennent pas.
+  const tacheDuFormulaire = () => {
     setTaskSubmitAlert(null);
 
     const todayStr = getTodayStr();
@@ -271,7 +271,7 @@ export function useTaches({ incidentId, collaboration, tasksData, mutateTasks })
         type: 'danger',
         message: "La date de début ne peut pas être antérieure à la date d'aujourd'hui."
       });
-      return;
+      return null;
     }
 
     if (newTaskStartDate && newTaskDeadline) {
@@ -281,7 +281,7 @@ export function useTaches({ incidentId, collaboration, tasksData, mutateTasks })
           type: 'danger',
           message: "La date de début ne peut pas être égale à la date de fin."
         });
-        return;
+        return null;
       }
       // Validation 3: Date de début ne peut pas être supérieure à la date de fin
       if (newTaskStartDate > newTaskDeadline) {
@@ -289,17 +289,24 @@ export function useTaches({ incidentId, collaboration, tasksData, mutateTasks })
           type: 'danger',
           message: "La date de début ne peut pas être supérieure à la date de fin."
         });
-        return;
+        return null;
       }
     }
 
-    const task = {
+    return {
       title: newTaskTitle.trim(),
       description: newTaskDescription.trim() || null,
       start_date: newTaskStartDate || null,
       end_date: newTaskDeadline || null,
       assigned_to: null
     };
+  };
+
+  // Ajouter une tâche à la liste temporaire (draft)
+  const addDraftTask = () => {
+    if (!newTaskTitle.trim()) return;
+    const task = tacheDuFormulaire();
+    if (!task) return;
     setDraftTasks([...draftTasks, task]);
     setNewTaskTitle('');
     setNewTaskDescription('');
@@ -307,9 +314,16 @@ export function useTaches({ incidentId, collaboration, tasksData, mutateTasks })
     setNewTaskDeadline('');
   };
 
-  // Créer toutes les tâches draftées dans la base de données via API
+  // Créer les tâches de la liste, plus celle en cours de saisie si elle a un
+  // titre : « Créer la tâche » fonctionne sans passer par « Ajouter ».
   const submitNewTask = async () => {
-    if (draftTasks.length === 0) {
+    let aCreer = draftTasks;
+    if (newTaskTitle.trim()) {
+      const enCours = tacheDuFormulaire();
+      if (!enCours) return;
+      aCreer = [...draftTasks, enCours];
+    }
+    if (aCreer.length === 0) {
       closeTaskModal();
       return;
     }
@@ -320,7 +334,7 @@ export function useTaches({ incidentId, collaboration, tasksData, mutateTasks })
     try {
       // Créer chaque tâche séquentiellement/en parallèle via l'API
       await Promise.all(
-        draftTasks.map(task =>
+        aCreer.map(task =>
           createTaskService(incidentId, {
             title: task.title,
             description: task.description || null,

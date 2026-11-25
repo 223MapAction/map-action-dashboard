@@ -1,0 +1,29 @@
+/* ============================================
+   MENTION DE COPYRIGHT — pied de page global
+   ============================================ */
+
+/* La hauteur n'est réservée que si le pied de page est affiché. */
+:root {
+  --hauteur-copyright: 0px;
+}
+
+:root:has(.mention-copyright) {
+  --hauteur-copyright: 28px;
+}
+
+.mention-copyright {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--hauteur-copyright);
+  padding: 0 16px;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
