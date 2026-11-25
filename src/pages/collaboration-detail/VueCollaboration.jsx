@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft2, Crown1, TickCircle, Gallery, Add,
-  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle, Location, Calendar,
+  MagicStar, Copy, Routing2, Danger, ShieldTick, Lock1, UserAdd, InfoCircle, Location, Calendar, Messages2,
 } from 'iconsax-react';
 import { IS_MAPBOX } from '../../config/mapEngine';
 import { OSM_STYLE, MAPBOX_SATELLITE_STYLE, HAS_SATELLITE_STYLE as HAS_MAPBOX_SATELLITE } from '../../config/mapStyles';
@@ -133,14 +134,41 @@ export const VueCollaboration = ({
     return () => mq.removeEventListener('change', maj);
   }, []);
   // Revenu en grand écran sur l'onglet Discussion : la discussion est déjà à droite.
-  const ongletActif = !etroit && onglet === 'discussion' ? 'taches' : onglet;
+  const ongletActif = (!etroit || estTelephone) && onglet === 'discussion' ? 'taches' : onglet;
 
   const [aideResolution, setAideResolution] = useState(false);
   useEchap(aideResolution, () => setAideResolution(false));
 
+  // Téléphone : la discussion n'est plus un onglet mais un chat flottant,
+  // ouvert en plein écran par-dessus la page.
+  const [chatOuvert, setChatOuvert] = useState(false);
+  useEchap(chatOuvert, () => setChatOuvert(false));
+  // Le chat suit la zone visible : sur iPhone, le clavier la réduit sans
+  // déplacer les éléments fixes, et la saisie finirait sous le clavier.
+  const refChat = useRef(null);
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!chatOuvert || !vv) return undefined;
+    const caler = () => {
+      const el = refChat.current;
+      if (!el) return;
+      el.style.setProperty('--vc-chat-haut', `${Math.round(vv.offsetTop)}px`);
+      el.style.setProperty('--vc-chat-hauteur', `${Math.round(vv.height)}px`);
+    };
+    caler();
+    vv.addEventListener('resize', caler);
+    vv.addEventListener('scroll', caler);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      vv.removeEventListener('resize', caler);
+      vv.removeEventListener('scroll', caler);
+      document.body.style.overflow = '';
+    };
+  }, [chatOuvert]);
+
   const onglets = [
     ['taches', 'Tâches', liste.length || null],
-    ...(etroit ? [['discussion', 'Discussion', estTelephone ? null : (discussion.messages.length || null)]] : []),
+    ...(etroit && !estTelephone ? [['discussion', 'Discussion', discussion.messages.length || null]] : []),
     ...(estTelephone ? [['infos', 'Infos']] : [
       ['signalement', 'Signalement'],
       ['organisations', 'Organisations', organisations.length || null],
@@ -559,6 +587,28 @@ export const VueCollaboration = ({
           </aside>
         )}
       </div>
+
+      {/* Téléphone : bouton de discussion flottant, au-dessus de la barre
+          d'action, qui garde toute sa largeur pour « Nouvelle tâche ». */}
+      {estTelephone && !chatOuvert && (
+        <button
+          type="button"
+          className={`vcm-fab ${!lectureSeule ? 'avec-barre' : ''}`}
+          onClick={() => setChatOuvert(true)}
+          aria-label={`Ouvrir la discussion${discussion.messages.length ? `, ${discussion.messages.length} message${discussion.messages.length > 1 ? 's' : ''}` : ''}`}
+        >
+          <Messages2 size={24} variant="Bold" color="currentColor" />
+          {discussion.messages.length > 0 && (
+            <span className="vcm-fab-n" aria-hidden="true">{discussion.messages.length > 99 ? '99+' : discussion.messages.length}</span>
+          )}
+        </button>
+      )}
+      {estTelephone && chatOuvert && createPortal(
+        <div ref={refChat} className="vcm-chat vc-chat-tab" role="dialog" aria-modal="true" aria-label="Discussion">
+          <Discussion discussion={discussion} lectureSeule={lectureSeule} onRapports={onRapports} onFermer={() => setChatOuvert(false)} />
+        </div>,
+        document.body,
+      )}
 
       {/* Sur l'onglet Discussion, la barre laisserait la saisie dessous. */}
       {estTelephone && !lectureSeule && ongletActif !== 'discussion' && (

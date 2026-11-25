@@ -56,7 +56,11 @@ export const TaskModal = () => {
     addDraftTask();
   };
 
-  const libelleCreer = nbBrouillons > 1 ? `Créer les ${nbBrouillons} tâches` : 'Créer la tâche';
+  // Le bouton principal crée aussi la tâche en cours de saisie : plus besoin
+  // de passer par « Ajouter » pour une tâche seule.
+  const aTitre = Boolean(newTaskTitle.trim());
+  const nbACreer = nbBrouillons + (aTitre ? 1 : 0);
+  const libelleCreer = nbACreer > 1 ? `Créer les ${nbACreer} tâches` : 'Créer la tâche';
 
   return (
     <Dialogue
@@ -71,8 +75,11 @@ export const TaskModal = () => {
           <span className="dg-pied-info">
             {nbOrgs > 1 ? `Visibles par les ${nbOrgs} organisations` : 'Visibles par toutes les organisations de la collaboration'}
           </span>
-          <button type="button" className="dg-btn dg-btn-g" onClick={closeTaskModal} disabled={taskSubmitSaving}>Annuler</button>
-          <button type="button" className="dg-btn dg-btn-p" onClick={submitNewTask} disabled={nbBrouillons === 0 || taskSubmitSaving}>
+          <button type="button" className="dg-btn dg-btn-g tm-annuler" onClick={closeTaskModal} disabled={taskSubmitSaving}>Annuler</button>
+          <button type="submit" form="tm-form" className="dg-btn dg-btn-contour tm-autre" disabled={!aTitre || taskSubmitSaving}>
+            + Ajouter une autre tâche
+          </button>
+          <button type="button" className="dg-btn dg-btn-p" onClick={submitNewTask} disabled={nbACreer === 0 || taskSubmitSaving}>
             {taskSubmitSaving ? <><span className="dg-spin" aria-hidden="true" />Création…</> : libelleCreer}
           </button>
         </>
@@ -87,7 +94,43 @@ export const TaskModal = () => {
         </div>
       )}
 
-      <form onSubmit={ajouter} className="tm-form" noValidate>
+      {nbBrouillons > 0 && (
+        <div className="dg-boite">
+          <div className="dg-boite-tete">
+            <b>Prêtes à créer · {nbBrouillons}</b>
+            <span>Rien n'est enregistré avant de valider</span>
+          </div>
+          <ul className="tm-liste">
+            {draftTasks.map((t, i) => {
+              const jours = ecartJours(t.start_date, t.end_date);
+              return (
+                <li key={`${t.title}-${i}`}>
+                  <span className="tm-point" aria-hidden="true" />
+                  <div>
+                    <b>{t.title}</b>
+                    <span>
+                      {t.start_date ? dateCourte(t.start_date) : 'Sans date'}
+                      {t.end_date && ` → ${dateCourte(t.end_date)}`}
+                      {jours ? ` · ${libelleDuree(jours)}` : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="dg-ico"
+                    onClick={() => setDraftTasks(draftTasks.filter((_, j) => j !== i))}
+                    disabled={taskSubmitSaving}
+                    aria-label={`Retirer « ${t.title} » de la liste`}
+                  >
+                    <IcoCroix />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <form id="tm-form" onSubmit={ajouter} className="tm-form" noValidate>
         <label className="dg-champ">
           Que faut-il faire ?
           <input
@@ -132,48 +175,9 @@ export const TaskModal = () => {
               {libelleDuree(n)}
             </button>
           ))}
-          <span className="dg-espace" />
-          <button type="submit" className="dg-btn dg-btn-contour dg-btn-s" disabled={!newTaskTitle.trim() || taskSubmitSaving}>
-            Ajouter à la liste
-          </button>
         </div>
       </form>
 
-      {nbBrouillons > 0 && (
-        <div className="dg-boite">
-          <div className="dg-boite-tete">
-            <b>Prêtes à créer</b>
-            <span>Rien n'est enregistré avant de valider</span>
-          </div>
-          <ul className="tm-liste">
-            {draftTasks.map((t, i) => {
-              const jours = ecartJours(t.start_date, t.end_date);
-              return (
-                <li key={`${t.title}-${i}`}>
-                  <span className="tm-point" aria-hidden="true" />
-                  <div>
-                    <b>{t.title}</b>
-                    <span>
-                      {t.start_date ? dateCourte(t.start_date) : 'Sans date'}
-                      {t.end_date && ` → ${dateCourte(t.end_date)}`}
-                      {jours ? ` · ${libelleDuree(jours)}` : ''}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="dg-ico"
-                    onClick={() => setDraftTasks(draftTasks.filter((_, j) => j !== i))}
-                    disabled={taskSubmitSaving}
-                    aria-label={`Retirer « ${t.title} » de la liste`}
-                  >
-                    <IcoCroix />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
     </Dialogue>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import {
-  Send2, Paperclip, Microphone, TickCircle, CloseSquare, Edit2, Trash, DocumentText, Messages2,
+  Send2, Paperclip, Microphone, TickCircle, CloseSquare, Edit2, Trash, DocumentText, Messages2, CloseCircle,
 } from 'iconsax-react';
 import { authService } from '../auth/services/authService';
 import { CustomAudioPlayer } from './LecteurAudio';
@@ -31,7 +31,7 @@ const Avatar = ({ msg }) => (
   </span>
 );
 
-export const Discussion = ({ discussion, lectureSeule, onRapports }) => {
+export const Discussion = ({ discussion, lectureSeule, onRapports, onFermer }) => {
   const {
     messages, hasMoreMessages, isLoadingMoreMessages, loadMoreMessages,
     messagesContainerRef, messagesEndRef,
@@ -67,6 +67,12 @@ export const Discussion = ({ discussion, lectureSeule, onRapports }) => {
         <button type="button" className="vd-btn vd-btn-g vd-btn-s" onClick={onRapports}>
           <DocumentText size={14} color="currentColor" />Rapports de terrain
         </button>
+        {/* Sur téléphone, la discussion s'ouvre en plein écran : on la referme ici. */}
+        {onFermer && (
+          <button type="button" className="vc-chat-fermer" onClick={onFermer} aria-label="Fermer la discussion">
+            <CloseCircle size={22} color="currentColor" />
+          </button>
+        )}
       </div>
 
       <div className="vc-chat-list" ref={messagesContainerRef}>

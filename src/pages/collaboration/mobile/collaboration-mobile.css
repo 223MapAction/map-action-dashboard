@@ -165,13 +165,18 @@
      ---------------------------------------------------------- */
   .vc-shell-main { height: 100dvh; }
   .vc-scroll { display: block; background: #F2F4F7; }
-  .vd.vc { max-width: none; }
+  /* Marge basse : la barre « Nouvelle tâche » (76 px + encoche) et le bouton
+     de discussion qui flotte au-dessus (52 px) ne doivent jamais recouvrir la
+     fin du contenu, qui garde 24 px d'air au-dessus du bouton. */
+  .vd.vc { max-width: none; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 168px); }
   .vc .vc-work { display: block; }
   .vc .vc-work-main { gap: 12px; }
 
   /* Même hauteur que la photo de la fiche signalement. */
   .vc .vdm-photo { height: 300px; }
-  .vc .vd-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* Autant de colonnes égales que d'onglets : avec Tâches et Infos, chacun
+     occupe la moitié de la barre, centré, au lieu de deux tiers à gauche. */
+  .vc .vd-tabs { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
   .vc .vc-chat-tab .vc-chat { height: calc(100dvh - 120px); }
   .vcm-resoudre { background: #15803D; }
   .vcm-alerte-lien { width: 100%; min-height: 44px; border: none; border-top: 1px solid rgba(60, 60, 67, 0.2); background: transparent; font: inherit; font-size: 15px; color: #1E78AC; cursor: pointer; }
@@ -201,14 +206,23 @@
   .vc-chat-tab .vc-chat-list { background: #F2F4F7; }
   .vc-chat-tab .vc-bubble { border: none; border-radius: 16px 16px 16px 4px; font-size: 15px; }
   .vc-chat-tab .vc-msg.is-me .vc-bubble { border-radius: 16px 16px 4px 16px; background: #1E78AC; }
-  .vc-chat-tab .vc-field { min-height: 44px; border: none; border-radius: 22px; background: #EEF0F3; font-size: 16px; }
+  /* Zone de saisie compacte : une ligne de 40 px, qui grandit avec le texte.
+     16 px de police : en dessous, iOS zoome sur le champ. */
+  .vc-chat-tab .vc-compose { gap: 6px; padding: 6px 8px; }
+  .vc-chat-tab .vc-compose-row { align-items: flex-end; gap: 4px; }
+  .vc-chat-tab .vc-field { min-height: 40px; max-height: 120px; padding: 8px 14px; border: none; border-radius: 20px; background: #EEF0F3; font-size: 16px; line-height: 24px; }
   .vc-chat-tab .vc-send,
-  .vc-chat-tab .vc-ico-lg { width: 44px; height: 44px; }
+  .vc-chat-tab .vc-ico-lg { width: 40px; height: 40px; }
   .vc-chat-tab .vc-msg-foot .vc-ico { width: 36px; height: 36px; }
 
   /* Fenêtres de la fiche : boutons empilés, le principal au-dessus. */
-  body:has(.vc-shell) .dg-pied { flex-direction: column-reverse; align-items: stretch; }
+  /* nowrap : en colonne, un enfant à flex-basis 100 % (.dg-pied-info) prenait
+     toute la hauteur et renvoyait les boutons dans une 2e colonne, hors écran. */
+  body:has(.vc-shell) .dg-pied { flex-direction: column-reverse; flex-wrap: nowrap; align-items: stretch; }
   body:has(.vc-shell) .dg-pied > * { width: 100%; min-height: 50px; justify-content: center; }
+  body:has(.vc-shell) .dg-pied > .dg-pied-info { flex: none; min-height: 0; text-align: center; }
+  /* La croix de l'en-tête ferme déjà la fenêtre de création. */
+  body:has(.vc-shell) .dg-pied > .tm-annuler { display: none; }
 }
 
 /* ============================================================
@@ -278,4 +292,108 @@
 
 @media (prefers-reduced-motion: reduce) {
   .vlm-feuille { animation: none !important; }
+}
+
+/* ----------------------------------------------------------
+   Détail d'une collaboration sur téléphone : discussion en chat
+   flottant (bouton rond) ouvert en plein écran.
+   ---------------------------------------------------------- */
+.vc-chat-fermer { display: none; }
+
+@media (max-width: 640px) {
+  .vcm-fab {
+    position: fixed;
+    right: 16px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    z-index: 40;
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    background: #1A1C1E;
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 120ms ease;
+  }
+
+  /* Au-dessus de la barre « Nouvelle tâche » (52 px + 12 px de marge haute et basse). */
+  .vcm-fab.avec-barre { bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); }
+  .vcm-fab:active { transform: scale(0.94); }
+  .vcm-fab:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+
+  .vcm-fab-n {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    display: grid;
+    place-items: center;
+    border: 2px solid #F2F4F7;
+    border-radius: 99px;
+    background: #1E78AC;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Plein écran, calé sur la zone visible pour rester entier quand le clavier
+     s'ouvre (--vc-chat-haut et --vc-chat-hauteur, posés par VueCollaboration). */
+  .vcm-chat {
+    position: fixed;
+    top: var(--vc-chat-haut, 0px);
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    height: var(--vc-chat-hauteur, 100dvh);
+    padding-top: env(safe-area-inset-top, 0px);
+    background: #fff;
+    animation: vcm-monte 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .vcm-chat .vc-chat {
+    height: 100%;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .vcm-chat .vc-chat-head { padding: 10px 12px 10px 16px; }
+  .vcm-chat .vc-chat-head h3 { margin-right: auto; font-size: 17px; }
+
+  .vcm-chat .vc-chat-fermer {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    background: #F1F3F6;
+    color: #5B6472;
+    cursor: pointer;
+  }
+
+  .vcm-chat .vc-chat-fermer:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+  /* iPhone : 8 px au-dessus de la barre du geste d'accueil quand elle existe
+     (application installée, Safari barre masquée), et jamais moins de 12 px
+     du bord, y compris quand Safari affiche sa barre d'outils en bas (la
+     marge de sécurité vaut alors 0). */
+  .vcm-chat .vc-chat-ro,
+  .vcm-chat .vc-compose { padding-top: 8px; padding-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px)); }
+  .vcm-chat .vc-chat-list { overscroll-behavior: contain; }
+
+  @keyframes vcm-monte { from { transform: translateY(100%); } }
+}
+
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .vcm-chat { animation: none; }
+  .vcm-fab { transition: none; }
 }
