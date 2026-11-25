@@ -238,3 +238,60 @@
   .og .og-tete .og-btn-p,
   .ag .ag-tete .ag-btn-p { transition: none; }
 }
+
+/* ============================================================
+   Formulaires de création (agent, organisation) sur téléphone :
+   avatar rond centré en tête, nuancier sur une ligne.
+   ============================================================ */
+.af-apercu { display: none; }
+
+@media (max-width: 640px) {
+  /* Avatars ronds partout sur téléphone, comme ceux des agents. */
+  .og-pastille { border-radius: 50%; }
+
+  /* Agent : aperçu de l'avatar (initiales en direct) au-dessus du rôle. */
+  body:has(.agents-layout) .af-apercu {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0 4px;
+    text-align: center;
+  }
+  body:has(.agents-layout) .af-apercu .ag-avatar { margin-bottom: 6px; box-shadow: 0 0 0 4px #fff, 0 4px 14px rgba(15, 23, 42, 0.12); }
+  body:has(.agents-layout) .af-apercu b { max-width: 100%; overflow: hidden; font-size: 17px; font-weight: 600; color: #1A1C1E; white-space: nowrap; text-overflow: ellipsis; }
+  body:has(.agents-layout) .af-apercu small { padding: 2px 10px; border-radius: 99px; background: #E3EFF7; font-size: 12.5px; font-weight: 600; color: #1E78AC; }
+
+  /* Organisation : pastille ronde centrée, bouton logo dessous, nuancier
+     sur une seule ligne. */
+  body:has(.orgs-layout) .of-identite { flex-direction: column; flex-wrap: nowrap; gap: 12px; padding: 4px 0; text-align: center; }
+  body:has(.orgs-layout) .of-identite .og-pastille {
+    width: 88px !important;
+    height: 88px !important;
+    font-size: 30px !important;
+    box-shadow: 0 0 0 4px #fff, 0 4px 14px rgba(15, 23, 42, 0.12);
+  }
+  body:has(.orgs-layout) .of-logo { align-items: center; }
+  body:has(.orgs-layout) .of-logo-actions { justify-content: center; }
+  body:has(.orgs-layout) .of-logo-actions .dg-btn { min-height: 40px; border-radius: 99px; padding: 0 16px; }
+  body:has(.orgs-layout) .of-couleurs { flex-wrap: nowrap; justify-content: center; gap: 8px; margin: 0; }
+  body:has(.orgs-layout) .of-couleurs button {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    min-width: 0;
+    min-height: 0;
+    flex-shrink: 0;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
+  }
+  /* Zone tactile de 44 px autour de chaque pastille de 30 px. */
+  body:has(.orgs-layout) .of-couleurs button::after { content: ''; position: absolute; inset: -7px -4px; }
+  body:has(.orgs-layout) .of-couleurs button.is-on { box-shadow: 0 0 0 2px #1A1C1E; }
+}
+
+@media (max-width: 640px) {
+  body:has(.agents-layout) .af-apercu-vide { background: #E3EFF7; color: #1E78AC; }
+  body:has(.agents-layout) .af-apercu-vide svg { width: 34px; height: 34px; }
+  body:has(.agents-layout) .af-apercu b.is-vide { color: #8A93A0; font-weight: 500; }
+}

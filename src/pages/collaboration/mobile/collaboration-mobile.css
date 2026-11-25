@@ -211,8 +211,50 @@
   .vc-chat-tab .vc-compose { gap: 6px; padding: 6px 8px; }
   .vc-chat-tab .vc-compose-row { align-items: flex-end; gap: 4px; }
   .vc-chat-tab .vc-field { min-height: 40px; max-height: 120px; padding: 8px 14px; border: none; border-radius: 20px; background: #EEF0F3; font-size: 16px; line-height: 24px; }
+  .vc-chat-tab .vc-field:focus,
+  .vc-chat-tab .vc-field:focus-visible { outline: none !important; background: #fff; box-shadow: inset 0 0 0 1.5px #1E78AC; }
+
+  /* Boutons de la zone de saisie : 40 px visibles, 44 px touchables (::after).
+     Hiérarchie : fichier = discret, micro = teinté, envoyer = plein. */
   .vc-chat-tab .vc-send,
-  .vc-chat-tab .vc-ico-lg { width: 40px; height: 40px; }
+  .vc-chat-tab .vc-ico-lg {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 50%;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+  }
+  .vc-chat-tab .vc-send::after,
+  .vc-chat-tab .vc-ico-lg::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; }
+  .vc-chat-tab .vc-send:active:not(:disabled),
+  .vc-chat-tab .vc-ico-lg:active { transform: scale(0.9); }
+  .vc-chat-tab .vc-send:focus-visible,
+  .vc-chat-tab .vc-ico-lg:focus-visible { outline: 2px solid #1E78AC; outline-offset: 2px; }
+
+  .vc-chat-tab .vc-joindre { background: transparent; color: #5B6472; cursor: pointer; }
+  .vc-chat-tab .vc-joindre:active { background: #EEF0F3; color: #1F2937; }
+
+  .vc-chat-tab .vc-send-micro { background: #E3EFF7; color: #1E78AC; }
+  .vc-chat-tab .vc-send-micro:active:not(:disabled) { background: #CFE3F1; }
+
+  .vc-chat-tab .vc-send-envoyer {
+    background: #1E78AC;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(30, 120, 172, 0.32);
+    animation: vcm-envoyer-entre 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .vc-chat-tab .vc-send-envoyer:active:not(:disabled) { background: #18689A; }
+  .vc-chat-tab .vc-send-envoyer svg { transform: translateX(1px); }
+  .vc-chat-tab .vc-send:disabled { opacity: 0.5; box-shadow: none; }
+  @keyframes vcm-envoyer-entre { from { transform: scale(0.6); opacity: 0; } }
+
+  /* Enregistrement : une pastille rouge pâle à la place du champ. */
+  .vc-chat-tab .vc-rec { gap: 10px; min-height: 44px; padding: 2px 2px 2px 14px; border-radius: 22px; background: #FEF2F2; }
+  .vc-chat-tab .vc-rec time { font-size: 15px; font-weight: 600; color: #B91C1C; }
+  .vc-chat-tab .vc-rec .vc-wave i { background: #EF4444; }
   .vc-chat-tab .vc-msg-foot .vc-ico { width: 36px; height: 36px; }
 
   /* Fenêtres de la fiche : boutons empilés, le principal au-dessus. */
@@ -396,4 +438,5 @@
 @media (max-width: 640px) and (prefers-reduced-motion: reduce) {
   .vcm-chat { animation: none; }
   .vcm-fab { transition: none; }
+  .vc-chat-tab .vc-send-envoyer { animation: none; }
 }

@@ -30,7 +30,9 @@
   justify-content: center;
 }
 
-.vc {
+.vc,
+/* Le chat mobile est rendu dans body (portal) : il reprend les jetons de la page. */
+.vcm-chat {
   /* Couleurs de la page, en un seul endroit. index.css n'a pas encore de
      jeton de survol ni de neutres : on les pose ici, sur la page seule. Les
      survols ASSOMBRISSENT l'aplat (--color-primary-dark, plus clair que

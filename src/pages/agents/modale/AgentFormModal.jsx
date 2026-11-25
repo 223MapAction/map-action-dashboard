@@ -12,6 +12,7 @@ import {
 } from '../service/members_service';
 import { authService } from '../../auth/services/authService';
 import { Dialogue } from '../../../components/molecules/Dialogue';
+import { AvatarAgent } from '../components/AgentIdentity';
 
 const PREFIXE = '+223';
 
@@ -108,6 +109,9 @@ const FenetreAgent = () => {
 
   const roleChoisi = watch('role');
   const statutChoisi = watch('status');
+  // Aperçu en direct de l'avatar (initiales) pendant la saisie du nom.
+  const nomApercu = `${watch('firstName') || ''} ${watch('lastName') || ''}`.trim();
+  const roleApercu = ROLES.find((r) => r.id === roleChoisi);
   // Un agent de bureau ne peut pas créer ni nommer un administrateur.
   const rolesProposes = ROLES.filter((r) => !(currentUser?.web_role === 'bureau_agent' && r.id === 'admin'));
   const nbErreurs = Object.keys(errors).length;
@@ -209,6 +213,14 @@ const FenetreAgent = () => {
         )}
 
         <form id="form-agent" className="af-form" noValidate onSubmit={handleSubmit(enregistrer)}>
+          <div className="af-apercu" aria-hidden="true">
+            {nomApercu || agent?.avatar
+              ? <AvatarAgent agent={{ fullName: nomApercu, avatar: agent?.avatar, avatarColor: agent?.avatarColor || '#1E78AC' }} taille={80} />
+              : <span className="ag-avatar af-apercu-vide" style={{ width: 80, height: 80 }}><IcoAgent /></span>}
+            <b className={nomApercu ? '' : 'is-vide'}>{nomApercu || 'Prénom Nom'}</b>
+            {roleApercu && <small>{roleApercu.id === 'admin' ? roleApercu.label : roleApercu.onglet}</small>}
+          </div>
+
           <fieldset className="dg-fieldset">
             <legend>Rôle</legend>
             <div className="af-roles">
