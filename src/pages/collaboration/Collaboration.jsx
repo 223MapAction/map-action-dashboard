@@ -100,7 +100,8 @@ export const Collaboration = () => {
   } = useSidebarState();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  // Téléphone : Mes collaborations (par défaut, sans filtre d'avancement) et À traiter.
+  // Téléphone : pas d'onglets. La vue (Mes collaborations, par défaut, ou
+  // À traiter) se choisit dans la feuille de filtres.
   const ongletTelephone = tabParam === 'atraiter' ? 'atraiter' : 'collaborations';
   const activeTab = estTelephone
     ? (ongletTelephone === 'atraiter' ? 'requests' : 'collaborations')
@@ -475,7 +476,9 @@ export const Collaboration = () => {
   const nbFiltresTelephone = [Boolean(roleFilter), Boolean(incidentFilter), Boolean(dateFrom) || Boolean(dateTo)].filter(Boolean).length;
   const periodeTelephone = { debut: versIso(dateFrom), fin: versIso(dateTo) };
   const setPeriodeTelephone = ({ debut, fin }) => setDateRange([depuisIso(debut), depuisIso(fin)]);
-  const effacerFiltresTelephone = () => { setRoleFilter(''); setIncidentFilter(''); resetDateRange(); };
+  const vueATraiter = ongletTelephone === 'atraiter';
+  const nbFiltresActifsTelephone = vueATraiter ? 1 : nbFiltresTelephone;
+  const effacerFiltresTelephone = () => { setRoleFilter(''); setIncidentFilter(''); resetDateRange(); setActiveTab('collaborations'); };
   const [generationPeriode, setGenerationPeriode] = useState(0);
   const titreSignalementFiltre = incidentFilter ? (incidentsList.find((i) => String(i.id) === String(incidentFilter))?.title || 'Un signalement') : '';
   const totalTelephone = ongletTelephone === 'atraiter'
@@ -534,13 +537,81 @@ export const Collaboration = () => {
                   <SearchNormal1 size={17} color="currentColor" aria-hidden="true" />
                   <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Titre, organisation ou lieu" aria-label="Rechercher une collaboration" />
                 </label>
-                {activeTab === 'collaborations' && (
-                  <button type="button" className={`vlm-filtre ${nbFiltresTelephone ? 'is-on' : ''}`} onClick={() => setFiltresTelephone(true)} aria-label={`Filtres${nbFiltresTelephone ? `, ${nbFiltresTelephone} actif${nbFiltresTelephone > 1 ? 's' : ''}` : ''}`}>
-                    <Filter size={18} color="currentColor" aria-hidden="true" />
-                    {nbFiltresTelephone > 0 && <span className="vlm-filtre-n" aria-hidden="true">{nbFiltresTelephone}</span>}
-                  </button>
-                )}
+                <button type="button" className={`vlm-filtre ${nbFiltresActifsTelephone ? 'is-on' : ''}`} onClick={() => setFiltresTelephone(true)} aria-label={`Filtres${nbFiltresActifsTelephone ? `, ${nbFiltresActifsTelephone} actif${nbFiltresActifsTelephone > 1 ? 's' : ''}` : ''}`}>
+                  <Filter size={18} color="currentColor" aria-hidden="true" />
+                  {nbFiltresActifsTelephone > 0 && <span className="vlm-filtre-n" aria-hidden="true">{nbFiltresActifsTelephone}</span>}
+                </button>
               </div>
+            )}
+
+            {estTelephone && vueATraiter && (
+              <div className="sgm-resume vlm-resume">
+                <button type="button" className="sgm-puce" onClick={() => setActiveTab('collaborations')} aria-label="Revenir à Mes collaborations">
+                  {nbATraiter ? `À traiter · ${nbATraiter}` : 'À traiter'}<i aria-hidden="true">×</i>
+                </button>
+              </div>
+            )}
+
+            {/* Feuille de filtres du téléphone : choix de la vue, puis filtres
+                de Mes collaborations. */}
+            {estTelephone && filtresTelephone && (
+              <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresTelephone(false)}>
+                <header className="sgm-filtres-tete">
+                  <button type="button" className="sgm-lien" onClick={() => { effacerFiltresTelephone(); setGenerationPeriode((g) => g + 1); }}>Tout effacer</button>
+                  <h2>Filtres</h2>
+                  <button type="button" className="sgm-fermer" onClick={() => setFiltresTelephone(false)} aria-label="Fermer les filtres">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                  </button>
+                </header>
+                <div className="sgm-filtres-corps vlm-filtres-corps">
+                  <div>
+                    <h3 id="vlm-titre-vue">Afficher</h3>
+                    <div className="sgm-segs" role="radiogroup" aria-labelledby="vlm-titre-vue">
+                      <button type="button" role="radio" aria-checked={!vueATraiter} onClick={() => setActiveTab('collaborations')}>Mes collaborations</button>
+                      <button type="button" role="radio" aria-checked={vueATraiter} onClick={() => setActiveTab('atraiter')}>
+                        {nbATraiter ? `À traiter · ${nbATraiter}` : 'À traiter'}
+                      </button>
+                    </div>
+                  </div>
+                  {!vueATraiter && <>
+                  <div>
+                    <h3 id="vlm-titre-role">Mon rôle</h3>
+                    <div className="sgm-segs" role="radiogroup" aria-labelledby="vlm-titre-role">
+                      {[['', 'Tous'], ['leader', 'Leader'], ['contributor', 'Contributeur'], ['observer', 'Observateur']].map(([cle, libelle]) => (
+                        <button key={cle || 'tous'} type="button" role="radio" aria-checked={roleFilter === cle} onClick={() => setRoleFilter(cle)}>{libelle}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 id="vlm-titre-signalement">Signalement</h3>
+                    <select
+                      className="vlm-select"
+                      value={incidentFilter}
+                      onChange={(e) => setIncidentFilter(e.target.value)}
+                      onMouseDown={() => setListeSignalementsDemandee(true)}
+                      onFocus={() => setListeSignalementsDemandee(true)}
+                      aria-labelledby="vlm-titre-signalement"
+                      aria-busy={chargementListeSignalements}
+                    >
+                      <option value="">Tous les signalements</option>
+                      {chargementListeSignalements && <option value="" disabled>Chargement des signalements...</option>}
+                      {incidentsList.map((inc) => <option key={inc.id} value={inc.id}>{inc.title}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <h3 id="vlm-titre-periode">Période</h3>
+                    <ChoixPeriode key={generationPeriode} periode={periodeTelephone} setPeriode={setPeriodeTelephone} idTitre="vlm-titre-periode" />
+                  </div>
+                  </>}
+                </div>
+                <footer className="sgm-filtres-pied">
+                  <button type="button" className="sgm-voir" onClick={() => setFiltresTelephone(false)}>
+                    {vueATraiter
+                      ? 'Voir les demandes à traiter'
+                      : isLoading ? 'Voir les collaborations' : `Voir ${nbTotal.toLocaleString('fr-FR')} collaboration${nbTotal > 1 ? 's' : ''}`}
+                  </button>
+                </footer>
+              </FeuilleBasse>
             )}
 
             {estTelephone && activeTab === 'collaborations' && nbFiltresTelephone > 0 && (
@@ -563,16 +634,14 @@ export const Collaboration = () => {
               </div>
             )}
 
-            <nav className="vd-tabs vl-tabs" role="tablist" aria-label="Sections">
-              {(estTelephone ? [
-                ['collaborations', 'Mes collaborations'],
-                ['atraiter', nbATraiter ? `À traiter · ${nbATraiter}` : 'À traiter'],
-              ] : [
+            {/* Pas d'onglets sur téléphone : la page n'affiche que Mes collaborations. */}
+            {!estTelephone && <nav className="vd-tabs vl-tabs" role="tablist" aria-label="Sections">
+              {[
                 ['collaborations', 'Mes collaborations', activeTab === 'collaborations' && !isLoading ? nbTotal : null],
                 ['requests', 'Demandes'],
                 ['suggestions', 'Suggestions'],
-              ]).map(([cle, libelle, n]) => {
-                const actif = estTelephone ? ongletTelephone === cle : activeTab === cle;
+              ].map(([cle, libelle, n]) => {
+                const actif = activeTab === cle;
                 return (
                   <button
                     key={cle}
@@ -587,7 +656,7 @@ export const Collaboration = () => {
                   </button>
                 );
               })}
-            </nav>
+            </nav>}
 
             {activeTab === 'collaborations' ? (
               <>
@@ -596,56 +665,7 @@ export const Collaboration = () => {
                     « Tous », une croix sur la periode) ; un bouton qui les
                     remet TOUS a zero d'un coup ne fait que reinitialiser par
                     erreur ce qu'on venait de choisir expres. */}
-                {estTelephone ? (
-                  <>
-                    {filtresTelephone && (
-                      <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresTelephone(false)}>
-                        <header className="sgm-filtres-tete">
-                          <button type="button" className="sgm-lien" onClick={() => { effacerFiltresTelephone(); setGenerationPeriode((g) => g + 1); }}>Tout effacer</button>
-                          <h2>Filtres</h2>
-                          <button type="button" className="sgm-fermer" onClick={() => setFiltresTelephone(false)} aria-label="Fermer les filtres">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-                          </button>
-                        </header>
-                        <div className="sgm-filtres-corps vlm-filtres-corps">
-                          <div>
-                            <h3 id="vlm-titre-role">Mon rôle</h3>
-                            <div className="sgm-segs" role="radiogroup" aria-labelledby="vlm-titre-role">
-                              {[['', 'Tous'], ['leader', 'Leader'], ['contributor', 'Contributeur'], ['observer', 'Observateur']].map(([cle, libelle]) => (
-                                <button key={cle || 'tous'} type="button" role="radio" aria-checked={roleFilter === cle} onClick={() => setRoleFilter(cle)}>{libelle}</button>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <h3 id="vlm-titre-signalement">Signalement</h3>
-                            <select
-                              className="vlm-select"
-                              value={incidentFilter}
-                              onChange={(e) => setIncidentFilter(e.target.value)}
-                              onMouseDown={() => setListeSignalementsDemandee(true)}
-                              onFocus={() => setListeSignalementsDemandee(true)}
-                              aria-labelledby="vlm-titre-signalement"
-                              aria-busy={chargementListeSignalements}
-                            >
-                              <option value="">Tous les signalements</option>
-                              {chargementListeSignalements && <option value="" disabled>Chargement des signalements...</option>}
-                              {incidentsList.map((inc) => <option key={inc.id} value={inc.id}>{inc.title}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <h3 id="vlm-titre-periode">Période</h3>
-                            <ChoixPeriode key={generationPeriode} periode={periodeTelephone} setPeriode={setPeriodeTelephone} idTitre="vlm-titre-periode" />
-                          </div>
-                        </div>
-                        <footer className="sgm-filtres-pied">
-                          <button type="button" className="sgm-voir" onClick={() => setFiltresTelephone(false)}>
-                            {isLoading ? 'Voir les collaborations' : `Voir ${nbTotal.toLocaleString('fr-FR')} collaboration${nbTotal > 1 ? 's' : ''}`}
-                          </button>
-                        </footer>
-                      </FeuilleBasse>
-                    )}
-                  </>
-                ) : (
+                {!estTelephone && (
                 <div className="collab-filtres-fixes">
                   <FiltersBar
                     recherche={searchInput}
