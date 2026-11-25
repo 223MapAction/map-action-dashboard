@@ -488,7 +488,7 @@ export const Agents = () => {
         )}
 
         {filtresOuverts && (
-          <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
+          <FeuilleBasse ariaLabel="Filtres" croix={false} onClose={() => setFiltresOuverts(false)}>
             <header className="sgm-filtres-tete">
               <button type="button" className="sgm-lien" onClick={effacerFiltres}>Tout effacer</button>
               <h2>Filtres</h2>

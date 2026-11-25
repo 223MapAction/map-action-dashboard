@@ -656,28 +656,31 @@ export const Organisations = () => {
         )}
 
         {filtresOuverts && (
-          <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
-            <div className="vlm-filtres-tete">
-              <button type="button" onClick={() => { setSectorFilter(''); setTypeFilter(''); }}>Tout effacer</button>
-              <b>Filtres</b>
-              <button type="button" onClick={() => setFiltresOuverts(false)}>Terminé</button>
+          <FeuilleBasse ariaLabel="Filtres" croix={false} onClose={() => setFiltresOuverts(false)}>
+            <header className="sgm-filtres-tete">
+              <button type="button" className="sgm-lien" onClick={() => { setSectorFilter(''); setTypeFilter(''); }} disabled={!sectorFilter && !typeFilter}>Tout effacer</button>
+              <h2>Filtres</h2>
+              <button type="button" className="sgm-fermer" onClick={() => setFiltresOuverts(false)} aria-label="Fermer les filtres">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </header>
+            <div className="sgm-filtres-corps vlm-filtres-corps">
+              {[['og-titre-secteur', 'Secteur', SECTORS, sectorFilter, setSectorFilter], ['og-titre-type', 'Type', TYPES, typeFilter, setTypeFilter]].map(([id, titre, options, valeur, changer]) => (
+                <div key={id}>
+                  <h3 id={id}>{titre}</h3>
+                  <div className="sgm-segs og-choix" role="radiogroup" aria-labelledby={id}>
+                    {[{ en: '', fr: 'Tous' }, ...options].map((o) => (
+                      <button key={o.en || 'tous'} type="button" role="radio" aria-checked={valeur === o.en} onClick={() => changer(o.en)}>{o.fr}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="vlm-filtres">
-              <label className="vlm-champ">
-                Secteur
-                <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)}>
-                  <option value="">Tous</option>
-                  {SECTORS.map((o) => <option key={o.en} value={o.en}>{o.fr}</option>)}
-                </select>
-              </label>
-              <label className="vlm-champ">
-                Type
-                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                  <option value="">Tous</option>
-                  {TYPES.map((o) => <option key={o.en} value={o.en}>{o.fr}</option>)}
-                </select>
-              </label>
-            </div>
+            <footer className="sgm-filtres-pied">
+              <button type="button" className="sgm-voir" onClick={() => setFiltresOuverts(false)}>
+                {swrLoading ? 'Voir les organisations' : `Voir ${nombreFr(total)} organisation${total > 1 ? 's' : ''}`}
+              </button>
+            </footer>
           </FeuilleBasse>
         )}
 

@@ -440,3 +440,24 @@
   .vcm-fab { transition: none; }
   .vc-chat-tab .vc-send-envoyer { animation: none; }
 }
+
+/* Feuilles en plein écran (modales-plein-ecran.css) : la poignée n'a plus
+   de sens, la croix en haut à droite ferme la feuille comme les dialogues. */
+@media (max-width: 640px) {
+  .vlm-feuille > .vlm-poignee { display: none; }
+  .vlm-feuille-barre { position: sticky; top: 0; z-index: 2; flex-shrink: 0; display: flex; justify-content: flex-end; padding: 8px 8px 0; pointer-events: none; }
+  .vlm-feuille-barre .vlm-fermer { pointer-events: auto; }
+  .vlm-fermer { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: none; border-radius: 12px; background: #E4E7EC; color: #3F4650; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.15s ease, transform 0.12s ease; }
+  .vlm-fermer:active { background: #D5DAE1; transform: scale(0.94); }
+  .vlm-fermer:focus-visible { outline: 2px solid #1E78AC; outline-offset: 2px; }
+  /* La première ligne du contenu remonte à côté de la croix. */
+  .vlm-feuille-barre + * { margin-top: -44px; }
+  .vlm-feuille-barre + .anm-fiche .anm-fiche-tete,
+  .vlm-feuille-barre + .vlm-regles > h2 { padding-right: 56px; }
+}
+
+@media (max-width: 640px) {
+  /* Feuille de filtres en plein écran : l'en-tête (Tout effacer, croix)
+     reste en haut pendant le défilement, le bouton Voir reste en bas. */
+  .vlm-feuille > .sgm-filtres-tete { position: sticky; top: 0; z-index: 2; background: #F2F4F7; }
+}

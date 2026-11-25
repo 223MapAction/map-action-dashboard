@@ -555,7 +555,7 @@ export const Collaboration = () => {
             {/* Feuille de filtres du téléphone : choix de la vue, puis filtres
                 de Mes collaborations. */}
             {estTelephone && filtresTelephone && (
-              <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresTelephone(false)}>
+              <FeuilleBasse ariaLabel="Filtres" croix={false} onClose={() => setFiltresTelephone(false)}>
                 <header className="sgm-filtres-tete">
                   <button type="button" className="sgm-lien" onClick={() => { effacerFiltresTelephone(); setGenerationPeriode((g) => g + 1); }}>Tout effacer</button>
                   <h2>Filtres</h2>

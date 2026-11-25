@@ -10,9 +10,11 @@ import './collaboration-mobile.css';
  *
  * @param {string} ariaLabel
  * @param {() => void} onClose
+ * @param {boolean} [croix=true]  bouton Fermer en haut à droite. À couper
+ *   quand le contenu a déjà sa propre barre de fermeture (filtres).
  * @param {React.ReactNode} children
  */
-export const FeuilleBasse = ({ ariaLabel, onClose, children }) => {
+export const FeuilleBasse = ({ ariaLabel, onClose, croix = true, children }) => {
   const fenetreRef = useRef(null);
 
   useEffect(() => {
@@ -26,6 +28,15 @@ export const FeuilleBasse = ({ ariaLabel, onClose, children }) => {
       <EscapeToClose onClose={onClose} />
       <section ref={fenetreRef} className="vlm-feuille" role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1}>
         <span className="vlm-poignee" aria-hidden="true" />
+        {/* En plein écran, le fond n'est plus visible : sans cette croix,
+            rien ne permettrait de refermer la feuille au doigt. */}
+        {croix && (
+          <div className="vlm-feuille-barre">
+            <button type="button" className="vlm-fermer" onClick={onClose} aria-label="Fermer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </div>
+        )}
         {children}
       </section>
     </div>,

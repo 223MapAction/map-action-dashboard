@@ -607,7 +607,7 @@ export const Impact = () => {
       </div>
 
       {filtresOuverts && (
-        <FeuilleBasse ariaLabel="Filtres" onClose={() => setFiltresOuverts(false)}>
+        <FeuilleBasse ariaLabel="Filtres" croix={false} onClose={() => setFiltresOuverts(false)}>
           <div className="vlm-filtres-tete">
             <button type="button" onClick={() => setPeriode('all')}>Tout effacer</button>
             <b>Filtres</b>
