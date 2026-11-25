@@ -17,6 +17,7 @@
      ça, la recherche ne pouvait pas se coller : un élément collant ne sort
      jamais de son parent, et l'en-tête ne fait que sa propre hauteur. */
   .mi .mi-entete { display: contents; }
+  .mi .mi-entete > * { flex-shrink: 0; }
   .mi .mi-tete { order: 0; margin: 0; }
   .mi .mi-tete h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.025em; }
   .mi .mi-tete p { display: none; }
