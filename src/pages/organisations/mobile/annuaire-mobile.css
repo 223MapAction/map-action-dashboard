@@ -155,23 +155,21 @@
   .og-toast,
   .ag-toast { bottom: calc(var(--am-tabbar-h, 0px) + 16px) !important; }
 
-  /* Formulaires : feuille haute, Annuler en haut à gauche. */
+  /* Formulaires : plein écran (modales-plein-ecran.css), fermeture par la
+     croix en haut à droite comme les autres fenêtres. */
   body:has(.orgs-layout) .dg:not(.dg-pile),
-  body:has(.agents-layout) .dg:not(.dg-pile) {
-    position: relative;
-    height: calc(100dvh - env(safe-area-inset-top, 0px) - 50px);
-    max-height: none;
-    background: #F2F4F7;
-  }
+  body:has(.agents-layout) .dg:not(.dg-pile) { background: #F2F4F7; }
 
+  body:has(.orgs-layout) .dg:not(.dg-pile) .dg-poignee,
+  body:has(.agents-layout) .dg:not(.dg-pile) .dg-poignee { display: none; }
   body:has(.orgs-layout) .dg:not(.dg-pile) .dg-tete,
-  body:has(.agents-layout) .dg:not(.dg-pile) .dg-tete { display: block; padding: 8px 84px; text-align: center; }
-  body:has(.orgs-layout) .dg:not(.dg-pile) .dg-fermer,
-  body:has(.agents-layout) .dg:not(.dg-pile) .dg-fermer { display: none; }
+  body:has(.agents-layout) .dg:not(.dg-pile) .dg-tete { padding: 10px 8px 10px 16px; border-bottom: 1px solid #E4E7EC; background: #fff; }
   body:has(.orgs-layout) .dg:not(.dg-pile) .dg-titres h2,
   body:has(.agents-layout) .dg:not(.dg-pile) .dg-titres h2 { font-size: 17px; font-weight: 600; }
   body:has(.orgs-layout) .dg:not(.dg-pile) .dg-titres p,
   body:has(.agents-layout) .dg:not(.dg-pile) .dg-titres p { margin: 0; overflow: hidden; font-size: 12.5px; color: #5B6472; white-space: nowrap; text-overflow: ellipsis; }
+  body:has(.orgs-layout) .dg:not(.dg-pile) .dg-corps,
+  body:has(.agents-layout) .dg:not(.dg-pile) .dg-corps { padding-top: 16px; }
 
   body:has(.orgs-layout) .dg:not(.dg-pile) .dg-pied,
   body:has(.agents-layout) .dg:not(.dg-pile) .dg-pied { display: block; background: #F2F4F7; }
@@ -179,20 +177,9 @@
   body:has(.agents-layout) .dg:not(.dg-pile) .dg-pied .dg-btn-p { width: 100%; min-height: 52px; border-radius: 14px; background: #1E78AC; font-size: 16px; }
   body:has(.orgs-layout) .dg:not(.dg-pile) .dg-pied-info,
   body:has(.agents-layout) .dg:not(.dg-pile) .dg-pied-info { justify-content: center; margin-bottom: 8px; }
-
+  /* La croix ferme déjà la fenêtre : pas de second bouton Annuler. */
   body:has(.orgs-layout) .dg:not(.dg-pile) .dg-pied .dg-btn-g,
-  body:has(.agents-layout) .dg:not(.dg-pile) .dg-pied .dg-btn-g {
-    position: absolute;
-    top: 14px;
-    left: 8px;
-    min-height: 44px;
-    padding: 0 8px;
-    border: none;
-    background: none;
-    font-size: 16px;
-    font-weight: 400;
-    color: #1E78AC;
-  }
+  body:has(.agents-layout) .dg:not(.dg-pile) .dg-pied .dg-btn-g { display: none; }
 
   body:has(.orgs-layout) .of-nom,
   body:has(.orgs-layout) .of-grille3,
@@ -294,4 +281,18 @@
   body:has(.agents-layout) .af-apercu-vide { background: #E3EFF7; color: #1E78AC; }
   body:has(.agents-layout) .af-apercu-vide svg { width: 34px; height: 34px; }
   body:has(.agents-layout) .af-apercu b.is-vide { color: #8A93A0; font-weight: 500; }
+}
+
+@media (max-width: 640px) {
+  /* Statut Actif / Inactif : contrôle segmenté lisible sur le fond gris. */
+  body:has(.agents-layout) .dg .af-statut { width: 100%; height: 48px; padding: 3px; border-radius: 12px; background: #E4E7EC; }
+  body:has(.agents-layout) .dg .af-statut label { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; margin: 0; border-radius: 9px; font-size: 15px; text-align: center; }
+  body:has(.agents-layout) .dg .af-statut label.is-on { background: #fff; color: #1A1C1E; }
+}
+
+@media (max-width: 640px) {
+  /* Filtres Organisations : libellés longs (« Organisation internationale »)
+     sur deux lignes au besoin, centrés dans leur case. */
+  .og-choix button { padding: 8px 10px; line-height: 1.25; text-align: center; text-wrap: balance; }
+  .sgm-filtres-tete .sgm-lien:disabled { color: #A3ABB6; cursor: default; }
 }
